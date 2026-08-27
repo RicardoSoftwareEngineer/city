@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadMark, beginLoad } from '../engine/loadLog.js';
+import { yieldToMain } from './yield.js';
 
 const gltfLoader = new GLTFLoader();
 const inflight = new Map();
@@ -69,29 +70,66 @@ function prepareModel(root, keepVertexColors = false, useLambert = false) {
  * Load a GLTF/GLB model. Returns the scene root (Object3D).
  * Returns null on failure so callers can safely check with `if (model)`.
  */
+function stripGltfTextures(json) {
+  json.images = [];
+  json.textures = [];
+  for (const material of json.materials || []) {
+    const pbr = material.pbrMetallicRoughness;
+    if (pbr) {
+      delete pbr.baseColorTexture;
+      delete pbr.metallicRoughnessTexture;
+    }
+    delete material.normalTexture;
+    delete material.occlusionTexture;
+    delete material.emissiveTexture;
+  }
+}
+
+function finishGltf(url, gltf, keepVertexColors, useLambert) {
+  beginLoad('gltf:parse', url);
+  const t0 = performance.now();
+  const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors, useLambert);
+  loadMark('gltf:parse', url, performance.now() - t0);
+  return root;
+}
+
+function loadGltfPayload(url, keepVertexColors, useLambert) {
+  if (!useLambert) {
+    return new Promise((resolve) => {
+      gltfLoader.load(
+        url,
+        (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, false)),
+        undefined,
+        () => resolve(null)
+      );
+    });
+  }
+
+  const dir = url.slice(0, url.lastIndexOf('/') + 1);
+  return fetch(url)
+    .then((r) => r.json())
+    .then(async (json) => {
+      stripGltfTextures(json);
+      await yieldToMain();
+      return new Promise((resolve) => {
+        gltfLoader.parse(
+          json,
+          dir,
+          (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, true)),
+          () => resolve(null)
+        );
+      });
+    })
+    .catch(() => null);
+}
+
 export function loadGltf(url, options = {}) {
   const keepVertexColors = options.keepVertexColors === true;
   const useLambert = options.useLambert === true;
   const key = cacheKey(url, keepVertexColors, useLambert);
 
   if (!inflight.has(key)) {
-    inflight.set(
-      key,
-      new Promise((resolve) => {
-        gltfLoader.load(
-          url,
-          (gltf) => {
-            beginLoad('gltf:parse', url);
-            const t0 = performance.now();
-            const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors, useLambert);
-            loadMark('gltf:parse', url, performance.now() - t0);
-            resolve(root);
-          },
-          undefined,
-          () => resolve(null)
-        );
-      })
-    );
+    inflight.set(key, loadGltfPayload(url, keepVertexColors, useLambert));
   }
 
   return inflight.get(key).then((root) => {

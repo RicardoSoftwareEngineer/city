@@ -45,6 +45,24 @@ export function gridStreetCoords() {
   return Array.from({ length: GRID_STREET_COUNT }, (_, i) => i * GRID_PITCH);
 }
 
+/** Outer playable AABB. Past sidewalk (9 m) and the SW edge curve (−21). */
+export const CITY_BOUND_PAD = 24;
+
+export function cityBounds() {
+  const last = (GRID_STREET_COUNT - 1) * GRID_PITCH;
+  return {
+    minX: -CITY_BOUND_PAD,
+    maxX: last + CITY_BOUND_PAD,
+    minZ: -CITY_BOUND_PAD,
+    maxZ: last + CITY_BOUND_PAD
+  };
+}
+
+export function isInsideCity(x, z) {
+  const b = cityBounds();
+  return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+}
+
 // ── Physics ────────────────────────────────────────────────────────────────
 export const GROUND_BODY_HALF   = 300;   // Physics ground half-extent
 export const GROUND_BODY_DEPTH  = 5;     // Physics ground half-height (box)

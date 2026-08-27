@@ -20,6 +20,7 @@ import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopHitches, getLoadPhase, setLoadPhase } from './engine/loadLog.js';
 import { waitUntilSmooth } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
+import { isInsideCity } from './world/RoadDimensions.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -56,6 +57,9 @@ async function startGame() {
 
   if (saved) {
     vehicleController.applyPose(saved.car);
+    if (!isInsideCity(saved.car.x, saved.car.z)) {
+      vehicleController.resetPosition();
+    }
     porscheModel.chassisGroup.position.copy(vehicleController.chassisBody.position);
     porscheModel.chassisGroup.quaternion.copy(vehicleController.chassisBody.quaternion);
     mouse.applyState(saved.camera);

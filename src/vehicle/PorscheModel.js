@@ -138,17 +138,24 @@ export class PorscheModel {
   }
 
   /**
-   * Update visual wheel rotation and steering each frame.
+   * Apply cannon-es wheel transforms. `wheels` is FL, FR, RL, RR.
+   * Spin uses one sign for all four: right glTF meshes are scale.x = -1,
+   * but rotation is on the unscaled spinPivot parent.
+   * cannon-es uses m = -1 on Y-up, so rotation.x = -info.rotation
+   * makes the tire top move with car forward.
    */
-  updateWheels(steerAngle, spinAngle) {
-    for (const pivot of Object.values(this.wheelPivots)) {
-      if (!pivot) continue;
+  updateWheels(wheels) {
+    const keys = ['frontLeft', 'frontRight', 'rearLeft', 'rearRight'];
+    for (let i = 0; i < keys.length; i++) {
+      const pivot = this.wheelPivots[keys[i]];
+      const info = wheels[i];
+      if (!pivot || !info) continue;
 
       if (pivot.isFront && pivot.steerPivot) {
-        pivot.steerPivot.rotation.y = steerAngle;
+        pivot.steerPivot.rotation.y = info.steering;
       }
       if (pivot.spinPivot) {
-        pivot.spinPivot.rotation.x = pivot.isRight ? -spinAngle : spinAngle;
+        pivot.spinPivot.rotation.x = -info.rotation;
       }
     }
   }

@@ -136,6 +136,10 @@ export class Renderer {
   /**
    * Compile each Mesh/InstancedMesh under root that is not yet compiled.
    * Pause the game-loop draw so 8 new programs cannot land in one render().
+   * First arg is the mesh (never the whole scene). targetScene is this.scene
+   * so lights match the real draw — compile(mesh, camera) without lights
+   * left first render() to compile 9–13 programs (bank:total +9prog,
+   * Street_TIntersection +13prog).
    */
   async compileSubtree(root) {
     if (!root) return;
@@ -151,7 +155,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera);
+      this.renderer.compile(object, this.camera, this.scene);
       object.userData._gpuCompiled = true;
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await yieldToMain();

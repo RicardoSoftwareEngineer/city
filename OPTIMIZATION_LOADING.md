@@ -140,7 +140,8 @@ Treat these as **scheduler** problems first:
 | `LOAD stream ring 10 prio 2` +8prog still ~3.7s after yields | `parentGroup.add(bankGroup)` dumped every new program into one `render()` | Pause draw, `compile` each new Mesh/InstancedMesh (`compileSubtree`), then unpause |
 | `LOAD stream ring 10 prio 0` +13prog ~2.5s | First street `reveal()` dumped 13 programs into one `render()` | Same pause + `compileSubtree` after each ring's grower reveal (WorldStream) |
 | `LOAD stream ring 10 prio 2` +8prog 6880ms after sliced compile | `scheduler.yield` did not wait for rAF; 8 compiles in one frame | `yieldToMain` is rAF-only |
-| `LOAD stream ring 10 prio 2` +2prog ~4s and prio 0 +13prog ~2s after Lambert | compile of every new mesh ran after the whole ring reveal / whole bank add | `compileSubtree` after **each** url job reveal and **each** bank glTF; `compile(mesh, camera)` without the full scene as targetScene |
+| `LOAD stream ring 10 prio 2` +2prog ~4s and prio 0 +13prog ~2s after Lambert | compile of every new mesh ran after the whole ring reveal / whole bank add | `compileSubtree` after **each** url job reveal and **each** bank glTF |
+| `MAP bank:total +9prog` / `gltf:parse Street_TIntersection +13prog` ~4s | `compile(mesh, camera)` without lights; first `render()` compiled the real programs | `compile(mesh, camera, scene)` — mesh is the graph, scene is lights only. Never `compile(scene)` as the first arg |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { loadGltf } from './AssetLoader.js';
 import { prepareInteriors } from './buildings/interiors.js';
 import { addInstancedGltfAsync } from './instancing.js';
-import { yieldToMain } from './yield.js';
+import { waitIfSlow, waitUntilSmooth, yieldAfterWork } from './yield.js';
 import { loadMark } from '../engine/loadLog.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
 
@@ -139,13 +139,16 @@ export class BankBuilding {
     const bankGroup = new THREE.Group();
     bankGroup.name = 'BankBuilding';
 
+    await waitUntilSmooth(40);
     for (const key of Object.keys(ASSET_PATHS)) {
       if (!poses[key].length) continue;
+      await waitIfSlow();
       const template = await loadGltf(ASSET_PATHS[key], CAST_KEYS.has(key) ? castOpts() : noCastOpts());
-      await yieldToMain();
+      await yieldAfterWork();
       if (!template) continue;
       if (INTERIOR_KEYS.includes(key)) {
         await prepareInteriors(template, INTERIOR_KEYS.indexOf(key) % 2);
+        await yieldAfterWork();
       }
       await addInstancedGltfAsync(
         bankGroup,
@@ -153,6 +156,7 @@ export class BankBuilding {
         poses[key],
         CAST_KEYS.has(key) ? castOpts() : noCastOpts()
       );
+      await yieldAfterWork();
     }
 
     parentGroup.add(bankGroup);

@@ -1,7 +1,9 @@
 import { loadGovernor } from '../engine/LoadGovernor.js';
 
 export function yieldToMain() {
-  if (globalThis.scheduler?.yield) return globalThis.scheduler.yield();
+  // Always rAF. scheduler.yield() in Chrome returns before the next paint,
+  // so compileSubtree + waitIfSlow packed 8 GL programs into one GameLoop
+  // frame (6880ms ring 10 prio 2 +8prog).
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });

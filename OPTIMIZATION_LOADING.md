@@ -145,6 +145,7 @@ Treat these as **scheduler** problems first:
 | `LOAD stream ring 10 prio 0` +13prog ~4s after lights compile | `compile()` returns before the driver finishes; first `render()` waited on 13 programs | `compileAsync` per mesh (still not `compileAsync(scene)`); wait until `isReady` then yield |
 | `MAP bank:total BankBuilding` ~4s, 0 +prog after compileAsync | Pause-draw wrapped the whole bank; first `render()` uploaded every kit at once | After each kit: `resumeDraw` + `yieldToMain` + `pauseDraw` so first draw is one glTF |
 | `gpu compile inst Cube017_3` 3–6s (Trim_FirstFloor_Window) | `compile(mesh, camera, scene)` `traverseVisible` of the whole city for two lights | `targetScene` is a probe with fog + cloned lights only |
+| `LOAD stream ring 10 prio 0` +13prog ~4s after per-kit bank draw | Pause-draw wrapped the whole priority; first `render()` compiled 13 street/tree programs | After each url/template job: `resumeDraw` + `yieldToMain` + `pauseDraw` (same as bank kits) |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

@@ -45,7 +45,7 @@ async function startGame() {
   const originZ = saved?.car?.z ?? 4.0;
 
   const porscheModel = new PorscheModel();
-  const stream = createCityStream(cityGroup, physicsWorld, originX, originZ);
+  const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
 
   await porscheModel.load();
   renderer.scene.add(porscheModel.chassisGroup);

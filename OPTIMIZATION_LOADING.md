@@ -137,6 +137,7 @@ Treat these as **scheduler** problems first:
 | `draw:1000ms+` · 300–400 calls · **0 +prog** · carga 100 batch 32 | Stream sprinting; scene too fat for one frame | `streaming` cap batch/chunk 8 |
 | `[hitch] after: gltf:parse X` | Parse then GPU | `waitIfSlow` before next URL; do not parse many unique streets in one ring without yield |
 | `LOAD stream ring 10 prio 2` +Nprog | Bank task parsed 21 unique kit glTFs in one slice | `waitUntilSmooth` before bank; `waitIfSlow` + `yieldAfterWork` between each bank URL (same as street `urlJobs`) |
+| `LOAD stream ring 10 prio 2` +8prog still ~3.7s after yields | `parentGroup.add(bankGroup)` dumped every new program into one `render()` | Pause draw, `compile` each new Mesh/InstancedMesh (`compileSubtree`), then unpause |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

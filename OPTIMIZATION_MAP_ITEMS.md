@@ -56,6 +56,8 @@ Log: `instancer {meshName} x{capacity}`.
 
 Repeated tiles (asphalt, sidewalks, stripes) are pose lists + one glTF. Unique curves (`Street_Curve_4Lane_Long_Curb.gltf`, `Street_Curve_4LaneShort.gltf`) still **parse once** but first GPU upload of that geometry is expensive — unique heavy streets are map-item candidates (simpler mesh, or merge at authoring time).
 
+Ground jobs (`groundOpts()`, including `Street_TIntersection`) use **MeshLambertMaterial** keyed by albedo hex + map (keep vertex colors, keep maps). Source Standard on `Cube017_3` compiled in 6381ms; bank Lambert compiles were ~1s.
+
 ---
 
 ## Street furniture

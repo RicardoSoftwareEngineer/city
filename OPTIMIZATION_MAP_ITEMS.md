@@ -66,6 +66,8 @@ Same instancing path. Shop awnings share `Prop_Awning.gltf` / `Prop_Awning_Long.
 
 Stairs use **one** rail glTF per material (`Stairs_Rails_Concrete` / `Stairs_Rails_Marble`), instanced on the stair poses. Do **not** also stream `*_Straight_1/2` and metal variants on the same stairs: that was nine unique parses in one priority-1 ring (Windows hitch list: five `gltf:parse Stairs_Rails_Ma*` rows, 550–1662 ms). The bins are tiny; the cost is first GPU program per file.
 
+Planter rows use **one** glTF per size (`Prop_Planter_Center` / `Prop_Planter_Small_Center`), instanced along the row. Do **not** also stream `*_Side_L` / `*_Side_R`: six unique parses for ~10 pots (Windows hitch list: `gltf:parse Prop_Planter_Sm*` 1156 ms).
+
 ---
 
 ## Bank

@@ -138,6 +138,7 @@ Treat these as **scheduler** problems first:
 | `[hitch] after: gltf:parse X` | Parse then GPU | `waitIfSlow` before next URL; do not parse many unique streets in one ring without yield |
 | `LOAD stream ring 10 prio 2` +Nprog | Bank task parsed 21 unique kit glTFs in one slice | `waitUntilSmooth` before bank; `waitIfSlow` + `yieldAfterWork` between each bank URL (same as street `urlJobs`) |
 | `LOAD stream ring 10 prio 2` +8prog still ~3.7s after yields | `parentGroup.add(bankGroup)` dumped every new program into one `render()` | Pause draw, `compile` each new Mesh/InstancedMesh (`compileSubtree`), then unpause |
+| `LOAD stream ring 10 prio 0` +13prog ~2.5s | First street `reveal()` dumped 13 programs into one `render()` | Same pause + `compileSubtree` after each ring's grower reveal (WorldStream) |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

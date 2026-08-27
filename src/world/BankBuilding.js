@@ -9,7 +9,6 @@
 
 import * as THREE from 'three';
 import { loadGltf } from './AssetLoader.js';
-import { prepareInteriors } from './buildings/interiors.js';
 import { addInstancedGltfAsync } from './instancing.js';
 import { waitIfSlow, waitUntilSmooth, yieldAfterWork } from './yield.js';
 import { loadMark } from '../engine/loadLog.js';
@@ -42,7 +41,6 @@ const ASSET_PATHS = {
 };
 
 const UPPER_FLOORS = [8, 11, 14, 17, 20, 23];
-const INTERIOR_KEYS = ['firstFloorWindow', 'window', 'tripleWindow'];
 const CAST_KEYS = new Set([
   'plainWall', 'corner',
   'columnBottom', 'columnCenter', 'columnTop',
@@ -146,10 +144,6 @@ export class BankBuilding {
       const template = await loadGltf(ASSET_PATHS[key], CAST_KEYS.has(key) ? castOpts() : noCastOpts());
       await yieldAfterWork();
       if (!template) continue;
-      if (INTERIOR_KEYS.includes(key)) {
-        await prepareInteriors(template, INTERIOR_KEYS.indexOf(key) % 2);
-        await yieldAfterWork();
-      }
       await addInstancedGltfAsync(
         bankGroup,
         template,

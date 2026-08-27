@@ -138,8 +138,9 @@ export class Renderer {
    * Pause the game-loop draw so 8 new programs cannot land in one render().
    * First arg is the mesh (never the whole scene). targetScene is this.scene
    * so lights match the real draw — compile(mesh, camera) without lights
-   * left first render() to compile 9–13 programs (bank:total +9prog,
-   * Street_TIntersection +13prog).
+   * left first render() to compile 9–13 programs. compile() only starts
+   * the driver compile; compileAsync waits until each program is ready so
+   * 13 shaders cannot stall one later render() (stream ring 10 prio 0 +13prog).
    */
   async compileSubtree(root) {
     if (!root) return;
@@ -155,7 +156,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera, this.scene);
+      await this.renderer.compileAsync(object, this.camera, this.scene);
       object.userData._gpuCompiled = true;
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await yieldToMain();

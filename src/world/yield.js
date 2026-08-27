@@ -1,11 +1,13 @@
 import { loadGovernor } from '../engine/LoadGovernor.js';
 
 export function yieldToMain() {
-  // Always rAF. scheduler.yield() in Chrome returns before the next paint,
-  // so compileSubtree + waitIfSlow packed 8 GL programs into one GameLoop
-  // frame (6880ms ring 10 prio 2 +8prog).
+  // Two rAFs: one can fire in the same turn as other rAFs queued here
+  // (GameLoop + compileSubtree), packing 13 compiles into one hitch
+  // (3712ms ring 10 prio 0 +13prog). The second rAF is the next paint.
   return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve());
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
   });
 }
 

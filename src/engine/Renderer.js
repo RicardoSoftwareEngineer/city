@@ -114,7 +114,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera);
+      this.renderer.compile(object, this.camera, this.scene);
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await budget.tick();
       await waitIfSlow();
@@ -145,18 +145,16 @@ export class Renderer {
     root.traverse((object) => {
       if (object.isMesh && !object.userData._gpuCompiled) objects.push(object);
     });
-    const budget = createBudget();
     for (let i = 0; i < objects.length; i++) {
       const object = objects[i];
       const kind = object.isInstancedMesh ? 'inst' : 'mesh';
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera, this.scene);
+      this.renderer.compile(object, this.camera);
       object.userData._gpuCompiled = true;
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
-      await budget.tick();
-      await waitIfSlow();
+      await yieldToMain();
     }
     this._pauseDraw = wasPaused;
   }

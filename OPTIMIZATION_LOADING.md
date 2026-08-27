@@ -93,7 +93,7 @@ HUD (`index.html` `#perf-hud`): FPS, carga 0–100, `batch`, `chunk`, `budgetMs`
 
 `src/world/yield.js`:
 
-- `yieldToMain` — `scheduler.yield` or rAF.
+- `yieldToMain` — always `requestAnimationFrame` (not `scheduler.yield`: Chrome yields without a GameLoop tick, so several `compile()` calls land in one hitch).
 - `yieldAfterWork` — always yield if resting or `level < 2.4`; else every `yieldEvery` calls.
 - `waitIfSlow` — up to 12 frames while `needsRest`.
 - `waitUntilSmooth(minFps, maxFrames)` — before Large merge and before enabling shadows.
@@ -139,6 +139,7 @@ Treat these as **scheduler** problems first:
 | `LOAD stream ring 10 prio 2` +Nprog | Bank task parsed 21 unique kit glTFs in one slice | `waitUntilSmooth` before bank; `waitIfSlow` + `yieldAfterWork` between each bank URL (same as street `urlJobs`) |
 | `LOAD stream ring 10 prio 2` +8prog still ~3.7s after yields | `parentGroup.add(bankGroup)` dumped every new program into one `render()` | Pause draw, `compile` each new Mesh/InstancedMesh (`compileSubtree`), then unpause |
 | `LOAD stream ring 10 prio 0` +13prog ~2.5s | First street `reveal()` dumped 13 programs into one `render()` | Same pause + `compileSubtree` after each ring's grower reveal (WorldStream) |
+| `LOAD stream ring 10 prio 2` +8prog 6880ms after sliced compile | `scheduler.yield` did not wait for rAF; 8 compiles in one frame | `yieldToMain` is rAF-only |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

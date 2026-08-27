@@ -302,8 +302,8 @@ export class CityGrid {
     add('insetL', insetLPoses, 0);
     add('insetR', insetRPoses, 0);
     add('stripe', stripePoses, 0);
-    add('planter', planterPoses, 0);
-    TREE_KEYS.forEach((key, i) => add(key, treePoses[i], 0));
+    add('planter', planterPoses, 1);
+    TREE_KEYS.forEach((key, i) => add(key, treePoses[i], 1));
   }
 
   placeOriginDecals(group, { decalSlow, decalOnly, decalStop, decalArrow }) {

@@ -40,7 +40,7 @@ Entry: `src/main.js`.
 
 | Collection | Typical content | Priority |
 |---|---|---|
-| `urlJobs` | streets, sidewalks, furniture glTF + pose lists | 0 streets, 1 furniture |
+| `urlJobs` | streets, sidewalks, furniture glTF + pose lists | 0 streets/sidewalks, 1 furniture + trees + planters |
 | `templateJobs` | already-built template (streetlights) | 1 |
 | `tasks` | bank build, origin decals | 2 (bank) |
 | `buildings` | 7 types × many placements | 3 |
@@ -146,6 +146,7 @@ Treat these as **scheduler** problems first:
 | `MAP bank:total BankBuilding` ~4s, 0 +prog after compileAsync | Pause-draw wrapped the whole bank; first `render()` uploaded every kit at once | After each kit: `resumeDraw` + `yieldToMain` + `pauseDraw` so first draw is one glTF |
 | `gpu compile inst Cube017_3` 3–6s (Trim_FirstFloor_Window) | `compile(mesh, camera, scene)` `traverseVisible` of the whole city for two lights | `targetScene` is a probe with fog + cloned lights only |
 | `LOAD stream ring 10 prio 0` +13prog ~4s after per-kit bank draw | Pause-draw wrapped the whole priority; first `render()` compiled 13 street/tree programs | After each url/template job: `resumeDraw` + `yieldToMain` + `pauseDraw` (same as bank kits) |
+| `LOAD stream ring 10 prio 0` +13prog ~2.8s after per-job draw | 5 trees × bark/leaves + `Sidewalk_Planter` Standard compiled in prio 0 with the asphalt | Trees and planters are priority 1 (furniture), not 0 |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

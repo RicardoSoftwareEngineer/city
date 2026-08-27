@@ -40,9 +40,33 @@ export class Renderer {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
+    this._lightProbe = null;
 
     // Resize handler
     window.addEventListener('resize', () => this.handleResize());
+  }
+
+  /**
+   * Lights + fog only. compile(mesh, camera, this.scene) traverseVisible of
+   * the whole city (Trim_FirstFloor_Window Cube017_3: 3–6s per mesh).
+   */
+  lightProbe() {
+    if (this._lightProbe) return this._lightProbe;
+    const probe = new THREE.Scene();
+    probe.fog = this.scene.fog;
+    for (const child of this.scene.children) {
+      if (child.isHemisphereLight || child.isAmbientLight) {
+        probe.add(child.clone());
+      } else if (child.isDirectionalLight) {
+        const light = child.clone();
+        light.position.copy(child.position);
+        light.target.position.copy(child.target.position);
+        probe.add(light);
+        probe.add(light.target);
+      }
+    }
+    this._lightProbe = probe;
+    return probe;
   }
 
   handleResize() {
@@ -114,7 +138,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera, this.scene);
+      this.renderer.compile(object, this.camera, this.lightProbe());
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await budget.tick();
       await waitIfSlow();
@@ -136,7 +160,7 @@ export class Renderer {
   /**
    * Compile each Mesh/InstancedMesh under root that is not yet compiled.
    * Pause the game-loop draw so 8 new programs cannot land in one render().
-   * First arg is the mesh (never the whole scene). targetScene is this.scene
+   * First arg is the mesh (never the whole scene). targetScene is lights+fog only
    * so lights match the real draw — compile(mesh, camera) without lights
    * left first render() to compile 9–13 programs. compile() only starts
    * the driver compile; compileAsync waits until each program is ready so
@@ -156,7 +180,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      await this.renderer.compileAsync(object, this.camera, this.scene);
+      await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       object.userData._gpuCompiled = true;
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await yieldToMain();

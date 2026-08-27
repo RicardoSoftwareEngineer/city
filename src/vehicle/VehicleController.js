@@ -28,8 +28,6 @@ export class VehicleController {
     this.physicsWorld = physicsWorld;
     this.porscheModel = porscheModel;
     this.keyboard = keyboard;
-    this.wheelSpinAngle = 0;
-
     // Chassis body
     this.chassisBody = new CANNON.Body({ mass: 450 });
     this.chassisBody.addShape(
@@ -127,18 +125,15 @@ export class VehicleController {
     mesh.position.copy(this.chassisBody.position);
     mesh.quaternion.copy(this.chassisBody.quaternion);
 
-    // ── Update wheel visuals ──────────────────────────────────────────
+    // ── Update wheel visuals from cannon contact rotation ─────────────
+    const wheels = [];
     for (let i = 0; i < this.vehicle.wheelInfos.length; i++) {
       this.vehicle.updateWheelTransform(i);
+      const info = this.vehicle.wheelInfos[i];
+      wheels.push({ steering: info.steering, rotation: info.rotation });
     }
+    this.porscheModel.updateWheels(wheels);
 
-    const speed = this.chassisBody.velocity.length();
-    const isReverse = this.chassisBody.velocity.dot(new CANNON.Vec3(0, 0, 1)) < -0.1;
-    this.wheelSpinAngle += (isReverse ? -speed : speed) * delta * 2.8;
-
-    const steerAngle = this.vehicle.wheelInfos[0].steering;
-    this.porscheModel.updateWheels(steerAngle, this.wheelSpinAngle);
-
-    return speed; // Return speed for HUD
+    return this.chassisBody.velocity.length();
   }
 }

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>City — Downtown Driving</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Heads-Up Display -->
+  <div id="perf-hud">
+    <div class="perf-row">
+      <span class="perf-label">FPS</span>
+      <span id="fps-value">—</span>
+    </div>
+    <div class="perf-row">
+      <span class="perf-label">Carga</span>
+      <span id="load-value">50</span>
+      <span class="perf-unit">/100</span>
+    </div>
+    <div id="load-bar"><div id="load-fill"></div></div>
+    <div id="load-detail">batch —</div>
+    <div id="load-phase">boot</div>
+    <div id="hitch-label">Travamentos</div>
+    <ol id="hitch-list"></ol>
+  </div>
+
+  <div id="hud">
+    <div id="speedometer">
+      <span id="speed-value">0</span>
+      <span id="speed-unit">km/h</span>
+    </div>
+    <div id="controls-hint">
+      <kbd>W</kbd> Accelerate
+      <kbd>S</kbd> Reverse
+      <kbd>A</kbd><kbd>D</kbd> Steer
+      <kbd>Space</kbd> Brake
+      <kbd>R</kbd> Reset
+      <kbd>C</kbd> Camera
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

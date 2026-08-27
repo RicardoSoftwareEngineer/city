@@ -1,0 +1,127 @@
+/**
+ * Renderer — Sets up the Three.js WebGLRenderer, scene, and camera.
+ *
+ * Owns the <canvas> element and handles window resize events.
+ * Exposes .scene, .camera, .renderer for other modules to use.
+ */
+
+import * as THREE from 'three';
+import { beginLoad, loadMark, snapshotDraw, setLoadPhase } from './loadLog.js';
+import { createBudget, waitIfSlow, yieldToMain } from '../world/yield.js';
+
+export class Renderer {
+  constructor(canvasElement) {
+    this.canvas = canvasElement;
+    this._pauseDraw = false;
+
+    // Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0xdbeafe);
+    this.scene.fog = new THREE.FogExp2(0xdbeafe, 0.004);
+
+    // Camera
+    this.camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      2000
+    );
+    this.camera.position.set(0, 10, 20);
+
+    // WebGL Renderer
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = false;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+
+    // Resize handler
+    window.addEventListener('resize', () => this.handleResize());
+  }
+
+  handleResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
+  }
+
+  render() {
+    if (this._pauseDraw) {
+      this.renderer.setClearColor(this.scene.background, 1);
+      this.renderer.clear();
+      snapshotDraw({
+        ms: 0,
+        tag: 'paused',
+        calls: 0,
+        tris: 0,
+        programs: this.renderer.info.programs?.length ?? 0,
+        shadows: this.renderer.shadowMap.enabled,
+        baking: false
+      });
+      return;
+    }
+    const shadows = this.renderer.shadowMap.enabled;
+    const baking = shadows && this.renderer.shadowMap.needsUpdate;
+    const tag = !shadows ? 'frame' : baking ? 'frame+shadow-bake' : 'frame+shadows';
+    const t0 = performance.now();
+    this.renderer.render(this.scene, this.camera);
+    const ms = performance.now() - t0;
+    const info = this.renderer.info;
+    snapshotDraw({
+      ms,
+      tag,
+      calls: info.render.calls,
+      tris: info.render.triangles,
+      programs: info.programs?.length ?? 0,
+      shadows,
+      baking
+    });
+    if (ms >= 33) loadMark('draw', tag, ms);
+  }
+
+  /**
+   * Turn on shadows after the city is in. Compile every Mesh / InstancedMesh
+   * (instancing uses a different program than a shared material on a Mesh).
+   */
+  async resumeShadows() {
+    this._pauseDraw = true;
+    setLoadPhase('shadow-warmup');
+
+    beginLoad('gpu', 'shadows-on');
+    const tEnable = performance.now();
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = false;
+    loadMark('gpu', 'shadows-on', performance.now() - tEnable);
+
+    const objects = [];
+    this.scene.traverse((object) => {
+      if (object.isMesh) objects.push(object);
+    });
+
+    const budget = createBudget();
+    for (let i = 0; i < objects.length; i++) {
+      const object = objects[i];
+      const kind = object.isInstancedMesh ? 'inst' : 'mesh';
+      const label = `${kind} ${object.name || i}`;
+      beginLoad('gpu', `compile ${label}`);
+      const t0 = performance.now();
+      this.renderer.compile(object, this.camera, this.scene);
+      loadMark('gpu', `compile ${label}`, performance.now() - t0);
+      await budget.tick();
+      await waitIfSlow();
+    }
+
+    this.renderer.shadowMap.needsUpdate = true;
+    this._pauseDraw = false;
+    await yieldToMain();
+  }
+}

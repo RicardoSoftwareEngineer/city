@@ -29,17 +29,10 @@ const groundLambertByKey = new Map();
 
 function groundLambert(material) {
   const hex = material?.color ? material.color.getHex() : 0x888888;
-  const mapId = material?.map ? material.map.uuid : 'none';
-  const vc = material?.vertexColors === true ? 1 : 0;
-  const key = `${hex}|${mapId}|vc:${vc}`;
-  if (!groundLambertByKey.has(key)) {
-    groundLambertByKey.set(key, new THREE.MeshLambertMaterial({
-      color: hex,
-      map: material?.map ?? null,
-      vertexColors: vc === 1
-    }));
+  if (!groundLambertByKey.has(hex)) {
+    groundLambertByKey.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
   }
-  return groundLambertByKey.get(key);
+  return groundLambertByKey.get(hex);
 }
 
 /**

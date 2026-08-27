@@ -93,7 +93,7 @@ HUD (`index.html` `#perf-hud`): FPS, carga 0–100, `batch`, `chunk`, `budgetMs`
 
 `src/world/yield.js`:
 
-- `yieldToMain` — always `requestAnimationFrame` (not `scheduler.yield`: Chrome yields without a GameLoop tick, so several `compile()` calls land in one hitch).
+- `yieldToMain` — **two** `requestAnimationFrame`s (a single rAF can run in the same turn as GameLoop + the next compile, packing 13 programs into one 3.7s hitch).
 - `yieldAfterWork` — always yield if resting or `level < 2.4`; else every `yieldEvery` calls.
 - `waitIfSlow` — up to 12 frames while `needsRest`.
 - `waitUntilSmooth(minFps, maxFrames)` — before Large merge and before enabling shadows.

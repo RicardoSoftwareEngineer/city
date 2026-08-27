@@ -165,16 +165,9 @@ export class StreetFurniture {
 
     add('stairsConcrete', concrete);
     add('railsConcrete', concrete);
-    add('railsConcreteS1', concrete.filter((_, n) => n % 2 === 0));
-    add('railsConcreteS2', concrete.filter((_, n) => n % 2 === 1));
-    add('railsMetal', concrete.filter((_, n) => n % 4 === 0));
-    add('railsMetalS1', concrete.filter((_, n) => n % 4 === 1));
-    add('railsMetalS2', concrete.filter((_, n) => n % 4 === 2));
 
     add('stairsMarble', marble);
     add('railsMarble', marble);
-    add('railsMarbleS1', marble.filter((_, n) => n % 2 === 0));
-    add('railsMarbleS2', marble.filter((_, n) => n % 2 === 1));
   }
 
   createStreetlightModel() {

@@ -64,6 +64,8 @@ Repeated tiles (asphalt, sidewalks, stripes) are pose lists + one glTF. Unique c
 
 Same instancing path. Shop awnings share `Prop_Awning.gltf` / `Prop_Awning_Long.gltf` (not one unique branded glTF each). Signs/ornaments do **not** cast shadows. Stairs, rails, fire escapes, planters, bollards, arches do.
 
+Stairs use **one** rail glTF per material (`Stairs_Rails_Concrete` / `Stairs_Rails_Marble`), instanced on the stair poses. Do **not** also stream `*_Straight_1/2` and metal variants on the same stairs: that was nine unique parses in one priority-1 ring (Windows hitch list: five `gltf:parse Stairs_Rails_Ma*` rows, 550–1662 ms). The bins are tiny; the cost is first GPU program per file.
+
 ---
 
 ## Bank

@@ -128,22 +128,29 @@ export class WorldStream {
       if (this.renderer) this.renderer.pauseDraw();
       for (const job of this.urlJobs) {
         if (!job.grower) continue;
+        let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+          added += 1;
           await budget.tick();
+        }
+        if (added && this.renderer) {
+          await this.renderer.compileSubtree(this.parent);
+          await yieldToMain();
         }
       }
       for (const job of this.templateJobs) {
         if (!job.grower) continue;
+        let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+          added += 1;
           await budget.tick();
         }
+        if (added && this.renderer) {
+          await this.renderer.compileSubtree(this.parent);
+          await yieldToMain();
+        }
       }
-
-      if (this.renderer) {
-        this.renderer.pauseDraw();
-        await this.renderer.compileSubtree(this.parent);
-        this.renderer.resumeDraw();
-      }
+      if (this.renderer) this.renderer.resumeDraw();
 
       const tasks = this.tasks.filter(
         (task) => !task.done && task.priority === priority && task.dist <= radius

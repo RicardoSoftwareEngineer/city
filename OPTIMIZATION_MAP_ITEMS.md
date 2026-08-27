@@ -76,7 +76,7 @@ Planter rows use **one** glTF per size (`Prop_Planter_Center` / `Prop_Planter_Sm
 
 - Collect pose lists per kit piece (windows ×129, walls, cornice, door, …).
 - Sequential `loadGltf` + `addInstancedGltfAsync` (yield per GPU batch).
-- Do **not** `prepareInteriors` on bank windows at stream time: cloning `MI_FakeInterior*` with emissiveMap added a second GL program and a 4034ms hitch (`stream ring 10 prio 2 +2prog`). Kit windows keep the authored material. Grid buildings still paint interiors in `catalog.js`.
+- Stream-time bank shaders are **MeshLambertMaterial** keyed by albedo hex (no maps, no Standard). `MI_FakeInterior` + Standard on Trim_FirstFloor_Window compiled two programs in one 4–5s hitch (`stream ring 10 prio 2 +2prog`) even after skipping interiors. Grid buildings still use Source Standard + interiors.
 - Physics: **one** static box for the whole bank, not per window.
 
 Do **not** clone+merge hundreds of bank nodes (old ~100ms hitch + seconds of wall time).

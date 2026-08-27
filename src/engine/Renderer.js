@@ -114,7 +114,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera, this.scene);
+      this.renderer.compile(object, this.camera);
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await budget.tick();
       await waitIfSlow();

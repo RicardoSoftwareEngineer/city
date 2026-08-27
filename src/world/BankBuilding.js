@@ -157,6 +157,8 @@ export class BankBuilding {
     bankGroup.name = 'BankBuilding';
 
     await waitUntilSmooth(40);
+    if (renderer) renderer.pauseDraw();
+    parentGroup.add(bankGroup);
     for (const key of Object.keys(ASSET_PATHS)) {
       if (!poses[key].length) continue;
       await waitIfSlow();
@@ -170,12 +172,9 @@ export class BankBuilding {
         poses[key],
         CAST_KEYS.has(key) ? castOpts() : noCastOpts()
       );
+      if (renderer) await renderer.compileSubtree(bankGroup);
       await yieldAfterWork();
     }
-
-    if (renderer) renderer.pauseDraw();
-    parentGroup.add(bankGroup);
-    if (renderer) await renderer.compileSubtree(bankGroup);
     if (renderer) renderer.resumeDraw();
 
     if (physicsWorld) {

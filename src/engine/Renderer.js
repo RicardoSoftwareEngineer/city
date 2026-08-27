@@ -124,4 +124,40 @@ export class Renderer {
     this._pauseDraw = false;
     await yieldToMain();
   }
+
+  pauseDraw() {
+    this._pauseDraw = true;
+  }
+
+  resumeDraw() {
+    this._pauseDraw = false;
+  }
+
+  /**
+   * Compile each Mesh/InstancedMesh under root that is not yet compiled.
+   * Pause the game-loop draw so 8 new programs cannot land in one render().
+   */
+  async compileSubtree(root) {
+    if (!root) return;
+    const wasPaused = this._pauseDraw;
+    this._pauseDraw = true;
+    const objects = [];
+    root.traverse((object) => {
+      if (object.isMesh && !object.userData._gpuCompiled) objects.push(object);
+    });
+    const budget = createBudget();
+    for (let i = 0; i < objects.length; i++) {
+      const object = objects[i];
+      const kind = object.isInstancedMesh ? 'inst' : 'mesh';
+      const label = `${kind} ${object.name || i}`;
+      beginLoad('gpu', `compile ${label}`);
+      const t0 = performance.now();
+      this.renderer.compile(object, this.camera, this.scene);
+      object.userData._gpuCompiled = true;
+      loadMark('gpu', `compile ${label}`, performance.now() - t0);
+      await budget.tick();
+      await waitIfSlow();
+    }
+    this._pauseDraw = wasPaused;
+  }
 }

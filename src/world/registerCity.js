@@ -14,7 +14,7 @@ function distToAabb(ox, oz, minX, maxX, minZ, maxZ) {
 
 export { STREAM_STEP };
 
-export function createCityStream(parentGroup, physicsWorld, ox, oz) {
+export function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
   const stream = new WorldStream(parentGroup, ox, oz);
   const grid = new CityGrid();
 
@@ -37,7 +37,7 @@ export function createCityStream(parentGroup, physicsWorld, ox, oz) {
   stream.addTask({
     dist: distToAabb(ox, oz, 9, 25, 9, 33),
     priority: 2,
-    run: () => new BankBuilding().build(parentGroup, physicsWorld)
+    run: () => new BankBuilding().build(parentGroup, physicsWorld, renderer)
   });
 
   new CityBuildings().register(stream, parentGroup, physicsWorld);

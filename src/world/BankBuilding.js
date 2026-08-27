@@ -133,7 +133,7 @@ function collectPoses() {
 }
 
 export class BankBuilding {
-  async build(parentGroup, physicsWorld) {
+  async build(parentGroup, physicsWorld, renderer) {
     const tAll = performance.now();
     const poses = collectPoses();
     const bankGroup = new THREE.Group();
@@ -159,7 +159,10 @@ export class BankBuilding {
       await yieldAfterWork();
     }
 
+    if (renderer) renderer.pauseDraw();
     parentGroup.add(bankGroup);
+    if (renderer) await renderer.compileSubtree(bankGroup);
+    if (renderer) renderer.resumeDraw();
 
     if (physicsWorld) {
       physicsWorld.addStaticBox(

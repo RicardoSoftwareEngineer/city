@@ -13,6 +13,7 @@
  * for Nature Pack foliage and Source Downtown wear (COLOR_0).
  */
 
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadMark, beginLoad } from '../engine/loadLog.js';
 
@@ -20,14 +21,31 @@ const gltfLoader = new GLTFLoader();
 const inflight = new Map();
 const issued = new Map();
 
-function cacheKey(url, keepVertexColors) {
-  return `${url}|vc:${keepVertexColors ? 1 : 0}`;
+function cacheKey(url, keepVertexColors, useLambert) {
+  return `${url}|vc:${keepVertexColors ? 1 : 0}|lb:${useLambert ? 1 : 0}`;
+}
+
+const groundLambertByKey = new Map();
+
+function groundLambert(material) {
+  const hex = material?.color ? material.color.getHex() : 0x888888;
+  const mapId = material?.map ? material.map.uuid : 'none';
+  const vc = material?.vertexColors === true ? 1 : 0;
+  const key = `${hex}|${mapId}|vc:${vc}`;
+  if (!groundLambertByKey.has(key)) {
+    groundLambertByKey.set(key, new THREE.MeshLambertMaterial({
+      color: hex,
+      map: material?.map ?? null,
+      vertexColors: vc === 1
+    }));
+  }
+  return groundLambertByKey.get(key);
 }
 
 /**
  * Prepare a loaded model: enable shadows, strip vertex colors.
  */
-function prepareModel(root, keepVertexColors = false) {
+function prepareModel(root, keepVertexColors = false, useLambert = false) {
   root.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = false;
@@ -38,14 +56,16 @@ function prepareModel(root, keepVertexColors = false) {
       }
       if (child.material) {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
-        for (const material of materials) {
+        const next = materials.map((material) => {
           if (keepVertexColors && child.geometry?.attributes.color) {
             material.vertexColors = true;
           } else if (!keepVertexColors) {
             material.vertexColors = false;
           }
           material.needsUpdate = true;
-        }
+          return useLambert ? groundLambert(material) : material;
+        });
+        child.material = Array.isArray(child.material) ? next : next[0];
       }
     }
   });
@@ -58,7 +78,8 @@ function prepareModel(root, keepVertexColors = false) {
  */
 export function loadGltf(url, options = {}) {
   const keepVertexColors = options.keepVertexColors === true;
-  const key = cacheKey(url, keepVertexColors);
+  const useLambert = options.useLambert === true;
+  const key = cacheKey(url, keepVertexColors, useLambert);
 
   if (!inflight.has(key)) {
     inflight.set(
@@ -69,7 +90,7 @@ export function loadGltf(url, options = {}) {
           (gltf) => {
             beginLoad('gltf:parse', url);
             const t0 = performance.now();
-            const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors);
+            const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors, useLambert);
             loadMark('gltf:parse', url, performance.now() - t0);
             resolve(root);
           },

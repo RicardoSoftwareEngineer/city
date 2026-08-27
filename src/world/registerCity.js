@@ -15,7 +15,7 @@ function distToAabb(ox, oz, minX, maxX, minZ, maxZ) {
 export { STREAM_STEP };
 
 export function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
-  const stream = new WorldStream(parentGroup, ox, oz);
+  const stream = new WorldStream(parentGroup, ox, oz, renderer);
   const grid = new CityGrid();
 
   for (const job of grid.collectJobs()) {

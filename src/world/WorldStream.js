@@ -17,10 +17,11 @@ import { castOpts } from './shadowPolicy.js';
 export const STREAM_STEP = 10;
 
 export class WorldStream {
-  constructor(parent, ox, oz) {
+  constructor(parent, ox, oz, renderer = null) {
     this.parent = parent;
     this.ox = ox;
     this.oz = oz;
+    this.renderer = renderer;
     this.urlJobs = [];
     this.templateJobs = [];
     this.tasks = [];
@@ -124,6 +125,7 @@ export class WorldStream {
         await yieldAfterWork();
       }
 
+      if (this.renderer) this.renderer.pauseDraw();
       for (const job of this.urlJobs) {
         if (!job.grower) continue;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
@@ -135,6 +137,12 @@ export class WorldStream {
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
           await budget.tick();
         }
+      }
+
+      if (this.renderer) {
+        this.renderer.pauseDraw();
+        await this.renderer.compileSubtree(this.parent);
+        this.renderer.resumeDraw();
       }
 
       const tasks = this.tasks.filter(

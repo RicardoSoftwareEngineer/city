@@ -135,7 +135,9 @@ export class WorldStream {
         }
         if (added && this.renderer) {
           await this.renderer.compileSubtree(this.parent);
+          this.renderer.resumeDraw();
           await yieldToMain();
+          this.renderer.pauseDraw();
         }
       }
       for (const job of this.templateJobs) {
@@ -147,7 +149,9 @@ export class WorldStream {
         }
         if (added && this.renderer) {
           await this.renderer.compileSubtree(this.parent);
+          this.renderer.resumeDraw();
           await yieldToMain();
+          this.renderer.pauseDraw();
         }
       }
       if (this.renderer) this.renderer.resumeDraw();

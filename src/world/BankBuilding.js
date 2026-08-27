@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { loadGltf } from './AssetLoader.js';
 import { addInstancedGltfAsync } from './instancing.js';
-import { waitIfSlow, waitUntilSmooth, yieldAfterWork } from './yield.js';
+import { waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadMark } from '../engine/loadLog.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
 
@@ -174,6 +174,12 @@ export class BankBuilding {
       );
       if (renderer) await renderer.compileSubtree(bankGroup);
       await yieldAfterWork();
+      // One real frame per kit so first GPU upload is not the whole bank (4139ms bank:total).
+      if (renderer) {
+        renderer.resumeDraw();
+        await yieldToMain();
+        renderer.pauseDraw();
+      }
     }
     if (renderer) renderer.resumeDraw();
 

@@ -141,6 +141,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 | `after: instancer Large_*` / `Medium_*` | First GPU of merged prefab | Grow batches; first instance + yield before more copies |
 | `draw frame+shadows` / play hitch 1s, 0 +prog | Too many **receivers** sampling PCF | Keep receive on ground only; fewer unique InstancedMeshes if calls stay ~900 |
 | `gpu compile mesh Object_50` ~5s | Porsche emblem (4 verts) with TEXCOORD_0..4 + tangent + Standard | Strip `uv1`–`uv4` on load in `PorscheModel` |
+| `gpu compile mesh Object_50` ~3.4s after UV strip | Emblem still Standard + normalMap + receiveShadow | `MeshBasicMaterial` + no tangent/color/shadows on `Object_50` |
 
 ---
 

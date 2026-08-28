@@ -92,7 +92,8 @@ export class PorscheModel {
     };
 
     // Enable shadows. Drop uv1–uv4: Object_50 (emblem, 4 verts) shipped
-    // TEXCOORD_0..4 + tangent and gpu-compiled in ~5s.
+    // TEXCOORD_0..4 + tangent and gpu-compiled in ~5s. After stripping UVs it
+    // was still ~3.4s Standard+normal — MeshBasic is enough for a logo quad.
     root.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -102,6 +103,14 @@ export class PorscheModel {
           for (const name of ['uv1', 'uv2', 'uv3', 'uv4']) {
             if (geometry.attributes[name]) geometry.deleteAttribute(name);
           }
+        }
+        if (child.name === 'Object_50' && child.material) {
+          const map = child.material.map;
+          child.material = new THREE.MeshBasicMaterial({ map });
+          child.castShadow = false;
+          child.receiveShadow = false;
+          if (geometry?.attributes.tangent) geometry.deleteAttribute('tangent');
+          if (geometry?.attributes.color) geometry.deleteAttribute('color');
         }
       }
     });

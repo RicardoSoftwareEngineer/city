@@ -105,9 +105,14 @@ export class PorscheModel {
             if (geometry.attributes[name]) geometry.deleteAttribute(name);
           }
         }
+        // Object_49 (18 verts, 4 UV sets, mat 30.002) compiled in ~3.3s after
+        // Object_50 was removed. Same family: 4-vert emblems and 18-vert badges.
+        const verts = geometry?.attributes.position?.count ?? 0;
         const matName = child.material?.name || '';
         if (
-          child.name === 'Object_50' || /emblem/i.test(matName)
+          (verts > 0 && verts <= 24) ||
+          child.name === 'Object_50' ||
+          /emblem/i.test(matName)
         ) {
           drop.push(child);
         }

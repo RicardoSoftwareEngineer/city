@@ -91,11 +91,18 @@ export class PorscheModel {
       rearRight:  this.createWheelPivot(root, pick(rearPair, true),   false, true)
     };
 
-    // Enable shadows
+    // Enable shadows. Drop uv1–uv4: Object_50 (emblem, 4 verts) shipped
+    // TEXCOORD_0..4 + tangent and gpu-compiled in ~5s.
     root.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        const geometry = child.geometry;
+        if (geometry) {
+          for (const name of ['uv1', 'uv2', 'uv3', 'uv4']) {
+            if (geometry.attributes[name]) geometry.deleteAttribute(name);
+          }
+        }
       }
     });
 

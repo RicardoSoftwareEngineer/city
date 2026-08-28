@@ -142,6 +142,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 | `draw frame+shadows` / play hitch 1s, 0 +prog | Too many **receivers** sampling PCF | Keep receive on ground only; fewer unique InstancedMeshes if calls stay ~900 |
 | `gpu compile mesh Object_50` ~5s | Porsche emblem (4 verts) with TEXCOORD_0..4 + tangent + Standard | Strip `uv1`–`uv4` on load in `PorscheModel` |
 | `gpu compile mesh Object_50` ~3.4s after UV strip | Emblem still Standard + normalMap + receiveShadow | `MeshBasicMaterial` + no tangent/color/shadows on `Object_50` |
+| `gpu compile mesh Object_50` ~3s after MeshBasic | `compileAsync` of the 4-vert logo still ~3s on this VM | Remove emblem (`Object_50` / `Object_44` / material `*emblem*`) from the graph |
 
 ---
 

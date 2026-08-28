@@ -91,9 +91,10 @@ export class PorscheModel {
       rearRight:  this.createWheelPivot(root, pick(rearPair, true),   false, true)
     };
 
-    // Enable shadows. Drop uv1–uv4: Object_50 (emblem, 4 verts) shipped
-    // TEXCOORD_0..4 + tangent and gpu-compiled in ~5s. After stripping UVs it
-    // was still ~3.4s Standard+normal — MeshBasic is enough for a logo quad.
+    // Enable shadows. Drop uv1–uv4 (Object_50 shipped 5 UV sets). MeshBasic
+    // on the emblem still gpu-compiled in ~3s on this VM — take it out of the
+    // graph so boot compile / first draw cannot see it.
+    const drop = [];
     root.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -104,16 +105,15 @@ export class PorscheModel {
             if (geometry.attributes[name]) geometry.deleteAttribute(name);
           }
         }
-        if (child.name === 'Object_50' && child.material) {
-          const map = child.material.map;
-          child.material = new THREE.MeshBasicMaterial({ map });
-          child.castShadow = false;
-          child.receiveShadow = false;
-          if (geometry?.attributes.tangent) geometry.deleteAttribute('tangent');
-          if (geometry?.attributes.color) geometry.deleteAttribute('color');
+        const matName = child.material?.name || '';
+        if (
+          child.name === 'Object_50' || /emblem/i.test(matName)
+        ) {
+          drop.push(child);
         }
       }
     });
+    for (const mesh of drop) mesh.removeFromParent();
 
     this.chassisGroup.add(root);
   }

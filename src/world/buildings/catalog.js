@@ -16,7 +16,7 @@ export async function getBuildingTemplate(index) {
   if (!slots[index]) {
     const spec = BUILDING_SPECS[index];
     slots[index] = (async () => {
-      const root = await loadGltf(buildingUrl(spec), { keepVertexColors: true });
+      const root = await loadGltf(buildingUrl(spec), { keepVertexColors: true, useLambert: true });
       if (!root) return emptyPlaceholder(spec);
       await prepareInteriors(root, spec.id % 2);
       if (spec.name.startsWith('Large')) await waitUntilSmooth(42);

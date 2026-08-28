@@ -165,6 +165,8 @@ export class Renderer {
    * left first render() to compile 9–13 programs. compile() only starts
    * the driver compile; compileAsync waits until each program is ready so
    * 13 shaders cannot stall one later render() (stream ring 10 prio 0 +13prog).
+   * Only InstancedMesh from makeBatchMesh (`_streamInstancer`). Compiling the
+   * whole city group also recompiled the Porsche (~13 programs) on ring 10.
    */
   async compileSubtree(root) {
     if (!root) return;
@@ -172,7 +174,13 @@ export class Renderer {
     this._pauseDraw = true;
     const objects = [];
     root.traverse((object) => {
-      if (object.isMesh && !object.userData._gpuCompiled) objects.push(object);
+      if (
+        object.isMesh &&
+        object.userData._streamInstancer &&
+        !object.userData._gpuCompiled
+      ) {
+        objects.push(object);
+      }
     });
     for (let i = 0; i < objects.length; i++) {
       const object = objects[i];

@@ -56,6 +56,7 @@ function makeBatchMesh(parent, spec, capacity) {
   mesh.receiveShadow = spec.receiveShadow;
   mesh.frustumCulled = true;
   mesh.count = 0;
+  mesh.userData._streamInstancer = true;
   parent.add(mesh);
   loadMark('instancer', `${spec.name} x${capacity}`, performance.now() - t0);
   return mesh;

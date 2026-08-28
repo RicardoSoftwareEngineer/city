@@ -148,6 +148,7 @@ Treat these as **scheduler** problems first:
 | `LOAD stream ring 10 prio 0` +13prog ~4s after per-kit bank draw | Pause-draw wrapped the whole priority; first `render()` compiled 13 street/tree programs | After each url/template job: `resumeDraw` + `yieldToMain` + `pauseDraw` (same as bank kits) |
 | `LOAD stream ring 10 prio 0` +13prog ~2.8s after per-job draw | 5 trees × bark/leaves + `Sidewalk_Planter` Standard compiled in prio 0 with the asphalt | Trees and planters are priority 1 (furniture), not 0 |
 | `LOAD stream ring 10 prio 0` +13prog ~2.8s after skip textures | `compileSubtree(cityGroup)` recompiled the Porsche (not `_gpuCompiled`) with the first street instancers | Only compile meshes flagged `_streamInstancer` by `makeBatchMesh` |
+| `LOAD stream ring 10 prio 0` +13prog ~3s after instancer-only compile | `beginLoad('gltf:parse')` ran in `finishGltf` *after* `GLTFLoader.parse`; hitch sat on the stream wrapper and reused a stale +13prog from the Porsche first draw | `beginLoad` before `load`/`parse` so Travamentos names the file |
 | `[hitch] draw frame+shadow-bake` once after stream | One full shadow-map fill | Expected; must not repeat every frame (`autoUpdate` stays false) |
 | `[hitch] draw frame+shadows` repeating after enable | Instanced programs not precompiled | `compile` every Mesh/InstancedMesh, not one host per material uuid |
 | Tag expired / untagged | GPU after yield longer than old 80ms window | Keep 2.5s window; tag `stream` rings |

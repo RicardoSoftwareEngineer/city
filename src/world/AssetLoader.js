@@ -86,7 +86,6 @@ function stripGltfTextures(json) {
 }
 
 function finishGltf(url, gltf, keepVertexColors, useLambert) {
-  beginLoad('gltf:parse', url);
   const t0 = performance.now();
   const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors, useLambert);
   loadMark('gltf:parse', url, performance.now() - t0);
@@ -96,6 +95,7 @@ function finishGltf(url, gltf, keepVertexColors, useLambert) {
 function loadGltfPayload(url, keepVertexColors, useLambert) {
   if (!useLambert) {
     return new Promise((resolve) => {
+      beginLoad('gltf:parse', url);
       gltfLoader.load(
         url,
         (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, false)),
@@ -111,6 +111,7 @@ function loadGltfPayload(url, keepVertexColors, useLambert) {
     .then(async (json) => {
       stripGltfTextures(json);
       await yieldToMain();
+      beginLoad('gltf:parse', url);
       return new Promise((resolve) => {
         gltfLoader.parse(
           json,

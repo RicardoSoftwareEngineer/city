@@ -145,6 +145,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 | `gpu compile mesh Object_50` ~3s after MeshBasic | `compileAsync` of the 4-vert logo still ~3s on this VM | Remove emblem (`Object_50` / `Object_44` / material `*emblem*`) from the graph |
 | `gpu compile inst Small_2` ~2.3s | Merged building InstancedMesh still Standard + maps | `useLambert: true` on building `loadGltf` (hex Lambert, strip textures) |
 | `gpu compile mesh Object_49` ~3.3s | 18-vert badge, 4 UV sets, Standard+map (4 copies: 45/49/53/57) | Drop Porsche meshes with ≤24 verts from the graph |
+| `gpu compile mesh Object_48` ~3.6s | 1955 verts, Standard+normal+tangent, mat `roughness_fine_001_DIFF` | Remaining Porsche meshes: shared `MeshLambertMaterial` (map+hex), no receiveShadow |
 
 ---
 

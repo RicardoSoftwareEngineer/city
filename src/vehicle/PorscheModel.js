@@ -91,31 +91,41 @@ export class PorscheModel {
       rearRight:  this.createWheelPivot(root, pick(rearPair, true),   false, true)
     };
 
-    // Enable shadows. Drop uv1–uv4 (Object_50 shipped 5 UV sets). MeshBasic
-    // on the emblem still gpu-compiled in ~3s on this VM — take it out of the
-    // graph so boot compile / first draw cannot see it.
+    // Drop tiny badges. Remaining Standard+normal (Object_48, 1955 verts,
+    // roughness_fine_001_DIFF) compiled in ~3.6s — Lambert + map, no PCF.
+    const lambertByKey = new Map();
     const drop = [];
     root.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        const geometry = child.geometry;
-        if (geometry) {
-          for (const name of ['uv1', 'uv2', 'uv3', 'uv4']) {
-            if (geometry.attributes[name]) geometry.deleteAttribute(name);
-          }
+      if (!child.isMesh) return;
+      child.castShadow = true;
+      child.receiveShadow = false;
+      const geometry = child.geometry;
+      if (geometry) {
+        for (const name of ['uv1', 'uv2', 'uv3', 'uv4']) {
+          if (geometry.attributes[name]) geometry.deleteAttribute(name);
         }
-        // Object_49 (18 verts, 4 UV sets, mat 30.002) compiled in ~3.3s after
-        // Object_50 was removed. Same family: 4-vert emblems and 18-vert badges.
-        const verts = geometry?.attributes.position?.count ?? 0;
-        const matName = child.material?.name || '';
-        if (
-          (verts > 0 && verts <= 24) ||
-          child.name === 'Object_50' ||
-          /emblem/i.test(matName)
-        ) {
-          drop.push(child);
+        if (geometry.attributes.tangent) geometry.deleteAttribute('tangent');
+        if (geometry.attributes.color) geometry.deleteAttribute('color');
+      }
+      const verts = geometry?.attributes.position?.count ?? 0;
+      const matName = child.material?.name || '';
+      if (
+        (verts > 0 && verts <= 24) ||
+        child.name === 'Object_50' ||
+        /emblem/i.test(matName)
+      ) {
+        drop.push(child);
+        return;
+      }
+      const src = child.material;
+      if (src && !src.isMeshLambertMaterial && !src.isMeshBasicMaterial) {
+        const map = src.map || null;
+        const hex = src.color ? src.color.getHex() : 0xffffff;
+        const key = `${map?.uuid || 'nomap'}|${hex}`;
+        if (!lambertByKey.has(key)) {
+          lambertByKey.set(key, new THREE.MeshLambertMaterial({ map, color: hex }));
         }
+        child.material = lambertByKey.get(key);
       }
     });
     for (const mesh of drop) mesh.removeFromParent();

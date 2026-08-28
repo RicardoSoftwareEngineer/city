@@ -98,7 +98,7 @@ Place: `src/world/CityBuildings.js` → `WorldStream.addBuilding`.
 
 Pipeline per type (lazy, once):
 
-1. `loadGltf` Source prefab, vertex colors on.
+1. `loadGltf` Source prefab, vertex colors on, **Lambert hex-only** (same as bank/ground). `gpu compile inst Small_2` was ~2.3s Standard+maps on the merged instancer.
 2. `prepareInteriors`.
 3. If name starts with `Large`: `waitUntilSmooth(42)` (**loading** gate).
 4. `prepareSourceBuilding` — rotate facade to −Z, sit on ground, store `userData.collider`.
@@ -143,6 +143,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 | `gpu compile mesh Object_50` ~5s | Porsche emblem (4 verts) with TEXCOORD_0..4 + tangent + Standard | Strip `uv1`–`uv4` on load in `PorscheModel` |
 | `gpu compile mesh Object_50` ~3.4s after UV strip | Emblem still Standard + normalMap + receiveShadow | `MeshBasicMaterial` + no tangent/color/shadows on `Object_50` |
 | `gpu compile mesh Object_50` ~3s after MeshBasic | `compileAsync` of the 4-vert logo still ~3s on this VM | Remove emblem (`Object_50` / `Object_44` / material `*emblem*`) from the graph |
+| `gpu compile inst Small_2` ~2.3s | Merged building InstancedMesh still Standard + maps | `useLambert: true` on building `loadGltf` (hex Lambert, strip textures) |
 
 ---
 

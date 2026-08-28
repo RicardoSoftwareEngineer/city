@@ -18,7 +18,7 @@ import { Intersection } from './world/Intersection.js';
 import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopHitches, getLoadPhase, setLoadPhase } from './engine/loadLog.js';
-import { waitUntilSmooth } from './world/yield.js';
+import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 
@@ -111,6 +111,13 @@ async function startGame() {
   });
 
   gameLoop.start();
+
+  // Porsche + corner markers (~13 programs) used to compile on the first
+  // stream frame, tagged `stream ring 10 prio 0 +13prog`.
+  renderer.pauseDraw();
+  await renderer.compileSubtree(renderer.scene, { instancersOnly: false });
+  renderer.resumeDraw();
+  await yieldToMain();
 
   loadGovernor.streaming = true;
   stream.pumpTo(STREAM_STEP, 0)

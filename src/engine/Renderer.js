@@ -168,19 +168,15 @@ export class Renderer {
    * Only InstancedMesh from makeBatchMesh (`_streamInstancer`). Compiling the
    * whole city group also recompiled the Porsche (~13 programs) on ring 10.
    */
-  async compileSubtree(root) {
+  async compileSubtree(root, { instancersOnly = true } = {}) {
     if (!root) return;
     const wasPaused = this._pauseDraw;
     this._pauseDraw = true;
     const objects = [];
     root.traverse((object) => {
-      if (
-        object.isMesh &&
-        object.userData._streamInstancer &&
-        !object.userData._gpuCompiled
-      ) {
-        objects.push(object);
-      }
+      if (!object.isMesh || object.userData._gpuCompiled) return;
+      if (instancersOnly && !object.userData._streamInstancer) return;
+      objects.push(object);
     });
     for (let i = 0; i < objects.length; i++) {
       const object = objects[i];

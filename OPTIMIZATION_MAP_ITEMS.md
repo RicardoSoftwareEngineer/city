@@ -140,6 +140,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 | `merge Building_Large_*` 30–70ms then hitch | Merge CPU vs next-frame GPU | Merge code here; `waitUntilSmooth` in loading |
 | `after: instancer Large_*` / `Medium_*` | First GPU of merged prefab | Grow batches; first instance + yield before more copies |
 | `draw frame+shadows` / play hitch 1s, 0 +prog | Too many **receivers** sampling PCF | Keep receive on ground only; fewer unique InstancedMeshes if calls stay ~900 |
+| `gpu compile mesh Object_50` ~5s | Porsche emblem (4 verts) with TEXCOORD_0..4 + tangent + Standard | Strip `uv1`–`uv4` on load in `PorscheModel` |
 
 ---
 
@@ -151,6 +152,7 @@ Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too
 - `src/world/CityGrid.js`, `StreetFurniture.js`, `BankBuilding.js`, `CityBuildings.js`
 - `src/world/buildings/catalog.js`, `merge.js`, `specs.js`, `interiors.js`
 - `src/world/Intersection.js` (boot intersection meshes)
+- `src/vehicle/PorscheModel.js` (mesh attrs / shadow flags on the car)
 - Lighting object flags in `main.js` / `AssetLoader.prepareModel`
 - `SOURCE_SWAP.md` for which glTF is canonical
 

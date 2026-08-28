@@ -198,17 +198,30 @@ export class WorldStream {
         await yieldToMain();
       }
 
+      // Same as urlJobs: pause so makeBatchMesh cannot compile-via-draw
+      // (instancer Small_2 x4 +3prog ~3s). Compile new instancers, then one draw.
+      if (this.renderer) this.renderer.pauseDraw();
+      let added = 0;
       if (!b.primed) {
         if (b.grower.reveal(radius, 1) > 0) {
           b.primed = true;
-          if (b.heavy) await waitUntilSmooth(42);
-          await yieldToMain();
+          added += 1;
         }
       }
-
       while (b.grower.reveal(radius, loadGovernor.chunk) > 0) {
+        added += 1;
         await budget.tick();
       }
+      if (added && this.renderer) {
+        await this.renderer.compileSubtree(this.parent);
+        this.renderer.resumeDraw();
+        await yieldToMain();
+        this.renderer.pauseDraw();
+      } else if (added) {
+        if (b.heavy) await waitUntilSmooth(42);
+        await yieldToMain();
+      }
+      if (this.renderer) this.renderer.resumeDraw();
     }
   }
 

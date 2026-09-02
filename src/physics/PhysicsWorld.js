@@ -21,7 +21,8 @@ export class PhysicsWorld {
     this.world.defaultContactMaterial.friction = 0.3;
 
     this.createGroundPlane();
-    this.createCityPerimeter();
+    // Passo 1 open map: do not create the 4 invisible city perimeter walls.
+    // this.createCityPerimeter();
   }
 
   createGroundPlane() {

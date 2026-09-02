@@ -42,18 +42,19 @@ Entry: `src/main.js`.
 |---|---|---|
 | `urlJobs` | streets, sidewalks, furniture glTF + pose lists | 0 streets/sidewalks, 1 furniture + trees + planters |
 | `templateJobs` | already-built template (streetlights) | 1 |
-| `tasks` | bank build, origin decals | 2 (bank) |
+| `tasks` | bank build, origin decals, countryside terrain tiles | 2 (bank), 4 (terrain) |
 | `buildings` | 7 types × many placements | 3 |
 
 `pumpTo(radius, maxPriority)`:
 
-- For each priority `0..maxPriority` (filtered by `maxPriority` on first pump).
+- For each priority `0..maxPriority` (filtered by `maxPriority` on first pump; hard list `[0,1,2,3,4]`).
 - Load glTFs whose **nearest pose** is inside the radius (`minPoseDist`).
 - `createGrowingInstancedGltf` then `reveal(radius, loadGovernor.chunk)` in budget ticks.
 - Run tasks with `dist <= radius`.
 - `revealBuildings` only at priority 3.
+- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings. First boot pump may stay `maxPriority 0`.
 
-`continueAfter(r)`: `pumpTo(r, 3)` then rings `r+10, r+20, …` until `maxRadius()`.
+`continueAfter(r)`: `pumpTo(r, 4)` then rings `r+10, r+20, …` until `maxRadius()`.
 
 Tag: `beginLoad('stream', 'ring {radius} prio {priority}')`.
 

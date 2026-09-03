@@ -26,24 +26,36 @@
     <div id="load-bar"><div id="load-fill"></div></div>
     <div id="load-detail">batch —</div>
     <div id="load-phase">boot</div>
-    <div id="hitch-label">Travamentos — carga</div>
-    <ol id="hitch-list" class="hitch-list"></ol>
+    <div id="hitch-panel" data-min-id="hitch-load">
+      <button type="button" class="hud-min-toggle" id="hitch-label" data-min-toggle>
+        Travamentos — carga <span data-min-chev>▾</span>
+      </button>
+      <ol id="hitch-list" class="hitch-list" data-min-body></ol>
+    </div>
   </div>
 
-  <div id="play-hitch-hud">
-    <div id="play-hitch-label">Travamentos — FPS</div>
-    <ol id="play-hitch-list" class="hitch-list"></ol>
+  <div id="play-hitch-hud" data-min-id="hitch-fps">
+    <button type="button" class="hud-min-toggle" id="play-hitch-label" data-min-toggle>
+      Travamentos — FPS <span data-min-chev>▾</span>
+    </button>
+    <ol id="play-hitch-list" class="hitch-list" data-min-body></ol>
   </div>
 
-  <div id="load-order-hud">
-    <div id="load-order-label">Ordem de carga</div>
-    <ul id="load-order-list"></ul>
+  <div id="load-order-hud" data-min-id="load-order">
+    <button type="button" class="hud-min-toggle" id="load-order-label" data-min-toggle>
+      Ordem de carga <span data-min-chev>▾</span>
+    </button>
+    <ul id="load-order-list" data-min-body></ul>
   </div>
 
-  <div id="ring-load-hud">
-    <div id="ring-load-label">Anel (últimos)</div>
-    <ul id="ring-load-list"></ul>
-    <div id="ring-load-footer">—</div>
+  <div id="ring-load-hud" data-min-id="ring-load">
+    <button type="button" class="hud-min-toggle" id="ring-load-label" data-min-toggle>
+      Anel (últimos) <span data-min-chev>▾</span>
+    </button>
+    <div data-min-body>
+      <ul id="ring-load-list"></ul>
+      <div id="ring-load-footer">—</div>
+    </div>
   </div>
 
   <div id="hud">

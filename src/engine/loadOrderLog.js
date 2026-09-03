@@ -1,16 +1,93 @@
 /**
  * Live load-order phases for the left HUD (terrain-first pipeline).
+ *
+ * mode:
+ *   sync  — must exist before a hard dependency (boot paint / phys under car)
+ *   async — streamed with waitIfSlow / yield (FPS-first)
  */
 
 const phases = [
-  { id: 'spawn', label: '1 · Ruas do spawn', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'terrain', label: '2 · Terreno (mesh)', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'streets', label: '3 · Ruas / asfalto', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'furniture', label: '4 · Mobília / postes', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'bank', label: '5 · Banco', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'buildings', label: '6 · Prédios', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'nature', label: '7 · Flores / grama / árvores / água', status: 'pending', ms: 0, detail: '', t0: 0 },
-  { id: 'carpet', label: '8 · Carpet denso', status: 'pending', ms: 0, detail: '', t0: 0 }
+  {
+    id: 'ground',
+    mode: 'sync',
+    label: 'Chão phys (sob o carro)',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'spawn',
+    mode: 'sync',
+    label: 'Ruas do spawn',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'terrain',
+    mode: 'async',
+    label: 'Terreno (mesh)',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'streets',
+    mode: 'async',
+    label: 'Ruas / asfalto',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'furniture',
+    mode: 'async',
+    label: 'Mobília / postes',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'bank',
+    mode: 'async',
+    label: 'Banco',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'buildings',
+    mode: 'async',
+    label: 'Prédios',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'nature',
+    mode: 'async',
+    label: 'Flores / grama / árvores / água',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  },
+  {
+    id: 'carpet',
+    mode: 'async',
+    label: 'Carpet denso',
+    status: 'pending',
+    ms: 0,
+    detail: '',
+    t0: 0
+  }
 ];
 
 let revision = 0;
@@ -40,20 +117,28 @@ function stopClock(p) {
   }
 }
 
+function snapshotPhase(p) {
+  return {
+    id: p.id,
+    mode: p.mode,
+    label: p.label,
+    status: p.status,
+    ms: Math.round(p.ms + (p.t0 ? performance.now() - p.t0 : 0)),
+    detail: p.detail
+  };
+}
+
 export function getLoadOrderRevision() {
   return revision;
 }
 
 export function getLoadOrderSnapshot() {
+  const all = phases.map(snapshotPhase);
   return {
     activeId,
-    phases: phases.map((p) => ({
-      id: p.id,
-      label: p.label,
-      status: p.status,
-      ms: Math.round(p.ms + (p.t0 ? performance.now() - p.t0 : 0)),
-      detail: p.detail
-    }))
+    phases: all,
+    sync: all.filter((p) => p.mode === 'sync'),
+    async: all.filter((p) => p.mode === 'async')
   };
 }
 
@@ -61,7 +146,30 @@ export function phaseIdForPriority(priority) {
   return PRIO_TO_PHASE[priority] || null;
 }
 
-/** Switch active phase (pauses previous clock, keeps it running until ended). */
+/**
+ * Note sync ground work under the car. Does not steal the async active phase:
+ * accumulates time on `ground` while tiles are actually built.
+ */
+export function noteGroundPhys(built, detail = '') {
+  if (!built) return;
+  const p = row('ground');
+  if (!p) return;
+  if (p.status === 'pending') p.status = 'running';
+  // Attribute a small slice so the HUD shows activity; real cost is in the frame.
+  p.ms += built * 8;
+  if (detail) p.detail = detail;
+  bump();
+}
+
+export function endGroundPhysPhase() {
+  const p = row('ground');
+  if (!p) return;
+  if (p.status === 'pending') return;
+  stopClock(p);
+  p.status = 'done';
+  bump();
+}
+
 export function beginLoadPhase(id, detail = '') {
   if (activeId && activeId !== id) {
     const prev = row(activeId);
@@ -101,6 +209,7 @@ export function endLoadPhase(id) {
 export function finishAllLoadPhases() {
   for (const p of phases) {
     if (p.status === 'running') endLoadPhase(p.id);
+    else if (p.id === 'ground' && p.status !== 'pending') endGroundPhysPhase();
   }
   activeId = null;
   bump();

@@ -295,10 +295,9 @@ kbd {
 }
 
 /* Per-ring load accordion (left side, above FPS hitch list). */
-#load-order-hud {
+.load-order-hud {
   position: fixed;
   left: 12px;
-  top: 14.5rem;
   z-index: 20;
   pointer-events: auto;
   padding: 8px 10px;
@@ -309,10 +308,19 @@ kbd {
   backdrop-filter: blur(10px);
   font-variant-numeric: tabular-nums;
 }
-#load-order-label {
+#load-order-async-hud {
+  top: 14.5rem;
+}
+#load-order-sync-hud {
+  top: 28.5rem;
+}
+#load-order-async-label {
   color: #34d399;
 }
-#load-order-list {
+#load-order-sync-label {
+  color: #38bdf8;
+}
+.load-order-list {
   list-style: none;
   margin: 0.35rem 0 0;
   padding: 0;
@@ -347,7 +355,7 @@ kbd {
 #ring-load-hud {
   position: fixed;
   left: 12px;
-  bottom: 17rem;
+  bottom: 14rem;
   z-index: 20;
   pointer-events: auto;
   padding: 8px 10px;

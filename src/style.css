@@ -214,3 +214,47 @@ kbd {
   color: #cbd5e1;
   margin-right: 0.15rem;
 }
+
+
+/* ── Terrain mesh / collider inspector ─────────────────────────────────── */
+#terrain-debug-btn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  padding: 8px 14px;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #e8fff2;
+  background: rgba(12, 22, 18, 0.82);
+  border: 1px solid rgba(57, 255, 136, 0.55);
+  border-radius: 6px;
+  cursor: pointer;
+}
+#terrain-debug-btn:hover { background: rgba(20, 44, 32, 0.92); }
+#terrain-debug-btn[data-mode="malha"] { border-color: #39ff88; color: #39ff88; }
+#terrain-debug-btn[data-mode="colisores"] { border-color: #ffb03a; color: #ffb03a; }
+
+#terrain-debug-readout {
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  z-index: 30;
+  display: none;
+  min-width: 220px;
+  padding: 8px 10px;
+  font: 12px/1.5 "Cascadia Code", ui-monospace, monospace;
+  color: #d8f5e6;
+  background: rgba(8, 16, 13, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+}
+#terrain-debug-readout b { color: #9be7bd; font-weight: 600; }
+#terrain-debug-readout .tdk { display: inline-flex; align-items: center; margin-right: 8px; }
+#terrain-debug-readout .tdk i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border-radius: 2px;
+}

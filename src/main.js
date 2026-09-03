@@ -25,6 +25,7 @@ import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
 import { ensureGroundAround } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
+import { initTerrainDebug } from './world/terrain/terrainDebug.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -81,6 +82,12 @@ async function startGame() {
   const loadPhaseEl = document.getElementById('load-phase');
   let shownHitchRev = -1;
 
+  // On-screen terrain mesh / collider inspector (button, or key M).
+  const tickTerrainDebug = initTerrainDebug({
+    scene: renderer.scene,
+    getCarPosition: () => vehicleController.chassisBody.position
+  });
+
   const gameLoop = new GameLoop((delta, elapsed) => {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
@@ -107,6 +114,7 @@ async function startGame() {
         `batch ${loadGovernor.instanceBatch} · chunk ${loadGovernor.chunk} · ${loadGovernor.budgetMs.toFixed(0)}ms` +
         (loadGovernor.streaming ? ' · cap' : '');
     }
+    tickTerrainDebug(elapsed);
     if (loadPhaseEl) loadPhaseEl.textContent = getLoadPhase();
     if (hitchList && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();

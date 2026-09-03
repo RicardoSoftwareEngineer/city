@@ -32,6 +32,11 @@ export function terrainLambert() {
   return sharedMaterial;
 }
 
+/** Debug: paint the terrain as wireframe (one shared material, one flag). */
+export function setTerrainWireframe(on) {
+  terrainLambert().wireframe = Boolean(on);
+}
+
 function smoothstep(edge0, edge1, x) {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);

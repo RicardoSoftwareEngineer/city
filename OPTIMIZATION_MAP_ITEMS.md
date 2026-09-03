@@ -238,3 +238,24 @@ each frame with the car pose and builds any missing tile (CPU only, capped at
 2 per frame); the boot pre-builds the spawn ring. Driving past the streamed
 radius therefore can never drop the car through the world, and
 `rescueIfBelowGround` lifts it back if it ever ends up under the surface.
+
+**Aligned grid (fall-through fix).** Tiles used to be dropped when their CENTER
+landed inside the city, which left the part of those tiles that stuck OUT of
+the city with no mesh and no collider — a ~16 m band on the west and south
+edges where the car fell through. Now both grids share `GRID_OFFSET = -10`, so
+the paved rect (`CITY_PAVED_MIN/MAX` = −10…190, exactly 5 fine tiles) and the
+near/far seam (±320 from the offset, a multiple of 80) both fall on tile
+borders: no tile ever straddles them. A tile is dropped only when it is fully
+inside the paved rect shrunk by one tile, so the border ring still runs one
+tile INTO the city, where `surfaceY` buries it at `CITY_BURY_Y`
+(`ASPHALT_SURFACE_Y - 0.10`, ramp 1.5 m) — hidden under the asphalt, below the
+flat city box so collision is unchanged, and with no crack at the curb.
+Verified numerically: 408 tiles, zero holes and zero overlaps over ±560 m.
+
+**Debug view.** `terrainDebug.js` adds a top-right button (or key `M`) cycling
+`oculta → pintada → só colisores`: wireframe on the shared terrain material,
+terrain group hidden, and `LineSegments` borders built from `builtTiles()`
+(green 40 m, orange 80 m, blue = paved rect on the flat box). The readout shows
+collider count, the tile under the car and whether it has a collider, and
+surface vs car height. Overlay geometry is rebuilt only when the collider count
+changes, and nothing is created while the mode is `oculta`.

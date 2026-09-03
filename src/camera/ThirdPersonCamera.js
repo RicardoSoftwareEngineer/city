@@ -270,6 +270,10 @@ export class ThirdPersonCamera {
       let speed = this.flySpeed;
       if (kb.isPressed('ShiftLeft') || kb.isPressed('ShiftRight')) speed *= FAST_MULT;
       if (kb.isPressed('AltLeft') || kb.isPressed('AltRight')) speed *= SLOW_MULT;
+      // Spectator-style: the higher the camera, the faster it flies.
+      // ~1× near street level (y≈10), scales up with altitude, soft cap.
+      const altitudeScale = Math.min(40, Math.max(0.45, this.camera.position.y / 10));
+      speed *= altitudeScale;
       this.camera.position.addScaledVector(this._wish, speed * delta);
     }
 

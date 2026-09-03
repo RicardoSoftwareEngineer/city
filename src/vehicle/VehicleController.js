@@ -27,6 +27,8 @@ export class VehicleController {
   constructor(physicsWorld, porscheModel, keyboard) {
     this.physicsWorld = physicsWorld;
     this.porscheModel = porscheModel;
+    /** When false, ignore WASD (free-flight camera owns them). */
+    this.enabled = true;
     this.keyboard = keyboard;
     // Chassis body
     this.chassisBody = new CANNON.Body({ mass: 450 });
@@ -104,12 +106,14 @@ export class VehicleController {
     let steer = 0;
     let brake = 0;
 
-    if (this.keyboard.isPressed('KeyW') || this.keyboard.isPressed('ArrowUp'))    engineForce = -MAX_ENGINE_FORCE;
-    if (this.keyboard.isPressed('KeyS') || this.keyboard.isPressed('ArrowDown'))  engineForce = MAX_ENGINE_FORCE * 0.7;
-    if (this.keyboard.isPressed('KeyA') || this.keyboard.isPressed('ArrowLeft'))  steer = MAX_STEER_ANGLE;
-    if (this.keyboard.isPressed('KeyD') || this.keyboard.isPressed('ArrowRight')) steer = -MAX_STEER_ANGLE;
-    if (this.keyboard.isPressed('Space')) brake = MAX_BRAKE_FORCE;
-    if (this.keyboard.isPressed('KeyR'))  this.resetPosition();
+    if (this.enabled) {
+      if (this.keyboard.isPressed('KeyW') || this.keyboard.isPressed('ArrowUp'))    engineForce = -MAX_ENGINE_FORCE;
+      if (this.keyboard.isPressed('KeyS') || this.keyboard.isPressed('ArrowDown'))  engineForce = MAX_ENGINE_FORCE * 0.7;
+      if (this.keyboard.isPressed('KeyA') || this.keyboard.isPressed('ArrowLeft'))  steer = MAX_STEER_ANGLE;
+      if (this.keyboard.isPressed('KeyD') || this.keyboard.isPressed('ArrowRight')) steer = -MAX_STEER_ANGLE;
+      if (this.keyboard.isPressed('Space')) brake = MAX_BRAKE_FORCE;
+      if (this.keyboard.isPressed('KeyR'))  this.resetPosition();
+    }
 
     // Apply to all 4 wheels (AWD)
     for (let i = 0; i < 4; i++) {

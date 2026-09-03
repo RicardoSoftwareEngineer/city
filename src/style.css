@@ -304,15 +304,68 @@ kbd {
 }
 
 /* Per-ring load accordion (left side, above FPS hitch list). */
-#ring-load-hud {
+#load-order-hud {
   position: fixed;
   left: 12px;
   top: 14.5rem;
   z-index: 20;
+  pointer-events: none;
+  padding: 8px 10px;
+  max-width: 22rem;
+  background: rgba(8, 12, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  font-variant-numeric: tabular-nums;
+}
+#load-order-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #34d399;
+}
+#load-order-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  font-size: 0.65rem;
+  color: #cbd5e1;
+}
+.lo-row {
+  display: grid;
+  grid-template-columns: 1rem 1fr auto;
+  gap: 0.25rem 0.4rem;
+  align-items: baseline;
+  padding: 0.12rem 0;
+}
+.lo-row .lo-detail {
+  grid-column: 2 / -1;
+  font-size: 0.58rem;
+  color: #64748b;
+}
+.lo-glyph { font-size: 0.7rem; }
+.lo-pending { color: #64748b; }
+.lo-pending .lo-glyph { color: #475569; }
+.lo-running { color: #e2e8f0; }
+.lo-running .lo-glyph { color: #34d399; }
+.lo-running .lo-label { font-weight: 600; color: #6ee7b7; }
+.lo-done { color: #94a3b8; }
+.lo-done .lo-glyph { color: #22c55e; }
+.lo-ms {
+  color: #f472b6;
+  font-weight: 600;
+}
+
+#ring-load-hud {
+  position: fixed;
+  left: 12px;
+  bottom: 17rem;
+  z-index: 20;
   pointer-events: auto;
   padding: 8px 10px;
   max-width: 22rem;
-  max-height: calc(100vh - 22rem);
+  max-height: 9.5rem;
   overflow: auto;
   background: rgba(8, 12, 20, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.08);

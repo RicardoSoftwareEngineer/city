@@ -20,6 +20,7 @@ import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel } from './engine/loadLog.js';
 import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
+import { initMinimizableHud } from './engine/minimizableHud.js';
 import { beginLoadPhase, endLoadPhase, finishAllLoadPhases } from './engine/loadOrderLog.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
@@ -88,6 +89,7 @@ async function startGame() {
   let shownHitchRev = -1;
   const paintRingLoad = initRingLoadHud();
   const paintLoadOrder = initLoadOrderHud();
+  initMinimizableHud();
 
   function renderHitchList(el, rows) {
     if (!el) return;

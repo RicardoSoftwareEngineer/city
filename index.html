@@ -13,25 +13,31 @@
   <canvas id="game-canvas"></canvas>
 
   <!-- Heads-Up Display -->
-  <div id="perf-hud">
-    <div class="perf-row">
-      <span class="perf-label">FPS</span>
-      <span id="fps-value">—</span>
+  <div id="perf-hud" data-min-id="perf">
+    <button type="button" class="hud-min-toggle" id="perf-label" data-min-toggle>
+      FPS / Carga <span data-min-chev>▾</span>
+    </button>
+    <div data-min-body>
+      <div class="perf-row">
+        <span class="perf-label">FPS</span>
+        <span id="fps-value">—</span>
+      </div>
+      <div class="perf-row">
+        <span class="perf-label">Carga</span>
+        <span id="load-value">50</span>
+        <span class="perf-unit">/100</span>
+      </div>
+      <div id="load-bar"><div id="load-fill"></div></div>
+      <div id="load-detail">batch —</div>
+      <div id="load-phase">boot</div>
     </div>
-    <div class="perf-row">
-      <span class="perf-label">Carga</span>
-      <span id="load-value">50</span>
-      <span class="perf-unit">/100</span>
-    </div>
-    <div id="load-bar"><div id="load-fill"></div></div>
-    <div id="load-detail">batch —</div>
-    <div id="load-phase">boot</div>
-    <div id="hitch-panel" data-min-id="hitch-load">
-      <button type="button" class="hud-min-toggle" id="hitch-label" data-min-toggle>
-        Travamentos — carga <span data-min-chev>▾</span>
-      </button>
-      <ol id="hitch-list" class="hitch-list" data-min-body></ol>
-    </div>
+  </div>
+
+  <div id="hitch-load-hud" data-min-id="hitch-load">
+    <button type="button" class="hud-min-toggle" id="hitch-label" data-min-toggle>
+      Travamentos — carga <span data-min-chev>▾</span>
+    </button>
+    <ol id="hitch-list" class="hitch-list" data-min-body></ol>
   </div>
 
   <div id="play-hitch-hud" data-min-id="hitch-fps">

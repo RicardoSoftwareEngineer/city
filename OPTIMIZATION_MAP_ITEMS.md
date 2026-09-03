@@ -215,3 +215,13 @@ Countryside amplitude stays near sidewalk height (~0.15–1.25 m rolls, long ble
 ### Witcher vista extent
 
 `GROUND_BODY_HALF = 560`. Near tiles 40 m to ±320; far tiles 80 m beyond. `heightAt` layers: street apron → mid rolls → ridges → distant peaks (~50–150 m) so a low camera still sees vertical silhouette. Camera `far = 4500`.
+
+
+### Water lakes (demo, not yet budgeted)
+
+Two official Three.js addons, each as one mesh:
+
+- East: `three/addons/objects/Water.js` — 1024 mirror, `waternormals.jpg`, `waterColor 0x001e0f`, `distortionScale 3.7`, `time` ticked each frame. Textures from three.js r185 examples (MIT).
+- South: `three/addons/objects/Water2.js` — 1024 Reflector+Refractor, official dual normals, `flowDirection (1,1)`, `scale 4`. Internal Timer, do not tick.
+
+Basins live in `heightAt`. Vegetation skipped inside ellipses. Performance pass comes later — current settings follow the addons/examples, not the hitch governor.

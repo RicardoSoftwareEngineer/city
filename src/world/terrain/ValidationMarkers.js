@@ -8,6 +8,7 @@ import { cityBounds } from '../RoadDimensions.js';
 import { surfaceY } from './paths.js';
 import { pathEnds } from './paths.js';
 import { slopeAt } from './heightField.js';
+import { LAKE_WATER, LAKE_WATER2 } from '../water/lakes.js';
 
 const LEGEND_ID = 'terrain-validate-legend';
 
@@ -52,6 +53,16 @@ export const VALIDATE_ITEMS = [
     n: 8,
     title: 'Cidade 4×4 intacta',
     hint: 'Asfalto, prédios e grid como antes; só o campo ao redor mudou'
+  },
+  {
+    n: 9,
+    title: 'Lago Water.js (leste)',
+    hint: 'Addon oficial Water: reflexo + sun + waternormals. Olhe o céu e a margem.'
+  },
+  {
+    n: 10,
+    title: 'Lago Water2.js (sul)',
+    hint: 'Addon oficial Water2: reflexo + refração + fluxo. Compare com o 9.'
   }
 ];
 
@@ -70,7 +81,7 @@ function makeSprite(n) {
   ctx.strokeStyle = '#fbbf24';
   ctx.stroke();
   ctx.fillStyle = '#fef3c7';
-  ctx.font = 'bold 72px system-ui, sans-serif';
+  ctx.font = n >= 10 ? 'bold 52px system-ui, sans-serif' : 'bold 72px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(n), size / 2, size / 2 + 4);
@@ -136,6 +147,10 @@ function markerWorldPos(n) {
     case 8:
       // City interior
       return { x: midX, z: midZ };
+    case 9:
+      return { x: LAKE_WATER.cx, z: LAKE_WATER.cz };
+    case 10:
+      return { x: LAKE_WATER2.cx, z: LAKE_WATER2.cz };
     default:
       return { x: midX, z: midZ };
   }

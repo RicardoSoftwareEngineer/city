@@ -23,6 +23,8 @@ import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
+import { ensureGroundAround } from './world/terrain/terrainCollision.js';
+import { surfaceY } from './world/terrain/paths.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -82,6 +84,13 @@ async function startGame() {
   const gameLoop = new GameLoop((delta, elapsed) => {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
+
+    // Ground under the car exists before physics needs it, even if the
+    // visual stream has not reached this ring yet.
+    const car = vehicleController.chassisBody.position;
+    ensureGroundAround(car.x, car.z);
+    rescueIfBelowGround(vehicleController);
+
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
     camera.update(porscheModel.chassisGroup, mouse);
@@ -127,6 +136,9 @@ async function startGame() {
   renderer.resumeDraw();
   await yieldToMain();
 
+  // Solid countryside under and around the spawn from frame one.
+  ensureGroundAround(originX, originZ, 80, 25);
+
   loadGovernor.streaming = true;
   stream.pumpTo(STREAM_STEP, 0)
     .then(() => stream.continueAfter(STREAM_STEP))
@@ -142,6 +154,20 @@ async function startGame() {
     });
 
   console.log('🏙️ City started successfully!');
+}
+
+/**
+ * Safety net: if the car ends up well under the terrain (a collider that was
+ * still streaming, or a bad respawn), lift it back onto the surface.
+ */
+function rescueIfBelowGround(vehicleController) {
+  const body = vehicleController.chassisBody;
+  const ground = surfaceY(body.position.x, body.position.z);
+  if (body.position.y > ground - 4) return;
+  body.position.y = ground + 2;
+  body.velocity.set(0, 0, 0);
+  body.angularVelocity.set(0, 0, 0);
+  body.wakeUp();
 }
 
 function setupLighting(scene) {

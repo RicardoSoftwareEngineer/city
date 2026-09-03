@@ -225,3 +225,16 @@ Two official Three.js addons, each as one mesh:
 - South: `three/addons/objects/Water2.js` — 1024 Reflector+Refractor, official dual normals, `flowDirection (1,1)`, `scale 4`. Internal Timer, do not tick.
 
 Basins live in `heightAt`. Vegetation skipped inside ellipses. Performance pass comes later — current settings follow the addons/examples, not the hitch governor.
+
+
+### Terrain colliders
+
+`src/world/terrain/terrainCollision.js` owns one Cannon `Heightfield` per tile
+(fine 40 m inside ±320, coarse 80 m to `GROUND_BODY_HALF`), sampling the same
+`surfaceY` as the visual mesh so physics and picture never disagree.
+
+Colliders are NOT tied to the visual stream. `ensureGroundAround(x, z)` runs
+each frame with the car pose and builds any missing tile (CPU only, capped at
+2 per frame); the boot pre-builds the spawn ring. Driving past the streamed
+radius therefore can never drop the car through the world, and
+`rescueIfBelowGround` lifts it back if it ever ends up under the surface.

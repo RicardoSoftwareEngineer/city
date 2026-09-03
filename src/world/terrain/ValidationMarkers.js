@@ -20,7 +20,7 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 2,
-    title: 'Colinas 4–12 m + rocha',
+    title: 'Terreno nivelado + rocha',
     hint: 'Fora da cidade: morros; cidade plana; tint de rocha em encosta íngreme'
   },
   {

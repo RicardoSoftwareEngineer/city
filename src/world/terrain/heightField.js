@@ -12,13 +12,14 @@ export const TERRAIN_SEED = 42;
 
 /**
  * Countryside hill amplitude (meters).
- * Passo 11: 4–12 m far from city. Override via setAmplitudeRange for tests.
+ * Playtest: keep near street/sidewalk height (was 4–12 m cliff at the edge).
+ * Soft rolls only; Witcher amplitude can return later via setAmplitudeRange.
  */
-let amplitudeMin = 4.0;
-let amplitudeMax = 12.0;
-/** Blend width from city AABB edge (meters). Passo 11: ~20–30 m. */
-let blendIn = 20;
-let blendOut = 30;
+let amplitudeMin = 0.15;
+let amplitudeMax = 1.25;
+/** Blend width from city AABB edge (meters) — long soft ramp, no wall. */
+let blendIn = 8;
+let blendOut = 90;
 
 export function setAmplitudeRange(min, max) {
   amplitudeMin = min;

@@ -76,8 +76,8 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
   const tallGrass = scatterGrid({
     spacing: 3.5,
     seedSalt: 11,
-    scaleMin: 0.85,
-    scaleMax: 1.2,
+    scaleMin: 0.7,
+    scaleMax: 0.95,
     halfExtent: FIELD_HALF,
     accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.55 })
   });

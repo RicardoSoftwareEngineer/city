@@ -205,3 +205,8 @@ Edit **OPTIMIZATION_LOADING.md** when the question is: *same items, but do less 
 
 - Tree `THREE.LOD`: **world pose on the LOD**, levels at local origin. Distance/culling use the LOD position — never leave LOD at (0,0,0) with children offset (countryside trees vanished past ~140 m from origin).
 
+
+
+### Terrain height vs streets
+
+Countryside amplitude stays near sidewalk height (~0.15–1.25 m rolls, long blend). Avoid 4–12 m walls at the city edge.

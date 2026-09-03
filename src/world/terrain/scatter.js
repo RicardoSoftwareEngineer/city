@@ -5,7 +5,7 @@
 
 import { isInsideCity, GROUND_BODY_HALF } from '../RoadDimensions.js';
 import { distOutsideCity, slopeAt, TERRAIN_SEED } from './heightField.js';
-import { isInAnyLake } from '../water/lakes.js';
+import { isInAnyRiver } from '../water/rivers.js';
 import {
   distToPath,
   isPathBed,
@@ -47,7 +47,7 @@ export function scatterGrid(opts) {
       const jx = x + (rnd() - 0.5) * spacing * 0.7;
       const jz = z + (rnd() - 0.5) * spacing * 0.7;
       if (isInsideCity(jx, jz)) continue;
-      if (isInAnyLake(jx, jz)) continue;
+      if (isInAnyRiver(jx, jz)) continue;
       if (distOutsideCity(jx, jz) < 4) continue;
       if (!accept(jx, jz, rnd)) continue;
       const scale = scaleMin + rnd() * (scaleMax - scaleMin);
@@ -128,7 +128,7 @@ export function scatterClusters(opts) {
       const sx = x + (rnd() - 0.5) * seedSpacing * 0.5;
       const sz = z + (rnd() - 0.5) * seedSpacing * 0.5;
       if (isInsideCity(sx, sz)) continue;
-      if (isInAnyLake(sx, sz)) continue;
+      if (isInAnyRiver(sx, sz)) continue;
       if (distOutsideCity(sx, sz) < 4) continue;
       if (isPathBed(sx, sz)) continue;
       if (!accept(sx, sz, rnd)) continue;
@@ -140,7 +140,7 @@ export function scatterClusters(opts) {
         const px = sx + Math.cos(ang) * rad;
         const pz = sz + Math.sin(ang) * rad;
         if (isInsideCity(px, pz)) continue;
-        if (isInAnyLake(px, pz)) continue;
+        if (isInAnyRiver(px, pz)) continue;
         if (distOutsideCity(px, pz) < 4) continue;
         if (isPathBed(px, pz)) continue;
         if (!accept(px, pz, rnd)) continue;
@@ -212,11 +212,11 @@ export function scatterTreeGroves(opts = {}) {
       const z = c.z + Math.sin(ang) * rad;
       if (c.pathEnd) {
         if (isInsideCity(x, z)) continue;
-        if (isInAnyLake(x, z)) continue;
+        if (isInAnyRiver(x, z)) continue;
         if (distOutsideCity(x, z) < 6) continue;
         // Allow slightly closer to path at exits.
         if (distToPath(x, z) < 3.5) continue;
-      } else if (!acceptTree(x, z) || isInAnyLake(x, z)) {
+      } else if (!acceptTree(x, z) || isInAnyRiver(x, z)) {
         continue;
       }
       poses.push({

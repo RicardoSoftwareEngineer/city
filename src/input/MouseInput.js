@@ -52,7 +52,7 @@ export class MouseInput {
 
     this.handleWheel = (event) => {
       if (event.target.closest('#hud')) return;
-      this.zoomDistance += event.deltaY * 0.01;
+      this.zoomDistance += event.deltaY * 0.035;
       this.zoomDistance = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomDistance));
       event.preventDefault();
     };

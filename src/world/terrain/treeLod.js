@@ -38,8 +38,9 @@ function splitRoundRobin(poses, n) {
 }
 
 function placeClone(template, pose, scaleMul = 1, cast = true) {
+  // Local to the LOD — world pose lives on the LOD itself (distance + culling).
   const root = template.clone(true);
-  root.position.set(pose.x, pose.y, pose.z);
+  root.position.set(0, 0, 0);
   root.rotation.y = pose.rot || 0;
   const s = (pose.scale || 1) * scaleMul;
   root.scale.setScalar(s);
@@ -89,9 +90,13 @@ export function registerTreeLods(stream, parentGroup, ox, oz, poses) {
 
         for (let i = 0; i < bucket.length; i++) {
           const pose = bucket[i];
+          // LOD must sit at the tree pose — Three measures camera distance
+          // to this object. Leaving it at (0,0,0) culled every countryside
+          // tree once the camera left the city origin.
           const lod = new THREE.LOD();
-          lod.position.set(0, 0, 0);
+          lod.position.set(pose.x, pose.y, pose.z);
           lod.name = `treeLod_${bi}_${i}`;
+          lod.autoUpdate = true;
 
           if (nearTpl) {
             lod.addLevel(placeClone(nearTpl, pose, 1, true), 0);

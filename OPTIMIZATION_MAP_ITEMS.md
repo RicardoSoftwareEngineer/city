@@ -199,3 +199,9 @@ Bank: one AABB. Buildings: per revealed instance box. Terrain: one Heightfield b
 Edit **this** doc + those files when the question is: *this type should instance / merge / not cast shadows / share a glTF / use one collider.*
 
 Edit **OPTIMIZATION_LOADING.md** when the question is: *same items, but do less per frame, later rings, or delay GPU features.*
+
+
+### Tree LOD
+
+- Tree `THREE.LOD`: **world pose on the LOD**, levels at local origin. Distance/culling use the LOD position — never leave LOD at (0,0,0) with children offset (countryside trees vanished past ~140 m from origin).
+

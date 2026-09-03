@@ -235,9 +235,27 @@ kbd {
 #terrain-debug-btn[data-mode="malha"] { border-color: #39ff88; color: #39ff88; }
 #terrain-debug-btn[data-mode="colisores"] { border-color: #ffb03a; color: #ffb03a; }
 
-#terrain-debug-readout {
+#camera-mode-btn {
   position: fixed;
   top: 52px;
+  right: 12px;
+  z-index: 30;
+  padding: 8px 14px;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #e8f0ff;
+  background: rgba(12, 16, 28, 0.82);
+  border: 1px solid rgba(120, 170, 255, 0.55);
+  border-radius: 6px;
+  cursor: pointer;
+}
+#camera-mode-btn:hover { background: rgba(24, 34, 56, 0.92); }
+#camera-mode-btn[data-mode="orbit"] { border-color: #7ab0ff; color: #7ab0ff; }
+#camera-mode-btn[data-mode="follow"] { border-color: rgba(120, 170, 255, 0.55); }
+
+#terrain-debug-readout {
+  position: fixed;
+  top: 92px;
   right: 12px;
   z-index: 30;
   display: none;

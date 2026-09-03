@@ -1,6 +1,7 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Streets first, then props, bank, buildings, then countryside (prio 4) + dense veg (prio 5).
+ * Terrain meshes first via pumpTerrainTo (own radius sweep, mesh-only).
+ * Then streets → props → bank → buildings → countryside veg (prio 4) + dense (prio 5).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -45,8 +46,8 @@ export class WorldStream {
     this.templateJobs.push({ template, poses, options, priority, grower: null });
   }
 
-  addTask({ dist, priority = 2, run }) {
-    this.tasks.push({ dist, priority, run, done: false });
+  addTask({ dist, priority = 2, run, kind = null }) {
+    this.tasks.push({ dist, priority, run, kind, done: false });
   }
 
   addBuilding(entry) {
@@ -170,7 +171,11 @@ export class WorldStream {
       if (this.renderer) this.renderer.resumeDraw();
 
       const tasks = this.tasks.filter(
-        (task) => !task.done && task.priority === priority && task.dist <= radius
+        (task) =>
+          !task.done &&
+          task.kind !== 'terrain' &&
+          task.priority === priority &&
+          task.dist <= radius
       );
       for (const task of tasks) {
         await waitIfSlow();
@@ -241,6 +246,58 @@ export class WorldStream {
       }
       if (this.renderer) this.renderer.resumeDraw();
     }
+  }
+
+  /**
+   * Own loading circle for countryside meshes: expand Chebyshev radius and
+   * build PlaneGeometry tiles only. Yields when FPS dips. Phys stays on
+   * ensureGroundAround under the car.
+   */
+  async pumpTerrainTo(step = STREAM_STEP) {
+    const pending = this.tasks.filter((task) => task.kind === 'terrain' && !task.done);
+    if (pending.length === 0) return;
+
+    let max = 0;
+    for (const task of pending) {
+      if (task.dist > max) max = task.dist;
+    }
+
+    const COMPILE_EVERY = 8;
+    let sinceCompile = 0;
+
+    const flushCompile = async (label) => {
+      if (!sinceCompile || !this.renderer) return;
+      this.renderer.pauseDraw();
+      await measureRingItem(label, () => this.renderer.compileSubtree(this.parent));
+      this.renderer.resumeDraw();
+      await yieldToMain();
+      sinceCompile = 0;
+    };
+
+    for (let r = step; r < max + 0.01; r += step) {
+      beginRing(r);
+      setStreamLabel(`terrain r${r}`);
+      beginLoad('terrain', `ring ${r}`);
+
+      const batch = pending.filter((task) => !task.done && task.dist <= r);
+      for (const task of batch) {
+        await waitIfSlow();
+        await measureRingItem(
+          `terrain mesh d${Math.round(task.dist)}`,
+          () => task.run()
+        );
+        task.done = true;
+        sinceCompile += 1;
+        await yieldAfterWork();
+        if (sinceCompile >= COMPILE_EVERY) {
+          await flushCompile(`compile terrain r${r}`);
+        }
+      }
+
+      endRing(r);
+    }
+
+    await flushCompile('compile terrain final');
   }
 
   async continueAfter(radius) {

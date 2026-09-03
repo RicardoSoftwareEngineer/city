@@ -172,6 +172,12 @@ async function startGame() {
       // from here on, even while hinterland keeps streaming.
       setLoadPhase('play');
       setInteractive(true);
+      // Terrain mesh circle first (far vista), phys stays under the car.
+      return stream.pumpTerrainTo(STREAM_STEP);
+    })
+    .then(() => {
+      setLoadPhase('play');
+      setInteractive(true);
       return stream.continueAfter(STREAM_STEP);
     })
     .then(async () => {

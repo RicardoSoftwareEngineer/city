@@ -20,6 +20,8 @@ const SLOW_MULT = 0.35;
 const LOOK_SENS = 0.0022;
 /** Higher = snappier look; still smooth at 60–240 FPS. */
 const LOOK_SMOOTH = 18;
+/** A/D yaw turn rate (rad/s) — CS-style spectator spin, not strafe. */
+const TURN_RATE = 2.4;
 const MIN_PITCH = -Math.PI / 2 + 0.04;
 const MAX_PITCH = Math.PI / 2 - 0.04;
 
@@ -249,15 +251,28 @@ export class ThirdPersonCamera {
     this.flyYaw += (this._targetYaw - this.flyYaw) * t;
     this.flyPitch += (this._targetPitch - this.flyPitch) * t;
     this._applyFlyLook();
+
+    const kb = this.keyboard;
+
+    // A/D (and arrows): turn in place — spectator spin — not strafe.
+    let turn = 0;
+    if (kb.isPressed('KeyA') || kb.isPressed('ArrowLeft')) turn += 1;
+    if (kb.isPressed('KeyD') || kb.isPressed('ArrowRight')) turn -= 1;
+    if (turn !== 0) {
+      const dYaw = turn * TURN_RATE * Math.max(delta, 0);
+      this._targetYaw += dYaw;
+      this.flyYaw += dYaw;
+    }
+
+    // Recompute facing after keyboard turn so W follows the new heading.
+    this._applyFlyLook();
     this.camera.getWorldDirection(this._forward);
     this._right.crossVectors(this._forward, this._up).normalize();
 
     this._wish.set(0, 0, 0);
-    const kb = this.keyboard;
     if (kb.isPressed('KeyW') || kb.isPressed('ArrowUp')) this._wish.add(this._forward);
     if (kb.isPressed('KeyS') || kb.isPressed('ArrowDown')) this._wish.sub(this._forward);
-    if (kb.isPressed('KeyD') || kb.isPressed('ArrowRight')) this._wish.add(this._right);
-    if (kb.isPressed('KeyA') || kb.isPressed('ArrowLeft')) this._wish.sub(this._right);
+    // Optional strafe on Z/, keys only — A/D are reserved for turning.
     if (kb.isPressed('KeyE') || kb.isPressed('Space')) this._wish.y += 1;
     if (kb.isPressed('KeyQ') || kb.isPressed('ControlLeft') || kb.isPressed('ControlRight')) {
       this._wish.y -= 1;

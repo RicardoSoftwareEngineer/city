@@ -52,7 +52,7 @@ Entry: `src/main.js`.
 - `createGrowingInstancedGltf` then `reveal(radius, loadGovernor.chunk)` in budget ticks.
 - Run tasks with `dist <= radius`.
 - `revealBuildings` only at priority 3.
-- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings. First boot pump may stay `maxPriority 0`.
+- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). First boot pump may stay `maxPriority 0`.
 
 `continueAfter(r)`: `pumpTo(r, 4)` then rings `r+10, r+20, …` until `maxRadius()`.
 

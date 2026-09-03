@@ -1,10 +1,12 @@
 /**
- * Open countryside visual tiles (Passo 1).
+ * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–2).
  * 40×40 m PlaneGeometry ring around the city up to GROUND_BODY_HALF.
- * Stream tasks at priority 4 — after buildings.
+ * Stream tasks at priority 4 — after buildings. Physics created in the
+ * same task as the visual mesh (one Heightfield per tile, not one giant).
  */
 
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import {
   GROUND_BODY_HALF,
   isInsideCity
@@ -20,6 +22,10 @@ const TILE_SEGS = 20;
 const GRASS_HEX = 0x4a7c3f;
 
 let sharedMaterial = null;
+
+/** Reused for every tile Heightfield: -PI/2 on X so local Z heights → world Y. */
+const HF_QUAT = new CANNON.Quaternion();
+HF_QUAT.setFromEuler(-Math.PI / 2, 0, 0);
 
 function grassMaterial() {
   if (!sharedMaterial) {
@@ -79,9 +85,34 @@ function buildTileMesh(x0, z0) {
 }
 
 /**
- * Register one stream task per countryside tile (priority 4).
+ * Sample the same (TILE_SEGS+1)² grid as the visual mesh.
+ * Heightfield lies in local XY with height on Z; after -PI/2 on X,
+ * local (i*es, j*es, h) → world (x0 + i*es, h, z0+TILE - j*es).
+ * So matrix[i][j] = heightAt(x0 + i*es, z0 + (N-1-j)*es) and
+ * body.position = (x0, 0, z0 + TILE).
  */
-export function registerTerrain(stream, parentGroup, ox, oz) {
+function buildTileHeightfield(physicsWorld, x0, z0) {
+  const n = TILE_SEGS + 1;
+  const elementSize = TERRAIN_TILE / TILE_SEGS;
+  const matrix = [];
+  for (let i = 0; i < n; i++) {
+    const row = [];
+    for (let j = 0; j < n; j++) {
+      const wx = x0 + i * elementSize;
+      const wz = z0 + (n - 1 - j) * elementSize;
+      row.push(heightAt(wx, wz));
+    }
+    matrix.push(row);
+  }
+  const position = new CANNON.Vec3(x0, 0, z0 + TERRAIN_TILE);
+  physicsWorld.addHeightfield(matrix, elementSize, position, HF_QUAT);
+}
+
+/**
+ * Register one stream task per countryside tile (priority 4).
+ * Each task builds the visual mesh and its matching Heightfield.
+ */
+export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
   const group = new THREE.Group();
   group.name = 'terrain';
   parentGroup.add(group);
@@ -94,6 +125,10 @@ export function registerTerrain(stream, parentGroup, ox, oz) {
       run: async () => {
         beginLoad('terrain', `tile ${t.ix},${t.iz}`);
         group.add(buildTileMesh(t.x0, t.z0));
+        if (physicsWorld) {
+          beginLoad('terrain', `phys ${t.ix},${t.iz}`);
+          buildTileHeightfield(physicsWorld, t.x0, t.z0);
+        }
       }
     });
   }

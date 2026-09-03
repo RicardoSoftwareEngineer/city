@@ -42,6 +42,6 @@ export function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
   });
 
   new CityBuildings().register(stream, parentGroup, physicsWorld);
-  registerTerrain(stream, parentGroup, ox, oz);
+  registerTerrain(stream, parentGroup, ox, oz, physicsWorld);
   return stream;
 }

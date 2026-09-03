@@ -23,7 +23,7 @@ export const loadGovernor = {
     this.fps = this.fps * 0.88 + fps * 0.12;
 
     if (deltaSeconds > 1 / 24) {
-      setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch });
+      setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch, streaming: this.streaming });
       this.level = Math.max(0, this.level - 1.2);
       noteHitch(deltaSeconds * 1000);
       return;
@@ -35,7 +35,7 @@ export const loadGovernor = {
     if (this.level < 0) this.level = 0;
     if (this.level > 4) this.level = 4;
     if (this.streaming && this.level > 2) this.level = 2;
-    setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch });
+    setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch, streaming: this.streaming });
   },
 
   /** 0–100 for HUD */

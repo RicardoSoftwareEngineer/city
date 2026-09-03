@@ -14,8 +14,8 @@ const LABEL = {
 };
 
 const UI_BLOCK = '#hud, button, #terrain-debug-readout, #play-hitch-hud';
-const BASE_SPEED = 38;
-const FAST_MULT = 3.2;
+const BASE_SPEED = 110;
+const FAST_MULT = 3.8;
 const SLOW_MULT = 0.35;
 const LOOK_SENS = 0.0022;
 /** Higher = snappier look; still smooth at 60–240 FPS. */
@@ -140,7 +140,7 @@ export class ThirdPersonCamera {
       if (this.mode !== 'orbit') return;
       if (event.target.closest?.(UI_BLOCK)) return;
       const factor = event.deltaY > 0 ? 0.9 : 1.1;
-      this.flySpeed = Math.max(4, Math.min(220, this.flySpeed * factor));
+      this.flySpeed = Math.max(8, Math.min(420, this.flySpeed * factor));
       event.preventDefault();
     };
     // pointer* events give movementX reliably while captured.

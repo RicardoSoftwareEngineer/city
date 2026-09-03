@@ -157,7 +157,12 @@ async function startGame() {
 
   loadGovernor.streaming = true;
   stream.pumpTo(STREAM_STEP, 0)
-    .then(() => stream.continueAfter(STREAM_STEP))
+    .then(() => {
+      // World is already interactive; keep streaming hinterland but count
+      // further freezes toward the FPS list unless tied to fresh load work.
+      setLoadPhase('play');
+      return stream.continueAfter(STREAM_STEP);
+    })
     .then(async () => {
       loadGovernor.streaming = false;
       await waitUntilSmooth(40, 60);

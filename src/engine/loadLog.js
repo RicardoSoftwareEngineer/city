@@ -23,6 +23,9 @@ let lastDraw = {
 };
 let prevPrograms = 0;
 let phase = 'boot';
+/** Once true, every felt hitch is listed under Travamentos — FPS. */
+let interactive = false;
+let streamLabel = '';
 let hitchRevision = 0;
 let govSnap = { carga: 50, batch: 16, streaming: false };
 
@@ -50,6 +53,31 @@ export function setLoadPhase(next) {
 
 export function getLoadPhase() {
   return phase;
+}
+
+/** Mark the session as playable — FPS hitch list starts capturing everything. */
+export function setInteractive(on = true) {
+  interactive = Boolean(on);
+  if (interactive && phase !== 'play' && !String(phase).startsWith('shadow')) {
+    phase = 'play';
+  }
+}
+
+export function getInteractive() {
+  return interactive;
+}
+
+/**
+ * Stream ring label for the HUD. Does not steal hitch bucketing once interactive:
+ * WorldStream used to call setLoadPhase("stream rN") forever, which hid FPS freezes.
+ */
+export function setStreamLabel(label) {
+  streamLabel = label || '';
+  if (!interactive) phase = streamLabel || phase;
+}
+
+export function getStreamLabel() {
+  return streamLabel;
 }
 
 export function classifyMd(text) {
@@ -145,7 +173,8 @@ export function noteHitch(frameMs) {
     baking: lastDraw.baking,
     carga: govSnap.carga,
     batch: govSnap.batch,
-    streaming: Boolean(govSnap.streaming)
+    streaming: Boolean(govSnap.streaming),
+    interactive
   };
   hitchEntries.push(row);
   hitchRevision++;
@@ -162,36 +191,29 @@ export function getHitchRevision() {
   return hitchRevision;
 }
 
-/**
- * Split felt by the player:
- *   load — boot, or a hitch still tied to fresh stream work
- *   play — everything else (including freezes while exploring during late stream)
- *
- * Old filter (phase === 'play' only) left the FPS list empty for minutes because
- * continueAfter keeps phase as "stream rN pM" long after the car is already moving.
- */
-function hitchBucket(e) {
-  const phaseName = String(e.phase || '');
-  if (phaseName === 'boot') return 'load';
-  if (phaseName === 'play') return 'play';
-
+function isFreshStreamWork(e) {
   const cause = String(e.cause || '');
   const work = String(e.work || '');
-  const freshLoad =
+  return (
     e.streaming &&
     work &&
     work !== 'none' &&
     (e.agoMs == null || e.agoMs < 2500) &&
     !cause.includes('tag expired') &&
-    !cause.includes('no tag');
-
-  return freshLoad ? 'load' : 'play';
+    !cause.includes('no tag')
+  );
 }
 
 export function getTopHitches(limit = 8, kind = 'all') {
   let rows = hitchEntries;
-  if (kind === 'load') rows = hitchEntries.filter((e) => hitchBucket(e) === 'load');
-  else if (kind === 'play') rows = hitchEntries.filter((e) => hitchBucket(e) === 'play');
+  if (kind === 'load') {
+    // Boot / pre-interactive, or stream work still attributed to a load tag.
+    rows = hitchEntries.filter((e) => !e.interactive || isFreshStreamWork(e));
+  } else if (kind === 'play') {
+    // Once the world is interactive, EVERY felt hitch appears here — even if
+    // hinterland streaming is still running (that used to hide 1s+ freezes).
+    rows = hitchEntries.filter((e) => e.interactive);
+  }
   return rows
     .slice()
     .sort((a, b) => b.frameMs - a.frameMs)
@@ -203,7 +225,7 @@ export function getTopLoadHitches(limit = 8) {
   return getTopHitches(limit, 'load');
 }
 
-/** FPS hitches while already in the world (drive / free flight). */
+/** FPS hitches after the session became interactive. */
 export function getTopPlayHitches(limit = 8) {
   return getTopHitches(limit, 'play');
 }

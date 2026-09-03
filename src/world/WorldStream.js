@@ -11,7 +11,7 @@ import {
 } from './instancing.js';
 import { createBudget, waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
-import { beginLoad, dumpLoadLog, setLoadPhase } from '../engine/loadLog.js';
+import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
 import { castOpts } from './shadowPolicy.js';
 
 export const STREAM_STEP = 10;
@@ -85,7 +85,7 @@ export class WorldStream {
     const budget = createBudget();
 
     for (const priority of priorities) {
-      setLoadPhase(`stream r${radius} p${priority}`);
+      setStreamLabel(`stream r${radius} p${priority}`);
       beginLoad('stream', `ring ${radius} prio ${priority}`);
       const toLoad = this.urlJobs.filter(
         (job) =>

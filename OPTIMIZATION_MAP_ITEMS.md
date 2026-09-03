@@ -123,18 +123,29 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 
 ---
 
-## Open countryside terrain (Passo 1–2)
+## Open countryside terrain (Passo 1–7)
 
-`src/world/terrain/TerrainWorld.js` + `heightField.js` — stream **tasks** priority 4.
+`src/world/terrain/TerrainWorld.js` + `heightField.js` + `paths.js` — stream **tasks** priority 4.
 
 - 40×40 m `PlaneGeometry` tiles (~20 segs / 2 m) covering the outer ring up to `GROUND_BODY_HALF` (±300).
-- Hole over the city: skip tiles whose **center** is inside `isInsideCity`; edge tiles still displace via `heightAt` (Y=0 inside the AABB).
-- `MeshLambertMaterial` grass hex; `receiveShadow = false` for now.
+- Hole over the city: skip tiles whose **center** is inside `isInsideCity`; edge tiles still displace via `surfaceY` (Y=0 inside the AABB minus path groove outside).
+- Shared `MeshLambertMaterial({ vertexColors: true, color: 0xffffff })`: dirt bed `0x8b7355` vs grass `0x4a7c3f`, soft falloff halfWidth→halfWidth+1.5 m. `receiveShadow = false`.
+- **Path bed:** `paths.js` seed-fixed south + west exits, `PATH_HALF_WIDTH = 2` (~4 m). `surfaceY = heightAt - pathDepression` used by mesh **and** Heightfield so the car follows the groove.
 - One task per tile; `dist` = Chebyshev from stream origin to tile center.
-- **Passo 2 physics:** same task builds a Cannon `Heightfield` on the same `(TILE_SEGS+1)²` grid (`elementSize = 2`). Quaternion `-PI/2` on X; body at `(x0, 0, z0+TILE)` with flipped j so world Y = `heightAt`. No single giant HF.
+- **Passo 2 physics:** same task builds a Cannon `Heightfield` on the same `(TILE_SEGS+1)²` grid (`elementSize = 2`). Quaternion `-PI/2` on X; body at `(x0, 0, z0+TILE)` with flipped j so world Y = `surfaceY`. No single giant HF.
 - City flat ground box shrunk to `cityBounds()` + ~3 m pad (top still `ASPHALT_SURFACE_Y`). Soft outer fence at ±300. City perimeter walls stay off.
 
-Log: `terrain tile {ix},{iz}` then `terrain phys {ix},{iz}`.
+### Vegetation (Passo 4–7)
+
+`scatter.js` + `Vegetation.js` + `windMaterial.js` — stream **urlJobs** priority 4 (after buildings).
+
+- Deterministic grid/jitter/groves from `TERRAIN_SEED`. Reject city, `distOutsideCity < 4`, path bed (strict for tall grass/trees/bushes), steep slope for tall grass. Clover may sit on path shoulder.
+- Growing instancers only (`createGrowingInstancedGltf` via `addUrl`). Never one InstancedMesh with capacity = whole field.
+- `options.prepare` applies `applyWind` to grass/flower/bush materials after load (not trees — shared city CommonTree materials).
+- Trees/bushes: `castShadow: true`. Grass/flowers/clover: no cast.
+- Degrau 1 field half-extent ~180 m; budgets: tall/wispy grass thousands, flowers ~200–400, bushes ~80–150, trees 40–80 in 6–10 groves.
+
+Log: `terrain tile {ix},{iz}` then `terrain phys {ix},{iz}`; veg `gltf:parse Grass_*` / `CommonTree_*`.
 
 ---
 
@@ -172,6 +183,7 @@ Bank: one AABB. Buildings: per revealed instance box. Terrain: one Heightfield b
 - `src/world/CityGrid.js`, `StreetFurniture.js`, `BankBuilding.js`, `CityBuildings.js`
 - `src/world/buildings/catalog.js`, `merge.js`, `specs.js`, `interiors.js`
 - `src/world/Intersection.js` (boot intersection meshes)
+- `src/world/terrain/*` (tiles, paths, scatter, wind, vegetation)
 - `src/vehicle/PorscheModel.js` (mesh attrs / shadow flags on the car)
 - Lighting object flags in `main.js` / `AssetLoader.prepareModel`
 - `SOURCE_SWAP.md` for which glTF is canonical

@@ -1,8 +1,8 @@
 /**
- * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–2).
+ * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–3).
  * 40×40 m PlaneGeometry ring around the city up to GROUND_BODY_HALF.
- * Stream tasks at priority 4 — after buildings. Physics created in the
- * same task as the visual mesh (one Heightfield per tile, not one giant).
+ * Vertex colors paint dirt path beds; Y uses shared surfaceY (path groove).
+ * Stream tasks at priority 4 — after buildings.
  */
 
 import * as THREE from 'three';
@@ -13,13 +13,18 @@ import {
 } from '../RoadDimensions.js';
 import { chebyshev } from '../instancing.js';
 import { beginLoad } from '../../engine/loadLog.js';
-import { heightAt } from './heightField.js';
+import { pathDirtFactor, surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
 export const TERRAIN_PRIORITY = 4;
 /** ~2 m verts → 20 segments (21 verts per edge). */
 const TILE_SEGS = 20;
 const GRASS_HEX = 0x4a7c3f;
+const DIRT_HEX = 0x8b7355;
+
+const grassColor = new THREE.Color(GRASS_HEX);
+const dirtColor = new THREE.Color(DIRT_HEX);
+const mixColor = new THREE.Color();
 
 let sharedMaterial = null;
 
@@ -27,9 +32,12 @@ let sharedMaterial = null;
 const HF_QUAT = new CANNON.Quaternion();
 HF_QUAT.setFromEuler(-Math.PI / 2, 0, 0);
 
-function grassMaterial() {
+function terrainMaterial() {
   if (!sharedMaterial) {
-    sharedMaterial = new THREE.MeshLambertMaterial({ color: GRASS_HEX });
+    sharedMaterial = new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      color: 0xffffff
+    });
   }
   return sharedMaterial;
 }
@@ -66,17 +74,26 @@ function buildTileMesh(x0, z0) {
   geo.rotateX(-Math.PI / 2);
 
   const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+
   for (let i = 0; i < pos.count; i++) {
     const lx = pos.getX(i);
     const lz = pos.getZ(i);
     const wx = x0 + TERRAIN_TILE * 0.5 + lx;
     const wz = z0 + TERRAIN_TILE * 0.5 + lz;
-    pos.setY(i, heightAt(wx, wz));
+    pos.setY(i, surfaceY(wx, wz));
+
+    const dirt = pathDirtFactor(wx, wz);
+    mixColor.copy(grassColor).lerp(dirtColor, dirt);
+    colors[i * 3] = mixColor.r;
+    colors[i * 3 + 1] = mixColor.g;
+    colors[i * 3 + 2] = mixColor.b;
   }
   pos.needsUpdate = true;
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
 
-  const mesh = new THREE.Mesh(geo, grassMaterial());
+  const mesh = new THREE.Mesh(geo, terrainMaterial());
   mesh.position.set(x0 + TERRAIN_TILE * 0.5, 0, z0 + TERRAIN_TILE * 0.5);
   mesh.receiveShadow = false;
   mesh.castShadow = false;
@@ -86,10 +103,7 @@ function buildTileMesh(x0, z0) {
 
 /**
  * Sample the same (TILE_SEGS+1)² grid as the visual mesh.
- * Heightfield lies in local XY with height on Z; after -PI/2 on X,
- * local (i*es, j*es, h) → world (x0 + i*es, h, z0+TILE - j*es).
- * So matrix[i][j] = heightAt(x0 + i*es, z0 + (N-1-j)*es) and
- * body.position = (x0, 0, z0 + TILE).
+ * Heights use surfaceY so the car follows the path groove.
  */
 function buildTileHeightfield(physicsWorld, x0, z0) {
   const n = TILE_SEGS + 1;
@@ -100,7 +114,7 @@ function buildTileHeightfield(physicsWorld, x0, z0) {
     for (let j = 0; j < n; j++) {
       const wx = x0 + i * elementSize;
       const wz = z0 + (n - 1 - j) * elementSize;
-      row.push(heightAt(wx, wz));
+      row.push(surfaceY(wx, wz));
     }
     matrix.push(row);
   }

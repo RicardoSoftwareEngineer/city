@@ -1,6 +1,6 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Streets first, then props, bank, buildings, then countryside terrain (prio 4).
+ * Streets first, then props, bank, buildings, then countryside terrain + vegetation (prio 4).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -97,6 +97,9 @@ export class WorldStream {
       for (const job of toLoad) {
         await waitIfSlow();
         const template = await loadGltf(job.url, job.options);
+        if (template && typeof job.options.prepare === 'function') {
+          job.options.prepare(template);
+        }
         job.grower = template
           ? createGrowingInstancedGltf(
             this.parent,

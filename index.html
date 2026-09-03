@@ -41,11 +41,18 @@
     <ol id="play-hitch-list" class="hitch-list" data-min-body></ol>
   </div>
 
-  <div id="load-order-hud" data-min-id="load-order">
-    <button type="button" class="hud-min-toggle" id="load-order-label" data-min-toggle>
-      Ordem de carga <span data-min-chev>▾</span>
+  <div id="load-order-async-hud" class="load-order-hud" data-min-id="load-order-async">
+    <button type="button" class="hud-min-toggle" id="load-order-async-label" data-min-toggle>
+      Ordem de carga — async <span data-min-chev>▾</span>
     </button>
-    <ul id="load-order-list" data-min-body></ul>
+    <ul id="load-order-async-list" class="load-order-list" data-min-body></ul>
+  </div>
+
+  <div id="load-order-sync-hud" class="load-order-hud" data-min-id="load-order-sync">
+    <button type="button" class="hud-min-toggle" id="load-order-sync-label" data-min-toggle>
+      Ordem de carga — sync <span data-min-chev>▾</span>
+    </button>
+    <ul id="load-order-sync-list" class="load-order-list" data-min-body></ul>
   </div>
 
   <div id="ring-load-hud" data-min-id="ring-load">

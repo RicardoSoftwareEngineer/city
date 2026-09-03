@@ -21,7 +21,7 @@ import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, ge
 import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
-import { beginLoadPhase, endLoadPhase, finishAllLoadPhases } from './engine/loadOrderLog.js';
+import { beginLoadPhase, endLoadPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
@@ -117,7 +117,8 @@ async function startGame() {
     // Ground under the car exists before physics needs it, even if the
     // visual stream has not reached this ring yet.
     const car = vehicleController.chassisBody.position;
-    ensureGroundAround(car.x, car.z);
+    const builtGround = ensureGroundAround(car.x, car.z);
+    if (builtGround) noteGroundPhys(builtGround, `${builtGround} tile(s)`);
     rescueIfBelowGround(vehicleController);
 
     vehicleController.enabled = !camera.isFreeFlight;
@@ -166,7 +167,10 @@ async function startGame() {
   await yieldToMain();
 
   // Solid countryside under and around the spawn from frame one.
-  ensureGroundAround(originX, originZ, 80, 25);
+  {
+    const built = ensureGroundAround(originX, originZ, 80, 25);
+    if (built) noteGroundPhys(built, `boot ${built} tile(s)`);
+  }
 
   // Capture freezes as soon as the player can move / fly.
   setInteractive(true);

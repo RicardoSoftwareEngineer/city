@@ -33,7 +33,7 @@ body {
   top: 1rem;
   left: 1rem;
   z-index: 10;
-  pointer-events: none;
+  pointer-events: auto;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -473,6 +473,40 @@ kbd {
 [data-min-id].is-min [data-min-body] {
   display: none;
 }
-#hitch-panel {
-  margin-top: 0.65rem;
+#perf-label {
+  color: #38bdf8;
+  margin-bottom: 0.35rem;
+}
+
+#hitch-load-hud {
+  position: fixed;
+  top: 9.5rem;
+  left: 1rem;
+  z-index: 20;
+  pointer-events: auto;
+  padding: 8px 10px;
+  max-width: 22rem;
+  background: rgba(8, 12, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Draggable HUD chrome */
+[data-min-id] .hud-min-toggle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+[data-min-id].is-dragging {
+  opacity: 0.92;
+  z-index: 50 !important;
+}
+[data-min-id].is-dragging .hud-min-toggle {
+  cursor: grabbing;
+}
+[data-min-id].is-placed {
+  right: auto;
+  bottom: auto;
 }

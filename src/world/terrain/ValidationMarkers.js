@@ -20,7 +20,7 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 2,
-    title: 'Terreno nivelado + rocha',
+    title: 'Relevo em camadas + rocha',
     hint: 'Fora da cidade: morros; cidade plana; tint de rocha em encosta íngreme'
   },
   {
@@ -40,8 +40,8 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 6,
-    title: 'Horizonte + pinheiros longe',
-    hint: 'Sem névoa; GiantPines distantes sem sombra; horizonte aberto'
+    title: 'Vista longe (picos + pinheiros)',
+    hint: 'Do chão dá pra ver o relevo subindo até o horizonte; pinheiros na crista'
   },
   {
     n: 7,
@@ -128,8 +128,8 @@ function markerWorldPos(n) {
       // Grove at south path tip
       return { x: southEnd.x, z: southEnd.z };
     case 6:
-      // Farther south for fog / distant pines
-      return { x: midX - 20, z: b.minZ - 160 };
+      // South vista — rising ridges / peaks
+      return { x: midX - 20, z: b.minZ - 280 };
     case 7:
       // Near spawn — look at HUD Travamentos / console
       return { x: 6, z: 18 };

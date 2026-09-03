@@ -40,8 +40,8 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 6,
-    title: 'Névoa + pinheiros longe',
-    hint: 'FogExp2 suave; GiantPines distantes sem sombra; cidade legível ~100 m'
+    title: 'Horizonte + pinheiros longe',
+    hint: 'Sem névoa; GiantPines distantes sem sombra; horizonte aberto'
   },
   {
     n: 7,

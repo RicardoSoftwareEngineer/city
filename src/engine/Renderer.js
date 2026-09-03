@@ -17,9 +17,8 @@ export class Renderer {
     // Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xdbeafe);
-    // Passo 9: soft haze so the ±300 plane edge reads as horizon, not a cliff.
-    // Passo 15: density 0.0045 → ~64% transmittance at 100 m (city still readable).
-    this.scene.fog = new THREE.FogExp2(0xdbeafe, 0.0045);
+    // Fog disabled (playtest request): keep clear sky color only.
+    this.scene.fog = null;
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(

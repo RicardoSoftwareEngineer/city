@@ -186,3 +186,10 @@ Edit **OPTIMIZATION_MAP_ITEMS.md** when the question is: *this object type shoul
 ### Large countryside stream
 
 Far terrain uses coarse 80 m tiles (priority 4) so expanding to ±560 m does not create hundreds of fine Heightfields at once. Rings still stream with the governor cap.
+
+
+### Terrain physics is not stream-gated
+
+Visual terrain tiles still stream at priority 4, but their colliders are built
+on demand by `ensureGroundAround` (see map-items). Budget note: at most 2 tile
+heightfields per frame, plus a small spawn ring at boot.

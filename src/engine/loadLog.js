@@ -24,9 +24,9 @@ let lastDraw = {
 let prevPrograms = 0;
 let phase = 'boot';
 let hitchRevision = 0;
-let govSnap = { carga: 50, batch: 16 };
+let govSnap = { carga: 50, batch: 16, streaming: false };
 
-const TAB_AWAY_MS = 8000;
+const TAB_AWAY_MS = 45000;
 const RECENT_CAP = 8;
 
 function shortName(label) {
@@ -144,7 +144,8 @@ export function noteHitch(frameMs) {
     shadows: lastDraw.shadows,
     baking: lastDraw.baking,
     carga: govSnap.carga,
-    batch: govSnap.batch
+    batch: govSnap.batch,
+    streaming: Boolean(govSnap.streaming)
   };
   hitchEntries.push(row);
   hitchRevision++;
@@ -161,27 +162,48 @@ export function getHitchRevision() {
   return hitchRevision;
 }
 
-function isLoadPhase(phaseName) {
-  // boot + stream rings = loading; only explicit "play" is FPS-while-driving.
-  return phaseName !== 'play';
+/**
+ * Split felt by the player:
+ *   load — boot, or a hitch still tied to fresh stream work
+ *   play — everything else (including freezes while exploring during late stream)
+ *
+ * Old filter (phase === 'play' only) left the FPS list empty for minutes because
+ * continueAfter keeps phase as "stream rN pM" long after the car is already moving.
+ */
+function hitchBucket(e) {
+  const phaseName = String(e.phase || '');
+  if (phaseName === 'boot') return 'load';
+  if (phaseName === 'play') return 'play';
+
+  const cause = String(e.cause || '');
+  const work = String(e.work || '');
+  const freshLoad =
+    e.streaming &&
+    work &&
+    work !== 'none' &&
+    (e.agoMs == null || e.agoMs < 2500) &&
+    !cause.includes('tag expired') &&
+    !cause.includes('no tag');
+
+  return freshLoad ? 'load' : 'play';
 }
 
 export function getTopHitches(limit = 8, kind = 'all') {
   let rows = hitchEntries;
-  if (kind === 'load') rows = hitchEntries.filter((e) => isLoadPhase(e.phase));
-  else if (kind === 'play') rows = hitchEntries.filter((e) => !isLoadPhase(e.phase));
+  if (kind === 'load') rows = hitchEntries.filter((e) => hitchBucket(e) === 'load');
+  else if (kind === 'play') rows = hitchEntries.filter((e) => hitchBucket(e) === 'play');
   return rows
     .slice()
     .sort((a, b) => b.frameMs - a.frameMs)
     .slice(0, limit);
 }
 
-/** Loading hitches (boot / stream). */
+/** Loading hitches (boot / stream work). */
 export function getTopLoadHitches(limit = 8) {
   return getTopHitches(limit, 'load');
 }
 
-/** Play hitches (FPS drops after stream finished). */
+/** FPS hitches while already in the world (drive / free flight). */
 export function getTopPlayHitches(limit = 8) {
   return getTopHitches(limit, 'play');
 }

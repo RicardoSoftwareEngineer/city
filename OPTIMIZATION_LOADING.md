@@ -108,8 +108,9 @@ HUD (`index.html` `#perf-hud`): FPS, carga 0–100, `batch`, `chunk`, `budgetMs`
 Not “how to shade a building” (that is map-items). Here: **when** the shadow pass exists.
 
 - During stream: `shadowMap.enabled = false`. Game loop draws as usual.
+- `pauseDraw` **holds the last frame** (`preserveDrawingBuffer` + no `clear()`). Never clear to sky blue — that was the boot flicker.
 - After stream + `waitUntilSmooth(40)`: `resumeShadows()` (async):
-  1. Pause scene draws (clear only) so the loop cannot compile-via-draw.
+  1. Pause scene draws (hold last frame) so the loop cannot compile-via-draw.
   2. `shadowMap.enabled = true`, `autoUpdate = false`, `needsUpdate = false`.
   3. `renderer.compile(object, camera, scene)` once per **Mesh and InstancedMesh** (not per unique material — instancing is a different program). Yield on `budgetMs` / `waitIfSlow`. Log: `gpu compile inst|mesh {name}`.
   4. `needsUpdate = true`, unpause, one rAF — next draw is `frame+shadow-bake` (depth map only).

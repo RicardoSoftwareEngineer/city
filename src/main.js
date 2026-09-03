@@ -114,6 +114,10 @@ async function startGame() {
 
   gameLoop.start();
 
+  // Present one stable frame (Porsche + intersection) before compile pause,
+  // so pauseDraw has a real framebuffer to hold (no blank blue hold).
+  await yieldToMain();
+
   // Porsche + corner markers (~13 programs) used to compile on the first
   // stream frame, tagged `stream ring 10 prio 0 +13prog`.
   renderer.pauseDraw();

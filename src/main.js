@@ -112,9 +112,10 @@ async function startGame() {
     ensureGroundAround(car.x, car.z);
     rescueIfBelowGround(vehicleController);
 
+    vehicleController.enabled = !camera.isFreeFlight;
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
-    camera.update(porscheModel.chassisGroup, mouse);
+    camera.update(porscheModel.chassisGroup, mouse, delta);
     renderer.render();
 
     if (speedValueElement) {

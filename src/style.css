@@ -107,28 +107,28 @@ body {
   color: #94a3b8;
 }
 
-#hitch-list {
+.hitch-list {
   margin-top: 0.3rem;
   padding-left: 1.1rem;
   max-width: 22rem;
-  max-height: 14rem;
+  max-height: 11rem;
   overflow: hidden;
   font-size: 0.65rem;
   line-height: 1.35;
   color: #cbd5e1;
 }
 
-#hitch-list li {
+.hitch-list li {
   margin-bottom: 0.15rem;
 }
 
-#hitch-list .hitch-ms {
+.hitch-list .hitch-ms {
   color: #f87171;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-#hitch-list .hitch-md {
+.hitch-list .hitch-md {
   display: inline-block;
   min-width: 2.4rem;
   font-weight: 700;
@@ -136,11 +136,11 @@ body {
   letter-spacing: 0.04em;
 }
 
-#hitch-list .hitch-MAP {
+.hitch-list .hitch-MAP {
   color: #fbbf24;
 }
 
-#hitch-list .hitch-LOAD {
+.hitch-list .hitch-LOAD {
   color: #38bdf8;
 }
 
@@ -275,4 +275,30 @@ kbd {
   height: 9px;
   margin-right: 4px;
   border-radius: 2px;
+}
+
+
+/* Play-time FPS hitch list (bottom-left; checklist used to live here). */
+#play-hitch-hud {
+  position: fixed;
+  left: 12px;
+  bottom: 5.5rem;
+  z-index: 20;
+  pointer-events: none;
+  padding: 8px 10px;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+#play-hitch-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+#play-hitch-hud .hitch-list {
+  margin-top: 0.3rem;
+  max-height: 11rem;
 }

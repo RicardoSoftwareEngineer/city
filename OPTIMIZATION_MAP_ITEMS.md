@@ -149,7 +149,7 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 - Terrain vertex splat: grass / dirt path / rock (`splatMaterial.js`), one Lambert program.
 
 Log: `path network`; `terrain mesh/phys`; `veg …`; `veg treeLod …`.
-- Fog: `FogExp2(0xdbeafe, 0.0045)` — city readable at 100 m.
+- Fog: **off** (`scene.fog = null`); sky/background stays `0xdbeafe`.
 
 ---
 

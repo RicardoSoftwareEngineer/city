@@ -2,11 +2,20 @@
  * Shared CPU height for open countryside.
  * Witcher-style vista: flush apron at the city → rolling mid → ridges →
  * distant peaks so a low camera still sees far vertical silhouette.
+ * Twin S-rivers east of the city carve beds; soft mountains channel the S.
  */
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { cityBounds, isInsideCity } from '../RoadDimensions.js';
-import { LAKES, ellipseRadius } from '../water/lakes.js';
+import {
+  RIVERS,
+  distToRiver,
+  RIVER_HALF_WIDTH,
+  RIVER_BLEND,
+  RIVER_DEPTH,
+  riverMountainHeight,
+  riverPolyline
+} from '../water/rivers.js';
 
 /** Fixed seed so every boot gets the same hills. */
 export const TERRAIN_SEED = 42;
@@ -60,8 +69,8 @@ function n01(x, z, freq, ox = 0, oz = 0) {
 }
 
 /**
- * World Y of the countryside surface at (x, z).
- * Inside the city: 0 (sidewalk). Outside: layered Witcher vista.
+ * World Y of the countryside surface at (x, z) before river beds.
+ * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + mountains.
  */
 function uncarvedHeightAt(x, z) {
   if (isInsideCity(x, z)) return 0;
@@ -91,30 +100,61 @@ function uncarvedHeightAt(x, z) {
   // Far peaks — vertical silhouette visible from a low camera.
   h += (48 + peak * 100) * far;
 
+  // Soft mountains that channel the S-rivers (outside city only).
+  h += riverMountainHeight(x, z);
+
   return h;
 }
 
-const lakeWaterYCache = new Map();
+const riverWaterYCache = new Map();
 
-/** Water plane Y: a little below the uncarved ground at the lake center. */
-export function lakeSurfaceY(lake) {
-  let y = lakeWaterYCache.get(lake.id);
+/**
+ * Water plane Y: average uncarved+mountains height along a few polyline
+ * samples, minus a small offset so the surface sits in the bed.
+ */
+export function riverSurfaceY(river) {
+  let y = riverWaterYCache.get(river.id);
   if (y == null) {
-    y = uncarvedHeightAt(lake.cx, lake.cz) - 0.28;
-    lakeWaterYCache.set(lake.id, y);
+    const line = riverPolyline(river);
+    const n = line.length;
+    const samples = Math.min(7, Math.max(1, n));
+    let sum = 0;
+    for (let i = 0; i < samples; i++) {
+      const idx =
+        samples === 1 ? Math.floor(n / 2) : Math.floor((i / (samples - 1)) * (n - 1));
+      const p = line[idx];
+      sum += uncarvedHeightAt(p.x, p.z);
+    }
+    y = sum / samples - 0.35;
+    riverWaterYCache.set(river.id, y);
   }
   return y;
 }
 
-function applyLakeBasins(h, x, z) {
+/** @deprecated Prefer riverSurfaceY — kept for any stray lake callers. */
+export function lakeSurfaceY(lake) {
+  return riverSurfaceY(lake);
+}
+
+/**
+ * Carve smooth river beds: flat floor at waterY-depth inside halfWidth,
+ * blend out to RIVER_HALF_WIDTH+RIVER_BLEND.
+ */
+function applyRiverBeds(h, x, z) {
   let out = h;
-  for (let i = 0; i < LAKES.length; i++) {
-    const lake = LAKES[i];
-    const t = ellipseRadius(x, z, lake);
-    if (t >= 1) continue;
-    const waterY = lakeSurfaceY(lake);
-    const floor = waterY - lake.depth;
-    const shore = smoothstep(0.62, 1, t);
+  for (let i = 0; i < RIVERS.length; i++) {
+    const river = RIVERS[i];
+    const d = distToRiver(x, z, river);
+    const outer = RIVER_HALF_WIDTH + RIVER_BLEND;
+    if (d >= outer) continue;
+    const waterY = riverSurfaceY(river);
+    const floor = waterY - (river.depth ?? RIVER_DEPTH);
+    let shore;
+    if (d <= RIVER_HALF_WIDTH) {
+      shore = 0;
+    } else {
+      shore = smoothstep(RIVER_HALF_WIDTH, outer, d);
+    }
     out = floor * (1 - shore) + out * shore;
   }
   return out;
@@ -122,10 +162,10 @@ function applyLakeBasins(h, x, z) {
 
 /**
  * World Y of the countryside surface at (x, z).
- * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + lake bowls.
+ * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + mountains + river beds.
  */
 export function heightAt(x, z) {
-  return applyLakeBasins(uncarvedHeightAt(x, z), x, z);
+  return applyRiverBeds(uncarvedHeightAt(x, z), x, z);
 }
 
 /**

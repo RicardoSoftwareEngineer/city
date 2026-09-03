@@ -217,14 +217,16 @@ Countryside amplitude stays near sidewalk height (~0.15–1.25 m rolls, long ble
 `GROUND_BODY_HALF = 560`. Near tiles 40 m to ±320; far tiles 80 m beyond. `heightAt` layers: street apron → mid rolls → ridges → distant peaks (~50–150 m) so a low camera still sees vertical silhouette. Camera `far = 4500`.
 
 
-### Water lakes (demo, not yet budgeted)
+### Twin S-rivers water compare (demo, not yet budgeted)
 
-Two official Three.js addons, each as one mesh:
+Two parallel S-shaped rivers east of the city for side-by-side comparison of the official Three.js water addons, plus two soft mountains that channel the S:
 
-- East: `three/addons/objects/Water.js` — 1024 mirror, `waternormals.jpg`, `waterColor 0x001e0f`, `distortionScale 3.7`, `time` ticked each frame. Textures from three.js r185 examples (MIT).
-- South: `three/addons/objects/Water2.js` — 1024 Reflector+Refractor, official dual normals, `flowDirection (1,1)`, `scale 4`. Internal Timer, do not tick.
+- Spine control points east of the city (`rivers.js` `SPINE`); twin offset by `RIVER_PAIR_GAP = 28`. Half-width 7.5 m, blend 4 m, depth 2.2 m.
+- West ribbon: `three/addons/objects/Water.js` — 1024 mirror, `waternormals.jpg`, `waterColor 0x001e0f`, `distortionScale 3.7`, `time` ticked each frame.
+- East ribbon: `three/addons/objects/Water2.js` — 1024 Reflector+Refractor, official dual normals, `flowDirection` ≈ river tangent, `scale 4`. Internal Timer, do not tick.
+- Soft mountains (`RIVER_MOUNTAINS`): west dome ~`(232,20)` r58 h26; east dome ~`(348,180)` r62 h30. Added in uncarved height outside the city; river beds carved in `heightAt`.
 
-Basins live in `heightAt`. Vegetation skipped inside ellipses. Performance pass comes later — current settings follow the addons/examples, not the hitch governor.
+Ribbon geometry is a flat XY mesh (`riverGeometry.js`) rotated `-PI/2` like the old lakes. Vegetation skipped via `isInAnyRiver`. Same MIT textures as before (no new assets). Performance pass later.
 
 
 ### Terrain colliders

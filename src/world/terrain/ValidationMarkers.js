@@ -8,7 +8,7 @@ import { cityBounds } from '../RoadDimensions.js';
 import { surfaceY } from './paths.js';
 import { pathEnds } from './paths.js';
 import { slopeAt } from './heightField.js';
-import { LAKE_WATER, LAKE_WATER2 } from '../water/lakes.js';
+import { RIVER_WATER, RIVER_WATER2, riverMidpoint } from '../water/rivers.js';
 
 const LEGEND_ID = 'terrain-validate-legend';
 
@@ -56,13 +56,13 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 9,
-    title: 'Lago Water.js (leste)',
-    hint: 'Addon oficial Water: reflexo + sun + waternormals. Olhe o céu e a margem.'
+    title: 'Rio Water.js (leste)',
+    hint: 'Addon oficial Water no rio S oeste do par: reflexo + sun + waternormals. Compare com o 10.'
   },
   {
     n: 10,
-    title: 'Lago Water2.js (sul)',
-    hint: 'Addon oficial Water2: reflexo + refração + fluxo. Compare com o 9.'
+    title: 'Rio Water2.js (leste)',
+    hint: 'Addon oficial Water2 no rio S paralelo (+28 m): reflexo + refração + fluxo. Compare com o 9.'
   }
 ];
 
@@ -147,10 +147,14 @@ function markerWorldPos(n) {
     case 8:
       // City interior
       return { x: midX, z: midZ };
-    case 9:
-      return { x: LAKE_WATER.cx, z: LAKE_WATER.cz };
-    case 10:
-      return { x: LAKE_WATER2.cx, z: LAKE_WATER2.cz };
+    case 9: {
+      const m = riverMidpoint(RIVER_WATER);
+      return { x: m.x, z: m.z };
+    }
+    case 10: {
+      const m = riverMidpoint(RIVER_WATER2);
+      return { x: m.x, z: m.z };
+    }
     default:
       return { x: midX, z: midZ };
   }

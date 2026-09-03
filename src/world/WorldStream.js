@@ -1,6 +1,6 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Streets first, then props, bank, buildings, then countryside terrain + vegetation (prio 4).
+ * Streets first, then props, bank, buildings, then countryside (prio 4) + dense veg (prio 5).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -80,8 +80,8 @@ export class WorldStream {
     return max;
   }
 
-  async pumpTo(radius, maxPriority = 4) {
-    const priorities = [0, 1, 2, 3, 4].filter((p) => p <= maxPriority);
+  async pumpTo(radius, maxPriority = 5) {
+    const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
     const budget = createBudget();
 
     for (const priority of priorities) {
@@ -229,7 +229,7 @@ export class WorldStream {
   }
 
   async continueAfter(radius) {
-    await this.pumpTo(radius, 4);
+    await this.pumpTo(radius, 5);
     const max = this.maxRadius();
     for (let r = radius + STREAM_STEP; r < max + 0.01; r += STREAM_STEP) {
       await this.pumpTo(r);

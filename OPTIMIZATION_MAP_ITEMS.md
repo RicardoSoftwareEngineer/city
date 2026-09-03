@@ -123,30 +123,33 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 
 ---
 
-## Open countryside terrain (Passo 1–9)
+## Open countryside terrain (Passo 1–15)
 
 `src/world/terrain/TerrainWorld.js` + `heightField.js` + `paths.js` — stream **tasks** priority 4.
 
 - 40×40 m `PlaneGeometry` tiles (~20 segs / 2 m) covering the outer ring up to `GROUND_BODY_HALF` (±300).
 - Hole over the city: skip tiles whose **center** is inside `isInsideCity`; edge tiles still displace via `surfaceY` (Y=0 inside the AABB minus path groove outside).
-- Shared `MeshLambertMaterial({ vertexColors: true, color: 0xffffff })`: dirt bed `0x8b7355` vs grass `0x4a7c3f`, soft falloff halfWidth→halfWidth+1.5 m. `receiveShadow = false`.
+- Shared Lambert + vertexColors via `splatMaterial.js`: grass `0x4a7c3f` / dirt `0x8b7355` / rock `0x6b6560` when `slopeAt > 0.65`. Path bed stays dirt. `receiveShadow = false`.
+- **Height:** `heightField.js` amplitude 4–12 m, blend 20–30 m (parameterized). City hole stays 0. Mesh + HF use `surfaceY`.
 - **Path bed:** `paths.js` seed-fixed south/west/north/east exits (~110–130 m) + one short SW cross-link, `PATH_HALF_WIDTH = 2` (~4 m). `surfaceY = heightAt - pathDepression` used by mesh **and** Heightfield so the car follows the groove. Regenerating paths stays seed-fixed (`TERRAIN_SEED+17`).
 - One task per tile; `dist` = Chebyshev from stream origin to tile center.
 - **Passo 2 physics:** same task builds a Cannon `Heightfield` on the same `(TILE_SEGS+1)²` grid (`elementSize = 2`). Quaternion `-PI/2` on X; body at `(x0, 0, z0+TILE)` with flipped j so world Y = `surfaceY`. No single giant HF.
 - City flat ground box shrunk to `cityBounds()` + ~3 m pad (top still `ASPHALT_SURFACE_Y`). Soft outer fence at ±300. City perimeter walls stay off.
 
-### Vegetation (Passo 4–7)
+### Vegetation (Passo 4–7, 10–15)
 
-`scatter.js` + `Vegetation.js` + `windMaterial.js` — stream **urlJobs** priority 4 (after buildings).
+`scatter.js` + `Vegetation.js` + `windMaterial.js` + `treeLod.js` + `kitUrls.js` — urlJobs prio **4**, denser MegaKit grass prio **5**.
 
-- Deterministic grid/jitter/groves from `TERRAIN_SEED`. Reject city, `distOutsideCity < 4`, path bed (strict for tall grass/trees/bushes), steep slope for tall grass. Clover may sit on path shoulder.
-- Growing instancers only (`createGrowingInstancedGltf` via `addUrl`). Never one InstancedMesh with capacity = whole field.
-- `options.prepare` applies `applyWind` to grass/flower/bush materials after load (not trees — shared city CommonTree materials).
-- Trees/bushes: `castShadow: true`. Grass/flowers/clover: no cast.
-- Degrau 1 field half-extent ~180 m; budgets: tall/wispy grass thousands, flowers ~200–400, bushes ~80–150, trees 40–80 in 6–10 groves.
+- Prefer MegaKit shortlist (`/models/stylized-nature/Exports/glTF/`); Nature Pack fallbacks via `kitUrl(role)`.
+- Deterministic grid/jitter/groves from `TERRAIN_SEED`. Reject city, path bed, steep slope for tall grass. Clover/flowers denser on path shoulder (Passo 13).
+- Growing instancers only. Never one InstancedMesh with capacity = whole field.
+- `uGust` slow second sine in `windMaterial` (Passo 12). Wind on grass/flower/bush only.
+- Trees: `THREE.LOD` (TallThick/Birch/Cherry near; GiantPine/Common far), streamed in chunks — not instanced. Mini-groves at path ends (Passo 14).
+- Horizon: sparse GiantPine silhouettes, no cast (Passo 15). Rocks on `slopeAt > 0.65`.
+- Terrain vertex splat: grass / dirt path / rock (`splatMaterial.js`), one Lambert program.
 
-Log: `path network 4 exits + link`; `terrain mesh {ix},{iz}` then `terrain phys {ix},{iz}`; veg `veg Grass_*` / `CommonTree_*` (+ `gltf:parse`).
-- Fog: `FogExp2(0xdbeafe, 0.004)` in `Renderer.js` (Passo 9) — city readable at 100 m.
+Log: `path network`; `terrain mesh/phys`; `veg …`; `veg treeLod …`.
+- Fog: `FogExp2(0xdbeafe, 0.0045)` — city readable at 100 m.
 
 ---
 

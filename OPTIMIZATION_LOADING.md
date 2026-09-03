@@ -40,22 +40,22 @@ Entry: `src/main.js`.
 
 | Collection | Typical content | Priority |
 |---|---|---|
-| `urlJobs` | streets, sidewalks, furniture glTF + pose lists; countryside veg (prio 4) | 0 streets/sidewalks, 1 furniture + trees + planters, **4 vegetation** |
+| `urlJobs` | streets, sidewalks, furniture glTF + pose lists; countryside veg | 0 streets/sidewalks, 1 furniture + trees + planters, **4 vegetation**, **5 dense grass** |
 | `templateJobs` | already-built template (streetlights) | 1 |
 | `tasks` | bank build, origin decals, countryside terrain tiles | 2 (bank), 4 (terrain mesh+HF) |
 | `buildings` | 7 types × many placements | 3 |
 
 `pumpTo(radius, maxPriority)`:
 
-- For each priority `0..maxPriority` (filtered by `maxPriority` on first pump; hard list `[0,1,2,3,4]`).
+- For each priority `0..maxPriority` (filtered by `maxPriority` on first pump; hard list `[0,1,2,3,4,5]`).
 - Load glTFs whose **nearest pose** is inside the radius (`minPoseDist`).
 - `createGrowingInstancedGltf` then `reveal(radius, loadGovernor.chunk)` in budget ticks.
 - Run tasks with `dist <= radius`.
 - `revealBuildings` only at priority 3.
-- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). One-shot `path network` tag. Same priority: vegetation `urlJobs` from `registerVegetation` (growing instancers; `beginLoad('veg', file)` + optional `options.prepare` for wind). First boot pump may stay `maxPriority 0`.
-- **Wind tick:** `main.js` GameLoop calls `tickWind(elapsed)` every frame (`windMaterial.js`); no extra systems.
+- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). One-shot `path network` tag. Same priority: vegetation `urlJobs` + tree LOD tasks from `registerVegetation` (`beginLoad('veg', file)` + wind prepare). Priority **5**: denser MegaKit grass carpet (Wide/Wheat). First boot pump may stay `maxPriority 0`.
+- **Wind tick:** `main.js` GameLoop calls `tickWind(elapsed)` every frame (`windMaterial.js` with `uGust`); no extra systems.
 
-`continueAfter(r)`: `pumpTo(r, 4)` then rings `r+10, r+20, …` until `maxRadius()`.
+`continueAfter(r)`: `pumpTo(r, 5)` then rings `r+10, r+20, …` until `maxRadius()`.
 
 Tag: `beginLoad('stream', 'ring {radius} prio {priority}')`.
 

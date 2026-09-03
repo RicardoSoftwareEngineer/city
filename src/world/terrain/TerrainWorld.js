@@ -1,7 +1,8 @@
 /**
- * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–3, 8–9).
+ * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–3, 8–11).
  * 40×40 m PlaneGeometry ring around the city up to GROUND_BODY_HALF.
- * Vertex colors paint dirt path beds; Y uses shared surfaceY (path groove).
+ * Vertex colors: grass / dirt path / rock on steep slopes (splatMaterial).
+ * Y uses shared surfaceY (path groove) — same for mesh + Heightfield.
  * Stream tasks at priority 4 — after buildings.
  */
 
@@ -13,34 +14,17 @@ import {
 } from '../RoadDimensions.js';
 import { chebyshev } from '../instancing.js';
 import { beginLoad } from '../../engine/loadLog.js';
-import { pathDirtFactor, surfaceY } from './paths.js';
+import { surfaceY } from './paths.js';
+import { terrainLambert, writeSplatColor } from './splatMaterial.js';
 
 export const TERRAIN_TILE = 40;
 export const TERRAIN_PRIORITY = 4;
 /** ~2 m verts → 20 segments (21 verts per edge). */
 const TILE_SEGS = 20;
-const GRASS_HEX = 0x4a7c3f;
-const DIRT_HEX = 0x8b7355;
-
-const grassColor = new THREE.Color(GRASS_HEX);
-const dirtColor = new THREE.Color(DIRT_HEX);
-const mixColor = new THREE.Color();
-
-let sharedMaterial = null;
 
 /** Reused for every tile Heightfield: -PI/2 on X so local Z heights → world Y. */
 const HF_QUAT = new CANNON.Quaternion();
 HF_QUAT.setFromEuler(-Math.PI / 2, 0, 0);
-
-function terrainMaterial() {
-  if (!sharedMaterial) {
-    sharedMaterial = new THREE.MeshLambertMaterial({
-      vertexColors: true,
-      color: 0xffffff
-    });
-  }
-  return sharedMaterial;
-}
 
 function tileIndices() {
   const out = [];
@@ -49,7 +33,6 @@ function tileIndices() {
     for (let z0 = -half; z0 < half; z0 += TERRAIN_TILE) {
       const cx = x0 + TERRAIN_TILE * 0.5;
       const cz = z0 + TERRAIN_TILE * 0.5;
-      // Hole: skip tiles whose center is fully inside the city AABB.
       if (isInsideCity(cx, cz)) continue;
       out.push({
         ix: Math.round(x0 / TERRAIN_TILE),
@@ -82,18 +65,13 @@ function buildTileMesh(x0, z0) {
     const wx = x0 + TERRAIN_TILE * 0.5 + lx;
     const wz = z0 + TERRAIN_TILE * 0.5 + lz;
     pos.setY(i, surfaceY(wx, wz));
-
-    const dirt = pathDirtFactor(wx, wz);
-    mixColor.copy(grassColor).lerp(dirtColor, dirt);
-    colors[i * 3] = mixColor.r;
-    colors[i * 3 + 1] = mixColor.g;
-    colors[i * 3 + 2] = mixColor.b;
+    writeSplatColor(colors, i, wx, wz);
   }
   pos.needsUpdate = true;
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
 
-  const mesh = new THREE.Mesh(geo, terrainMaterial());
+  const mesh = new THREE.Mesh(geo, terrainLambert());
   mesh.position.set(x0 + TERRAIN_TILE * 0.5, 0, z0 + TERRAIN_TILE * 0.5);
   mesh.receiveShadow = false;
   mesh.castShadow = false;
@@ -101,10 +79,6 @@ function buildTileMesh(x0, z0) {
   return mesh;
 }
 
-/**
- * Sample the same (TILE_SEGS+1)² grid as the visual mesh.
- * Heights use surfaceY so the car follows the path groove.
- */
 function buildTileHeightfield(physicsWorld, x0, z0) {
   const n = TILE_SEGS + 1;
   const elementSize = TERRAIN_TILE / TILE_SEGS;
@@ -122,16 +96,11 @@ function buildTileHeightfield(physicsWorld, x0, z0) {
   physicsWorld.addHeightfield(matrix, elementSize, position, HF_QUAT);
 }
 
-/**
- * Register one stream task per countryside tile (priority 4).
- * Each task builds the visual mesh and its matching Heightfield.
- */
 export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
   const group = new THREE.Group();
   group.name = 'terrain';
   parentGroup.add(group);
 
-  // One-shot tag so hitch logs show path network (seed-fixed, rebuilt at init).
   stream.addTask({
     dist: 0,
     priority: TERRAIN_PRIORITY,

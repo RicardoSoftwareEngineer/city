@@ -3,9 +3,9 @@
  * Near city: fine 40 m tiles. Far vista: coarse 80 m tiles so we can
  * stretch to GROUND_BODY_HALF without flooding the stream with tasks.
  *
- * Colliders live in terrainCollision.js — they share this grid and the same
- * surfaceY, but are also built on demand under the car so driving past the
- * streamed radius can never drop you through the world.
+ * Colliders live in terrainCollision.js — same grid/surfaceY, built only
+ * on demand under the car (ensureGroundAround). The visual stream is mesh-only
+ * and is pumped first (pumpTerrainTo) so the far vista appears before city glTF.
  */
 
 import * as THREE from 'three';
@@ -18,7 +18,6 @@ import {
   TERRAIN_TILE_FAR,
   TERRAIN_NEAR_HALF,
   allTiles,
-  ensureTile,
   setTerrainPhysics
 } from './terrainCollision.js';
 
@@ -59,26 +58,18 @@ export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
 
   setTerrainPhysics(physicsWorld);
 
-  stream.addTask({
-    dist: 0,
-    priority: TERRAIN_PRIORITY,
-    run: async () => {
-      beginLoad('path', 'network 4 exits + link');
-    }
-  });
-
+  // Visual mesh only. Colliders stay on-demand via ensureGroundAround()
+  // so the far vista can stream without Cannon heightfield spikes.
   for (const t of allTiles()) {
     const dist = chebyshev(t.cx, t.cz, ox, oz);
     stream.addTask({
       dist,
       priority: TERRAIN_PRIORITY,
+      kind: 'terrain',
       run: async () => {
         const tag = t.far ? 'far' : 'near';
         beginLoad('terrain', `mesh ${tag} ${t.x0},${t.z0}`);
         group.add(buildTileMesh(t.x0, t.z0, t.size, t.segs));
-        if (physicsWorld && ensureTile(t)) {
-          beginLoad('terrain', `phys ${tag} ${t.x0},${t.z0}`);
-        }
       }
     });
   }

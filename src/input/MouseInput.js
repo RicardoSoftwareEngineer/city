@@ -45,7 +45,7 @@ export class MouseInput {
       this.previousX = event.clientX;
       this.previousY = event.clientY;
 
-      const sensitivity = 0.005;
+      const sensitivity = 0.01;
       this.yaw -= deltaX * sensitivity;
       this.pitch += deltaY * sensitivity;
       this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));

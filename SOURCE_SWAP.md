@@ -142,3 +142,12 @@ Nature extras still used: `Flower_3/4_Group`, `Clover_1`, `Grass_Common_*`, `Gra
 Paths:
 - MegaKit shortlist: `public/models/stylized-nature/Exports/glTF/`
 - Nature Pack (Degrau 1 + fallbacks): `public/models/nature/`
+
+
+## Water textures (Three.js examples, MIT)
+
+Not Quaternius. Copied from `three.js` r185 `examples/textures/`:
+
+- `public/textures/waternormals.jpg` — Water.js
+- `public/textures/water/Water_1_M_Normal.jpg` — Water2.js
+- `public/textures/water/Water_2_M_Normal.jpg` — Water2.js

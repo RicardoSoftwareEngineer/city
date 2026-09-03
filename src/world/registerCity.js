@@ -8,6 +8,7 @@ import { castOpts } from './shadowPolicy.js';
 import { registerTerrain } from './terrain/TerrainWorld.js';
 import { registerVegetation } from './terrain/Vegetation.js';
 import { addValidationMarkers } from './terrain/ValidationMarkers.js';
+import { registerLakes } from './water/registerLakes.js';
 
 function distToAabb(ox, oz, minX, maxX, minZ, maxZ) {
   const x = Math.min(Math.max(ox, minX), maxX);
@@ -46,6 +47,7 @@ export function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
   new CityBuildings().register(stream, parentGroup, physicsWorld);
   registerTerrain(stream, parentGroup, ox, oz, physicsWorld);
   registerVegetation(stream, parentGroup, ox, oz);
+  registerLakes(stream, parentGroup, ox, oz, renderer.scene);
   addValidationMarkers(parentGroup);
   return stream;
 }

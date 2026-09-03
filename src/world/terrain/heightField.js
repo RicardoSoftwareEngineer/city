@@ -6,6 +6,7 @@
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { cityBounds, isInsideCity } from '../RoadDimensions.js';
+import { LAKES, ellipseRadius } from '../water/lakes.js';
 
 /** Fixed seed so every boot gets the same hills. */
 export const TERRAIN_SEED = 42;
@@ -62,7 +63,7 @@ function n01(x, z, freq, ox = 0, oz = 0) {
  * World Y of the countryside surface at (x, z).
  * Inside the city: 0 (sidewalk). Outside: layered Witcher vista.
  */
-export function heightAt(x, z) {
+function uncarvedHeightAt(x, z) {
   if (isInsideCity(x, z)) return 0;
 
   const d = distOutsideCity(x, z);
@@ -91,6 +92,40 @@ export function heightAt(x, z) {
   h += (48 + peak * 100) * far;
 
   return h;
+}
+
+const lakeWaterYCache = new Map();
+
+/** Water plane Y: a little below the uncarved ground at the lake center. */
+export function lakeSurfaceY(lake) {
+  let y = lakeWaterYCache.get(lake.id);
+  if (y == null) {
+    y = uncarvedHeightAt(lake.cx, lake.cz) - 0.28;
+    lakeWaterYCache.set(lake.id, y);
+  }
+  return y;
+}
+
+function applyLakeBasins(h, x, z) {
+  let out = h;
+  for (let i = 0; i < LAKES.length; i++) {
+    const lake = LAKES[i];
+    const t = ellipseRadius(x, z, lake);
+    if (t >= 1) continue;
+    const waterY = lakeSurfaceY(lake);
+    const floor = waterY - lake.depth;
+    const shore = smoothstep(0.62, 1, t);
+    out = floor * (1 - shore) + out * shore;
+  }
+  return out;
+}
+
+/**
+ * World Y of the countryside surface at (x, z).
+ * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + lake bowls.
+ */
+export function heightAt(x, z) {
+  return applyLakeBasins(uncarvedHeightAt(x, z), x, z);
 }
 
 /**

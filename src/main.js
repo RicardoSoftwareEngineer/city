@@ -22,6 +22,7 @@ import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
+import { tickWater } from './world/water/registerLakes.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -80,6 +81,7 @@ async function startGame() {
 
   const gameLoop = new GameLoop((delta, elapsed) => {
     tickWind(elapsed);
+    tickWater(elapsed, renderer.scene);
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
     camera.update(porscheModel.chassisGroup, mouse);

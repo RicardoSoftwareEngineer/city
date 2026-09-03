@@ -210,3 +210,8 @@ Edit **OPTIMIZATION_LOADING.md** when the question is: *same items, but do less 
 ### Terrain height vs streets
 
 Countryside amplitude stays near sidewalk height (~0.15–1.25 m rolls, long blend). Avoid 4–12 m walls at the city edge.
+
+
+### Witcher vista extent
+
+`GROUND_BODY_HALF = 560`. Near tiles 40 m to ±320; far tiles 80 m beyond. `heightAt` layers: street apron → mid rolls → ridges → distant peaks (~50–150 m) so a low camera still sees vertical silhouette. Camera `far = 4500`.

@@ -264,12 +264,22 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
   });
   registerTreeLods(stream, parentGroup, ox, oz, trees);
 
-  // --- Passo 15 horizon silhouette (no shadows) ---
-  const horizon = scatterHorizonPines({ count: 12 });
+  // --- Passo 15 / vista: silhouette on far rising ridges (no shadows) ---
+  const horizon = scatterHorizonPines({ count: 22, minR: 360, maxR: 520 });
   addVeg(
     stream,
     kitUrl('giantPine1'),
     horizon,
+    noCastOpts(),
+    VEG_PRIORITY
+  );
+
+  // Sparse mid-ridge pines so the rise reads from a low camera.
+  const ridgePines = scatterHorizonPines({ count: 16, minR: 200, maxR: 340, seedSalt: 311 });
+  addVeg(
+    stream,
+    kitUrl('giantPine1'),
+    ridgePines,
     noCastOpts(),
     VEG_PRIORITY
   );

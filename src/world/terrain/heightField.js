@@ -1,7 +1,7 @@
 /**
- * Shared CPU height for open countryside (Passo 1 + 11).
- * Flat inside the city AABB; smooth blend into hills outside.
- * Amplitude and blend are parameterized (Degrau-1 values were a dead end).
+ * Shared CPU height for open countryside.
+ * Witcher-style vista: flush apron at the city → rolling mid → ridges →
+ * distant peaks so a low camera still sees far vertical silhouette.
  */
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
@@ -11,15 +11,13 @@ import { cityBounds, isInsideCity } from '../RoadDimensions.js';
 export const TERRAIN_SEED = 42;
 
 /**
- * Countryside hill amplitude (meters).
- * Playtest: keep near street/sidewalk height (was 4–12 m cliff at the edge).
- * Soft rolls only; Witcher amplitude can return later via setAmplitudeRange.
+ * Legacy knobs (tests / older callers). Layered heightAt no longer scales
+ * a single amplitude band — prefer the distance layers below.
  */
 let amplitudeMin = 0.15;
 let amplitudeMax = 1.25;
-/** Blend width from city AABB edge (meters) — long soft ramp, no wall. */
-let blendIn = 8;
-let blendOut = 90;
+let blendIn = 12;
+let blendOut = 55;
 
 export function setAmplitudeRange(min, max) {
   amplitudeMin = min;
@@ -55,26 +53,44 @@ export function distOutsideCity(x, z) {
   return Math.hypot(dx, dz);
 }
 
-function rawHills(x, z) {
-  // Two octaves; ImprovedNoise returns roughly [-1, 1].
-  const n1 = noise.noise(x * 0.018 + seedOffset, seedOffset, z * 0.018);
-  const n2 = noise.noise(x * 0.045 + seedOffset * 2, seedOffset + 1.7, z * 0.045);
-  const n = n1 * 0.7 + n2 * 0.3;
-  const t = (n + 1) * 0.5;
-  return amplitudeMin + t * (amplitudeMax - amplitudeMin);
+function n01(x, z, freq, ox = 0, oz = 0) {
+  const n = noise.noise(x * freq + seedOffset + ox, seedOffset, z * freq + oz);
+  return (n + 1) * 0.5;
 }
 
 /**
  * World Y of the countryside surface at (x, z).
- * Inside the city: 0 (sidewalk). Outside: hills with soft blend.
+ * Inside the city: 0 (sidewalk). Outside: layered Witcher vista.
  */
 export function heightAt(x, z) {
   if (isInsideCity(x, z)) return 0;
 
   const d = distOutsideCity(x, z);
-  const w = smoothstep(blendIn, blendOut, d);
-  if (w <= 0) return 0;
-  return rawHills(x, z) * w;
+
+  // Keep the first ~12–55 m flush with streets (no shelf at the curb).
+  const apron = smoothstep(blendIn, blendOut, d);
+  if (apron <= 0) return 0;
+
+  const roll = n01(x, z, 0.014) * 0.65 + n01(x, z, 0.038, 2.1, 1.3) * 0.35;
+  const ridge = n01(x, z, 0.0045, 4.0, 0.7) * 0.7 + n01(x, z, 0.011, 1.2, 3.4) * 0.3;
+  const peak = n01(x, z, 0.0019, 8.0, 2.2) * 0.75 + n01(x, z, 0.0055, 0.4, 6.1) * 0.25;
+
+  // Distance bands (meters outside city AABB).
+  const mid = smoothstep(45, 170, d); // rolling hills
+  const rise = smoothstep(150, 310, d); // rising ridges
+  const far = smoothstep(280, 520, d); // distant peaks / silhouette
+
+  let h = 0;
+  // Soft near rolls (still almost street-level next to the city).
+  h += (0.2 + roll * 2.0) * apron * (1 - mid * 0.55);
+  // Mid countryside — readable hills without blocking the horizon.
+  h += (2.5 + roll * 11) * mid * (1 - rise * 0.4);
+  // Ridges that lift the eye toward the distance.
+  h += (14 + ridge * 36) * rise * (1 - far * 0.3);
+  // Far peaks — vertical silhouette visible from a low camera.
+  h += (48 + peak * 100) * far;
+
+  return h;
 }
 
 /**

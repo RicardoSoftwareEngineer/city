@@ -181,3 +181,8 @@ If the **same** glTF always hitch-parses (`Street_Curve_4Lane_*`), that file is 
 Edit **this** doc + those files when the question is: *too much work this frame, wrong order, shadows too early, governor too aggressive, logs not attributing hitches.*
 
 Edit **OPTIMIZATION_MAP_ITEMS.md** when the question is: *this object type should not exist in this form (merge, instance, drop shadows, fewer unique glTFs).*
+
+
+### Large countryside stream
+
+Far terrain uses coarse 80 m tiles (priority 4) so expanding to ±560 m does not create hundreds of fine Heightfields at once. Rings still stream with the governor cap.

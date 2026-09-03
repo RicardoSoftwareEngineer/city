@@ -25,7 +25,7 @@ export class Renderer {
       60,
       window.innerWidth / window.innerHeight,
       0.1,
-      2000
+      4500
     );
     this.camera.position.set(0, 10, 20);
 

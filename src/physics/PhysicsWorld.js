@@ -64,7 +64,8 @@ export class PhysicsWorld {
   createOuterFence() {
     const half = GROUND_BODY_HALF;
     const thick = 4;
-    const halfH = 12;
+    // Tall enough that distant peaks (~150 m) do not toss the car over the rim.
+    const halfH = 80;
     const y = ASPHALT_SURFACE_Y;
     this.addStaticBox(0, y, -half - thick, half + thick * 2, halfH, thick);
     this.addStaticBox(0, y, half + thick, half + thick * 2, halfH, thick);

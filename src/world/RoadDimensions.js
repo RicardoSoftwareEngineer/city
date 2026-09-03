@@ -64,7 +64,7 @@ export function isInsideCity(x, z) {
 }
 
 // ── Physics ────────────────────────────────────────────────────────────────
-export const GROUND_BODY_HALF   = 300;   // Physics ground half-extent
+export const GROUND_BODY_HALF   = 560;   // Physics + terrain half-extent (Witcher vista)
 export const GROUND_BODY_DEPTH  = 5;     // Physics ground half-height (box)
 export const GROUND_BODY_Y      = -(GROUND_BODY_DEPTH + ASPHALT_SURFACE_Y * -1); // Top surface = ASPHALT_SURFACE_Y
 

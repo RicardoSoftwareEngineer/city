@@ -54,6 +54,7 @@ export class CityBuildings {
       const ofType = placements.filter((p) => p.type === type);
       stream.addBuilding({
         placements: ofType,
+        name: BUILDING_SPECS[type].name,
         heavy: BUILDING_SPECS[type].name.startsWith('Large'),
         load: () => getBuildingTemplate(type),
         onReveal: (p, template) => {

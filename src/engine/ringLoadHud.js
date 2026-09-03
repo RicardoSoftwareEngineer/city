@@ -36,8 +36,10 @@ export function initRingLoadHud() {
     shownRev = rev;
     const snap = getRingLoadSnapshot();
 
-    list.innerHTML = snap.rings.length
-      ? snap.rings
+    // Keep the panel short: only the latest rings (highest radius).
+    const rings = snap.rings.length > 4 ? snap.rings.slice(-4) : snap.rings;
+    list.innerHTML = rings.length
+      ? rings
           .map((row) => {
             const isOpen = open.has(row.radius);
             const top = row.top10
@@ -65,8 +67,9 @@ export function initRingLoadHud() {
 
     if (footer) {
       const t = snap.totals;
+      const tail = snap.rings.length > 4 ? ' · últimos 4' : '';
       footer.textContent =
-        `${t.ringCount} anéis · ${t.itemCount} itens · ${fmtMs(t.elapsedMs)} total`;
+        `${t.ringCount} anéis · ${t.itemCount} itens · ${fmtMs(t.elapsedMs)} total${tail}`;
     }
   }
 

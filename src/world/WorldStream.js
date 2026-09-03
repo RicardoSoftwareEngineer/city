@@ -13,6 +13,7 @@ import {
 import { createBudget, waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
+import { phaseIdForPriority, tickLoadPhase } from '../engine/loadOrderLog.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
 
@@ -96,6 +97,30 @@ export class WorldStream {
           !job.grower &&
           minPoseDist(job.poses, this.ox, this.oz) <= radius
       );
+      const pendingTpl = this.templateJobs.some(
+        (job) =>
+          job.priority === priority &&
+          !job.grower &&
+          minPoseDist(job.poses, this.ox, this.oz) <= radius
+      );
+      const pendingTasks = this.tasks.some(
+        (task) =>
+          !task.done &&
+          task.kind !== 'terrain' &&
+          task.priority === priority &&
+          task.dist <= radius
+      );
+      const mayReveal =
+        this.urlJobs.some((job) => job.priority === priority && job.grower) ||
+        this.templateJobs.some((job) => job.priority === priority && job.grower) ||
+        (priority === 3 && this.buildings.some((b) => b.sorted.length));
+      const phaseId = phaseIdForPriority(priority);
+      if (
+        phaseId &&
+        (toLoad.length || pendingTpl || pendingTasks || mayReveal)
+      ) {
+        tickLoadPhase(phaseId, `r${radius}`);
+      }
 
       for (const job of toLoad) {
         await waitIfSlow();
@@ -278,6 +303,7 @@ export class WorldStream {
       beginRing(r);
       setStreamLabel(`terrain r${r}`);
       beginLoad('terrain', `ring ${r}`);
+      tickLoadPhase('terrain', `r${r}`);
 
       const batch = pending.filter((task) => !task.done && task.dist <= r);
       for (const task of batch) {

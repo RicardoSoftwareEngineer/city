@@ -19,6 +19,8 @@ import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel } from './engine/loadLog.js';
 import { initRingLoadHud } from './engine/ringLoadHud.js';
+import { initLoadOrderHud } from './engine/loadOrderHud.js';
+import { beginLoadPhase, endLoadPhase, finishAllLoadPhases } from './engine/loadOrderLog.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
@@ -85,6 +87,7 @@ async function startGame() {
   const loadPhaseEl = document.getElementById('load-phase');
   let shownHitchRev = -1;
   const paintRingLoad = initRingLoadHud();
+  const paintLoadOrder = initLoadOrderHud();
 
   function renderHitchList(el, rows) {
     if (!el) return;
@@ -144,6 +147,7 @@ async function startGame() {
       renderHitchList(playHitchList, getTopPlayHitches(8));
     }
     paintRingLoad();
+    paintLoadOrder();
   });
 
   gameLoop.start();
@@ -166,21 +170,26 @@ async function startGame() {
   setInteractive(true);
   setLoadPhase('play');
   loadGovernor.streaming = true;
+  beginLoadPhase('spawn', 'r10 p0');
   stream.pumpTo(STREAM_STEP, 0)
     .then(() => {
+      endLoadPhase('spawn');
       // World is already interactive — FPS hitch list captures every freeze
       // from here on, even while hinterland keeps streaming.
       setLoadPhase('play');
       setInteractive(true);
+      beginLoadPhase('terrain', 'mesh…');
       // Terrain mesh circle first (far vista), phys stays under the car.
       return stream.pumpTerrainTo(STREAM_STEP);
     })
     .then(() => {
+      endLoadPhase('terrain');
       setLoadPhase('play');
       setInteractive(true);
       return stream.continueAfter(STREAM_STEP);
     })
     .then(async () => {
+      finishAllLoadPhases();
       loadGovernor.streaming = false;
       await waitUntilSmooth(40, 60);
       await renderer.resumeShadows();

@@ -33,7 +33,10 @@ export class Renderer {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: true,
-      powerPreference: 'high-performance'
+      powerPreference: 'high-performance',
+      // Keep the last frame while pauseDraw (compile/stream). Clearing to
+      // background every paused GameLoop tick caused blue-screen flicker.
+      preserveDrawingBuffer: true
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -80,8 +83,7 @@ export class Renderer {
 
   render() {
     if (this._pauseDraw) {
-      this.renderer.setClearColor(this.scene.background, 1);
-      this.renderer.clear();
+      // Hold the last presented frame — never clear to sky blue (load flicker).
       snapshotDraw({
         ms: 0,
         tag: 'paused',

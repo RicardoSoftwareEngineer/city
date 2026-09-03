@@ -6,6 +6,7 @@ import { chebyshev } from './instancing.js';
 import { STREAM_STEP, WorldStream } from './WorldStream.js';
 import { castOpts } from './shadowPolicy.js';
 import { registerTerrain } from './terrain/TerrainWorld.js';
+import { registerVegetation } from './terrain/Vegetation.js';
 
 function distToAabb(ox, oz, minX, maxX, minZ, maxZ) {
   const x = Math.min(Math.max(ox, minX), maxX);
@@ -43,5 +44,6 @@ export function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
 
   new CityBuildings().register(stream, parentGroup, physicsWorld);
   registerTerrain(stream, parentGroup, ox, oz, physicsWorld);
+  registerVegetation(stream, parentGroup, ox, oz);
   return stream;
 }

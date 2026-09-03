@@ -40,9 +40,9 @@ Entry: `src/main.js`.
 
 | Collection | Typical content | Priority |
 |---|---|---|
-| `urlJobs` | streets, sidewalks, furniture glTF + pose lists | 0 streets/sidewalks, 1 furniture + trees + planters |
+| `urlJobs` | streets, sidewalks, furniture glTF + pose lists; countryside veg (prio 4) | 0 streets/sidewalks, 1 furniture + trees + planters, **4 vegetation** |
 | `templateJobs` | already-built template (streetlights) | 1 |
-| `tasks` | bank build, origin decals, countryside terrain tiles | 2 (bank), 4 (terrain) |
+| `tasks` | bank build, origin decals, countryside terrain tiles | 2 (bank), 4 (terrain mesh+HF) |
 | `buildings` | 7 types × many placements | 3 |
 
 `pumpTo(radius, maxPriority)`:
@@ -52,7 +52,8 @@ Entry: `src/main.js`.
 - `createGrowingInstancedGltf` then `reveal(radius, loadGovernor.chunk)` in budget ticks.
 - Run tasks with `dist <= radius`.
 - `revealBuildings` only at priority 3.
-- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). First boot pump may stay `maxPriority 0`.
+- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). Same priority: vegetation `urlJobs` from `registerVegetation` (growing instancers; optional `options.prepare` for wind). First boot pump may stay `maxPriority 0`.
+- **Wind tick:** `main.js` GameLoop calls `tickWind(elapsed)` every frame (`windMaterial.js`); no extra systems.
 
 `continueAfter(r)`: `pumpTo(r, 4)` then rings `r+10, r+20, …` until `maxRadius()`.
 

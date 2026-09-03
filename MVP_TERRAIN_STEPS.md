@@ -21,11 +21,11 @@ North star: Witcher 3 (paisagem legível, densidade local, não um mapa infinito
 | 0 | Docs (opcional) | Roadmap e checklist alinhados com o time | Evita retrabalho antes de código | Ler → ajustar → ok |
 | 1 | Mapa aberto + `heightAt` + tiles 40 m + remover 4 paredes Cannon | Mundo contínuo sem caixas; altura consultável; tiles de 40 m | Muda a base espacial e física do chão | Abrir mapa → hitch → aceitar altura/tiles |
 | 2 | Física Heightfield por tile | **Feito** — HF por tile 40 m (mesmo grid visual); chão city só em `cityBounds`+pad; fence ±300 | Física isolada do visual | Gerar HF → testar hitch → aceitar |
-| 3 | Primeiro caminho de terra ~4 m rideable | Faixa transitável ~4 m sem buracos | Valida rideabilidade antes de vegetação | Colocar path → hitch → aceitar |
-| 4 | Material de vento + 200 `Grass_Common_Tall` | 200 tall grass com vento, estável | Capacidade de shader/material sem scatter | Material + 200 → hitch → aceitar |
-| 5 | Scatter de grama prio 4, recusa leito do path | Densidade no campo; path livre de grama | Scatter sem misturar com flores/árvores | Scatter prio 4 → hitch → aceitar |
-| 6 | Flores + arbustos | Camada baixa colorida e arbustos | Separado da grama e das árvores | Colocar → hitch → aceitar |
-| 7 | Bosques de árvores | Groves legíveis, LOD ok no Degrau 1 | Árvores pesam; isoladas | Groves → hitch → aceitar |
+| 3 | Primeiro caminho de terra ~4 m rideable | **Feito** — `paths.js` + vertex-color dirt bed + `surfaceY` groove on mesh/HF | Valida rideabilidade antes de vegetação | Colocar path → hitch → aceitar |
+| 4 | Material de vento + 200 `Grass_Common_Tall` | **Feito** — `windMaterial.js` + `tickWind` in main; tall grass via scatter/stream | Capacidade de shader/material sem scatter | Material + 200 → hitch → aceitar |
+| 5 | Scatter de grama prio 4, recusa leito do path | **Feito** — tall + wispy; `isPathBed` reject | Scatter sem misturar com flores/árvores | Scatter prio 4 → hitch → aceitar |
+| 6 | Flores + arbustos | **Feito** — Flower_3/4 groups, Clover shoulder, Bush_Common(+Flowers) | Separado da grama e das árvores | Colocar → hitch → aceitar |
+| 7 | Bosques de árvores | **Feito** — 6–10 groves, CommonTree_1/2/3, castShadow, ≥8 m city / ≥5 m path | Árvores pesam; isoladas | Groves → hitch → aceitar |
 | 8 | Rede de 2–4 caminhos | 2–4 paths conectados, rideable | Rede depois do path piloto | Expandir → hitch → aceitar |
 | 9 | Gate: checklist MVP simples + hitch estável | Checklist verde; hitch estável no loop | Gate antes do Degrau 2 | Checklist + hitch → aceitar |
 
@@ -46,4 +46,4 @@ Cavalo como veículo, fauna densa, rio, mapa ≫360 m, grama GPU.
 
 ## Ordem e próximo passo
 
-Ordem: 0→1→…→9, depois 10→…→15. Passo 1–2 feitos. Próximo = **Passo 3** (caminho de terra ~4 m).
+Ordem: 0→1→…→9, depois 10→…→15. Passos 1–7 feitos. Próximo = **Passo 8** (rede de 2–4 caminhos).

@@ -21,6 +21,7 @@ import { dumpLoadLog, getHitchRevision, getTopHitches, getLoadPhase, setLoadPhas
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
+import { tickWind } from './world/terrain/windMaterial.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -77,7 +78,8 @@ async function startGame() {
   const loadPhaseEl = document.getElementById('load-phase');
   let shownHitchRev = -1;
 
-  const gameLoop = new GameLoop((delta) => {
+  const gameLoop = new GameLoop((delta, elapsed) => {
+    tickWind(elapsed);
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
     camera.update(porscheModel.chassisGroup, mouse);

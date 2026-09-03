@@ -161,11 +161,29 @@ export function getHitchRevision() {
   return hitchRevision;
 }
 
-export function getTopHitches(limit = 8) {
-  return hitchEntries
+function isLoadPhase(phaseName) {
+  // boot + stream rings = loading; only explicit "play" is FPS-while-driving.
+  return phaseName !== 'play';
+}
+
+export function getTopHitches(limit = 8, kind = 'all') {
+  let rows = hitchEntries;
+  if (kind === 'load') rows = hitchEntries.filter((e) => isLoadPhase(e.phase));
+  else if (kind === 'play') rows = hitchEntries.filter((e) => !isLoadPhase(e.phase));
+  return rows
     .slice()
     .sort((a, b) => b.frameMs - a.frameMs)
     .slice(0, limit);
+}
+
+/** Loading hitches (boot / stream). */
+export function getTopLoadHitches(limit = 8) {
+  return getTopHitches(limit, 'load');
+}
+
+/** Play hitches (FPS drops after stream finished). */
+export function getTopPlayHitches(limit = 8) {
+  return getTopHitches(limit, 'play');
 }
 
 export async function measureLoad(kind, label, fn) {

@@ -17,7 +17,7 @@ import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
 import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
-import { dumpLoadLog, getHitchRevision, getTopHitches, getLoadPhase, setLoadPhase } from './engine/loadLog.js';
+import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase } from './engine/loadLog.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
@@ -79,8 +79,22 @@ async function startGame() {
   const loadFill = document.getElementById('load-fill');
   const loadDetail = document.getElementById('load-detail');
   const hitchList = document.getElementById('hitch-list');
+  const playHitchList = document.getElementById('play-hitch-list');
   const loadPhaseEl = document.getElementById('load-phase');
   let shownHitchRev = -1;
+
+  function renderHitchList(el, rows) {
+    if (!el) return;
+    el.innerHTML = rows.length
+      ? rows.map((h) => {
+        const extra = h.programDelta > 0 ? ` +${h.programDelta}prog` : '';
+        const work = (h.work || h.cause).length > 28
+          ? `${(h.work || h.cause).slice(0, 26)}…`
+          : (h.work || h.cause);
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}</li>`;
+      }).join('')
+      : '<li>nenhum ainda</li>';
+  }
 
   // On-screen terrain mesh / collider inspector (button, or key M).
   const tickTerrainDebug = initTerrainDebug({
@@ -116,18 +130,10 @@ async function startGame() {
     }
     tickTerrainDebug(elapsed);
     if (loadPhaseEl) loadPhaseEl.textContent = getLoadPhase();
-    if (hitchList && getHitchRevision() !== shownHitchRev) {
+    if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();
-      const rows = getTopHitches(8);
-      hitchList.innerHTML = rows.length
-        ? rows.map((h) => {
-          const extra = h.programDelta > 0 ? ` +${h.programDelta}prog` : '';
-          const work = (h.work || h.cause).length > 28
-            ? `${(h.work || h.cause).slice(0, 26)}…`
-            : (h.work || h.cause);
-          return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}</li>`;
-        }).join('')
-        : '<li>nenhum ainda</li>';
+      renderHitchList(hitchList, getTopLoadHitches(8));
+      renderHitchList(playHitchList, getTopPlayHitches(8));
     }
   });
 

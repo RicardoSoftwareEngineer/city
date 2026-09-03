@@ -17,7 +17,9 @@ const UI_BLOCK = '#hud, button, #terrain-debug-readout, #play-hitch-hud';
 const BASE_SPEED = 38;
 const FAST_MULT = 3.2;
 const SLOW_MULT = 0.35;
-const LOOK_SENS = 0.005;
+const LOOK_SENS = 0.0022;
+/** Higher = snappier look; still smooth at 60–240 FPS. */
+const LOOK_SMOOTH = 18;
 const MIN_PITCH = -Math.PI / 2 + 0.04;
 const MAX_PITCH = Math.PI / 2 - 0.04;
 
@@ -32,14 +34,19 @@ export class ThirdPersonCamera {
     this._up = new THREE.Vector3(0, 1, 0);
     this._wish = new THREE.Vector3();
 
-    // Free-flight look (yaw around world Y, pitch around local X).
+    // Free-flight look: target angles from input, displayed angles lerp each frame
+    // (movementX + exponential smoothing — common FPS/Three.js pattern; avoids
+    // the stepped “10px” feel of raw clientX deltas applied instantly).
     this.flyYaw = 0;
     this.flyPitch = 0;
+    this._targetYaw = 0;
+    this._targetPitch = 0;
     this.flySpeed = BASE_SPEED;
     this._dragging = false;
-    this._prevX = 0;
-    this._prevY = 0;
+    this._pointerId = null;
+    this._dom = renderer.domElement;
     this._lastTarget = null;
+    this._mouseInput = null;
 
     // Kept so SessionState can still read a target vector when saving.
     this.orbitControls = {
@@ -83,39 +90,62 @@ export class ThirdPersonCamera {
     this._button.dataset.mode = this.mode;
   }
 
+  /** Optional MouseInput — disabled while flying so two look systems never fight. */
+  setMouseInput(mouse) {
+    this._mouseInput = mouse;
+  }
+
+  _setCarMouseEnabled(on) {
+    if (this._mouseInput) this._mouseInput.enabled = on;
+  }
+
   _bindFlyMouse(dom) {
     this._onDown = (event) => {
       if (this.mode !== 'orbit') return;
+      if (event.button !== 0) return;
       if (event.target.closest?.(UI_BLOCK)) return;
       this._dragging = true;
-      this._prevX = event.clientX;
-      this._prevY = event.clientY;
+      this._pointerId = event.pointerId;
+      try {
+        dom.setPointerCapture(event.pointerId);
+      } catch (_) { /* older browsers */ }
+      event.preventDefault();
     };
     this._onMove = (event) => {
       if (this.mode !== 'orbit' || !this._dragging) return;
-      const dx = event.clientX - this._prevX;
-      const dy = event.clientY - this._prevY;
-      this._prevX = event.clientX;
-      this._prevY = event.clientY;
-      this.flyYaw -= dx * LOOK_SENS;
-      this.flyPitch -= dy * LOOK_SENS;
-      this.flyPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, this.flyPitch));
-      this._applyFlyLook();
+      // movementX/Y are sub-pixel capable and match PointerLockControls’ input path.
+      let dx = event.movementX;
+      let dy = event.movementY;
+      if (dx == null || dy == null) {
+        dx = 0;
+        dy = 0;
+      }
+      this._targetYaw -= dx * LOOK_SENS;
+      this._targetPitch -= dy * LOOK_SENS;
+      this._targetPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, this._targetPitch));
     };
-    this._onUp = () => {
+    this._onUp = (event) => {
+      if (!this._dragging) return;
       this._dragging = false;
+      if (this._pointerId != null) {
+        try {
+          dom.releasePointerCapture(this._pointerId);
+        } catch (_) { /* ignore */ }
+        this._pointerId = null;
+      }
     };
     this._onWheel = (event) => {
       if (this.mode !== 'orbit') return;
       if (event.target.closest?.(UI_BLOCK)) return;
-      // Wheel nudges fly speed (not zoom-to-point).
       const factor = event.deltaY > 0 ? 0.9 : 1.1;
       this.flySpeed = Math.max(4, Math.min(220, this.flySpeed * factor));
       event.preventDefault();
     };
-    window.addEventListener('mousedown', this._onDown);
-    window.addEventListener('mousemove', this._onMove);
-    window.addEventListener('mouseup', this._onUp);
+    // pointer* events give movementX reliably while captured.
+    dom.addEventListener('pointerdown', this._onDown);
+    window.addEventListener('pointermove', this._onMove);
+    window.addEventListener('pointerup', this._onUp);
+    window.addEventListener('pointercancel', this._onUp);
     dom.addEventListener('wheel', this._onWheel, { passive: false });
   }
 
@@ -124,6 +154,8 @@ export class ThirdPersonCamera {
     e.setFromQuaternion(this.camera.quaternion);
     this.flyYaw = e.y;
     this.flyPitch = e.x;
+    this._targetYaw = e.y;
+    this._targetPitch = e.x;
     this._applyFlyLook();
   }
 
@@ -161,6 +193,10 @@ export class ThirdPersonCamera {
           .addScaledVector(this._forward, 12);
       }
       this._dragging = false;
+      this._setCarMouseEnabled(false);
+    } else {
+      this._setCarMouseEnabled(true);
+      this._dragging = false;
     }
 
     this.mode = next;
@@ -178,11 +214,13 @@ export class ThirdPersonCamera {
       }
       this.mode = 'orbit';
       this._syncFlyFromCamera();
+      this._setCarMouseEnabled(false);
       this._syncButton();
       return;
     }
 
     this.mode = 'follow';
+    this._setCarMouseEnabled(true);
     this._syncButton();
     if (target && mouse) this.snapFollow(target, mouse);
   }
@@ -206,6 +244,10 @@ export class ThirdPersonCamera {
   }
 
   _updateFreeFlight(delta) {
+    // Exponential smoothing toward target look — frame-rate independent.
+    const t = 1 - Math.exp(-LOOK_SMOOTH * Math.max(delta, 0));
+    this.flyYaw += (this._targetYaw - this.flyYaw) * t;
+    this.flyPitch += (this._targetPitch - this.flyPitch) * t;
     this._applyFlyLook();
     this.camera.getWorldDirection(this._forward);
     this._right.crossVectors(this._forward, this._up).normalize();

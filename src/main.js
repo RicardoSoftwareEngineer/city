@@ -59,6 +59,7 @@ async function startGame() {
   const mouse = new MouseInput();
   const vehicleController = new VehicleController(physicsWorld, porscheModel, keyboard);
   const camera = new ThirdPersonCamera(renderer.camera, renderer.renderer, keyboard);
+  camera.setMouseInput(mouse);
 
   if (saved) {
     vehicleController.applyPose(saved.car);

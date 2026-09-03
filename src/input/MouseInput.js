@@ -25,11 +25,13 @@ export class MouseInput {
     this.minPitch = pitch.min;
     this.maxPitch = pitch.max;
 
+    this.enabled = true;
     this.isDragging = false;
     this.previousX = 0;
     this.previousY = 0;
 
     this.handleMouseDown = (event) => {
+      if (!this.enabled) return;
       if (event.target.closest(UI_BLOCK)) return;
       this.isDragging = true;
       this.previousX = event.clientX;
@@ -37,7 +39,7 @@ export class MouseInput {
     };
 
     this.handleMouseMove = (event) => {
-      if (!this.isDragging) return;
+      if (!this.enabled || !this.isDragging) return;
       const deltaX = event.clientX - this.previousX;
       const deltaY = event.clientY - this.previousY;
       this.previousX = event.clientX;
@@ -54,6 +56,7 @@ export class MouseInput {
     };
 
     this.handleWheel = (event) => {
+      if (!this.enabled) return;
       if (event.target.closest(UI_BLOCK)) return;
       this.zoomDistance += event.deltaY * 0.035;
       if (this.zoomDistance < this.minZoom) this.zoomDistance = this.minZoom;

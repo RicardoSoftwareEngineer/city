@@ -63,6 +63,29 @@ export function isInsideCity(x, z) {
   return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
 }
 
+/**
+ * Paved rect the terrain hides under: streets 0…180 plus 9 m of sidewalk and
+ * 1 m of margin. 200 m per side, so it is exactly 5 fine terrain tiles and the
+ * terrain grid can align to it without any tile straddling the border.
+ */
+export const CITY_PAVED_MIN = -10;
+export const CITY_PAVED_MAX = 190;
+
+/** Terrain surface under the pavement: 10 cm below the asphalt, so it hides. */
+export const CITY_BURY_Y = ASPHALT_SURFACE_Y - 0.10;
+/** Meters used to ramp from open grass (0) down to CITY_BURY_Y. */
+export const CITY_BURY_RAMP = 1.5;
+
+/** Meters inside the paved rect (>0 inside, <=0 outside). */
+export function pavedInset(x, z) {
+  return Math.min(
+    x - CITY_PAVED_MIN,
+    CITY_PAVED_MAX - x,
+    z - CITY_PAVED_MIN,
+    CITY_PAVED_MAX - z
+  );
+}
+
 // ── Physics ────────────────────────────────────────────────────────────────
 export const GROUND_BODY_HALF   = 560;   // Physics + terrain half-extent (Witcher vista)
 export const GROUND_BODY_DEPTH  = 5;     // Physics ground half-height (box)

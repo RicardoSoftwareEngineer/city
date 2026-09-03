@@ -6,7 +6,12 @@
  * surfaceY = heightAt - pathDepression — shared by mesh + Heightfield.
  */
 
-import { cityBounds } from '../RoadDimensions.js';
+import {
+  cityBounds,
+  pavedInset,
+  CITY_BURY_Y,
+  CITY_BURY_RAMP
+} from '../RoadDimensions.js';
 import { heightAt, TERRAIN_SEED } from './heightField.js';
 
 export const PATH_HALF_WIDTH = 2.0;
@@ -190,7 +195,19 @@ export function pathDirtFactor(x, z) {
   return 1 - (d - PATH_HALF_WIDTH) / PATH_BLEND;
 }
 
-/** Shared surface for visual tiles and Heightfield (follows the groove). */
+/**
+ * Shared surface for visual tiles and Heightfield (follows the groove).
+ *
+ * Under the pavement the terrain dives to CITY_BURY_Y so border tiles can run
+ * on INTO the city and hide beneath the asphalt: no half-tile band without
+ * ground (the old fall-through), no 1 m crack next to the curb, and the flat
+ * city box still wins the collision because it sits 10 cm higher.
+ */
 export function surfaceY(x, z) {
+  const inset = pavedInset(x, z);
+  if (inset > 0) {
+    const t = Math.min(1, inset / CITY_BURY_RAMP);
+    return CITY_BURY_Y * (t * t * (3 - 2 * t));
+  }
   return heightAt(x, z) - pathDepression(x, z);
 }

@@ -1,22 +1,51 @@
 /**
- * Terrain colliders, decoupled from the visual stream.
+ * Terrain colliders + the tile grid shared with the visual terrain.
  *
- * The countryside mesh streams in rings, but the car must never outrun its
- * ground: driving past the streamed radius used to mean falling through the
- * world. This module owns one Cannon Heightfield per tile, keyed by grid, and
- * can build a tile on demand (cheap CPU work, no GPU) around the car.
+ * Two rules keep the ground hole-free:
+ *  1. Grid lines are OFFSET so the paved city rect and the near/far seam land
+ *     exactly on tile borders. No tile ever straddles them, so skipping a tile
+ *     can never leave a half-tile band with no ground — that band, on the west
+ *     and south edges of the city, is where the car used to fall through.
+ *  2. Colliders are decoupled from the visual stream: ensureGroundAround()
+ *     builds the Heightfield under the car on demand (cheap CPU, no GPU), so
+ *     driving past the streamed ring is safe.
  *
- * Same grid as TerrainWorld: fine 40 m tiles inside TERRAIN_NEAR_HALF,
- * coarse 80 m tiles out to GROUND_BODY_HALF.
+ * Fine 40 m tiles inside the near rect, coarse 80 m tiles out to the fence.
  */
 
 import * as CANNON from 'cannon-es';
-import { GROUND_BODY_HALF, isInsideCity } from '../RoadDimensions.js';
+import { CITY_PAVED_MIN, CITY_PAVED_MAX } from '../RoadDimensions.js';
 import { surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
 export const TERRAIN_TILE_FAR = 80;
-export const TERRAIN_NEAR_HALF = 320;
+
+/** Both grids share this offset; 40 m and 80 m lines both fall on it. */
+export const GRID_OFFSET = -10;
+
+/** Paved city rect (RoadDimensions): exactly 5x5 fine tiles. */
+export const PAVED_MIN = CITY_PAVED_MIN;
+export const PAVED_MAX = CITY_PAVED_MAX;
+
+/**
+ * Tiles are dropped only when fully inside the paved rect shrunk by one tile,
+ * so the border ring still runs one tile INTO the city and tucks under the
+ * asphalt (surfaceY buries it). That leaves no crack at the curb.
+ */
+const SKIP_MIN = PAVED_MIN + TERRAIN_TILE;
+const SKIP_MAX = PAVED_MAX - TERRAIN_TILE;
+
+/** Near rect: 8 fine tiles each way (320 m), also a multiple of 80 m. */
+const NEAR_TILES = 8;
+export const TERRAIN_NEAR_HALF = NEAR_TILES * TERRAIN_TILE;
+export const NEAR_MIN = GRID_OFFSET - TERRAIN_NEAR_HALF;
+export const NEAR_MAX = GRID_OFFSET + TERRAIN_NEAR_HALF;
+
+/** Far rect: covers the +-560 m fence on the same offset grid. */
+const FAR_FIRST_K = -7;
+const FAR_LAST_K = 7;
+export const FAR_MIN = GRID_OFFSET + FAR_FIRST_K * TERRAIN_TILE_FAR;
+export const FAR_MAX = GRID_OFFSET + (FAR_LAST_K + 1) * TERRAIN_TILE_FAR;
 
 const NEAR_SEGS = 20;
 const FAR_SEGS = 10;
@@ -33,58 +62,57 @@ export function setTerrainPhysics(physicsWorld) {
   physics = physicsWorld;
 }
 
-function nearOnly(x0, z0, size) {
-  const h = TERRAIN_NEAR_HALF;
-  return x0 >= -h && x0 + size <= h && z0 >= -h && z0 + size <= h;
+function fullyInside(x0, z0, size, min, max) {
+  return x0 >= min && x0 + size <= max && z0 >= min && z0 + size <= max;
 }
 
 function snap(value, size) {
-  return Math.floor(value / size) * size;
+  return GRID_OFFSET + Math.floor((value - GRID_OFFSET) / size) * size;
 }
 
-/** Tile descriptor for a world position, or null outside the playable square. */
-export function tileAt(x, z) {
-  if (Math.abs(x) > GROUND_BODY_HALF || Math.abs(z) > GROUND_BODY_HALF) return null;
+function describe(x0, z0, size) {
+  const near = size === TERRAIN_TILE;
+  return {
+    key: `${size}:${x0}:${z0}`,
+    x0,
+    z0,
+    size,
+    segs: near ? NEAR_SEGS : FAR_SEGS,
+    cx: x0 + size * 0.5,
+    cz: z0 + size * 0.5,
+    far: !near
+  };
+}
 
-  const near = Math.abs(x) < TERRAIN_NEAR_HALF && Math.abs(z) < TERRAIN_NEAR_HALF;
+/** Tile descriptor for a world position, or null where the city floor owns it. */
+export function tileAt(x, z) {
+  if (x < FAR_MIN || x >= FAR_MAX || z < FAR_MIN || z >= FAR_MAX) return null;
+
+  const near = x >= NEAR_MIN && x < NEAR_MAX && z >= NEAR_MIN && z < NEAR_MAX;
   const size = near ? TERRAIN_TILE : TERRAIN_TILE_FAR;
-  const segs = near ? NEAR_SEGS : FAR_SEGS;
   const x0 = snap(x, size);
   const z0 = snap(z, size);
 
-  // A coarse tile fully inside the fine ring belongs to the fine grid.
-  if (!near && nearOnly(x0, z0, size)) return null;
+  // The paved city core already has its flat asphalt box under it.
+  if (near && fullyInside(x0, z0, size, SKIP_MIN, SKIP_MAX)) return null;
 
-  const cx = x0 + size * 0.5;
-  const cz = z0 + size * 0.5;
-  if (isInsideCity(cx, cz)) return null;
-
-  return { key: `${size}:${x0}:${z0}`, x0, z0, size, segs, cx, cz, far: !near };
+  return describe(x0, z0, size);
 }
 
-/** Enumerate every tile, in the same order/rules TerrainWorld draws them. */
+/** Every tile, in the same order/rules TerrainWorld draws them. */
 export function allTiles() {
   const out = [];
-  const seen = new Set();
-  const push = (x0, z0, size, segs, far) => {
-    const cx = x0 + size * 0.5;
-    const cz = z0 + size * 0.5;
-    if (isInsideCity(cx, cz)) return;
-    const key = `${size}:${x0}:${z0}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ key, x0, z0, size, segs, cx, cz, far });
-  };
 
-  for (let x0 = -TERRAIN_NEAR_HALF; x0 < TERRAIN_NEAR_HALF; x0 += TERRAIN_TILE) {
-    for (let z0 = -TERRAIN_NEAR_HALF; z0 < TERRAIN_NEAR_HALF; z0 += TERRAIN_TILE) {
-      push(x0, z0, TERRAIN_TILE, NEAR_SEGS, false);
+  for (let x0 = NEAR_MIN; x0 < NEAR_MAX; x0 += TERRAIN_TILE) {
+    for (let z0 = NEAR_MIN; z0 < NEAR_MAX; z0 += TERRAIN_TILE) {
+      if (fullyInside(x0, z0, TERRAIN_TILE, SKIP_MIN, SKIP_MAX)) continue;
+      out.push(describe(x0, z0, TERRAIN_TILE));
     }
   }
-  for (let x0 = -GROUND_BODY_HALF; x0 < GROUND_BODY_HALF; x0 += TERRAIN_TILE_FAR) {
-    for (let z0 = -GROUND_BODY_HALF; z0 < GROUND_BODY_HALF; z0 += TERRAIN_TILE_FAR) {
-      if (nearOnly(x0, z0, TERRAIN_TILE_FAR)) continue;
-      push(x0, z0, TERRAIN_TILE_FAR, FAR_SEGS, true);
+  for (let x0 = FAR_MIN; x0 < FAR_MAX; x0 += TERRAIN_TILE_FAR) {
+    for (let z0 = FAR_MIN; z0 < FAR_MAX; z0 += TERRAIN_TILE_FAR) {
+      if (fullyInside(x0, z0, TERRAIN_TILE_FAR, NEAR_MIN, NEAR_MAX)) continue;
+      out.push(describe(x0, z0, TERRAIN_TILE_FAR));
     }
   }
   return out;
@@ -140,4 +168,14 @@ export function ensureGroundAround(x, z, radius = 60, maxBuilds = 2) {
 
 export function terrainBodyCount() {
   return bodies.size;
+}
+
+/** Tiles that currently have a collider (debug overlay). */
+export function builtTiles() {
+  const out = [];
+  for (const key of bodies.keys()) {
+    const [size, x0, z0] = key.split(':').map(Number);
+    out.push(describe(x0, z0, size));
+  }
+  return out;
 }

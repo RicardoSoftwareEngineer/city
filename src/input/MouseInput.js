@@ -5,10 +5,13 @@
  *   .yaw / .pitch   — accumulated orbit angles from dragging
  *   .zoomDistance    — current zoom level from scroll wheel
  *
- * Ignores drags that start on HUD elements.
+ * Ignores drags / wheel that start on HUD or UI buttons.
+ * Zoom has a tiny floor only — no upper limit.
  */
 
 import { pitchLimits, zoomLimits } from '../camera/cameraLimits.js';
+
+const UI_BLOCK = '#hud, button, #terrain-debug-readout';
 
 export class MouseInput {
   constructor() {
@@ -18,7 +21,7 @@ export class MouseInput {
     this.pitch = 0.16;
     this.zoomDistance = 6.2;
     this.minZoom = zoom.min;
-    this.maxZoom = zoom.max;
+    this.maxZoom = zoom.max; // may be Infinity
     this.minPitch = pitch.min;
     this.maxPitch = pitch.max;
 
@@ -27,7 +30,7 @@ export class MouseInput {
     this.previousY = 0;
 
     this.handleMouseDown = (event) => {
-      if (event.target.closest('#hud')) return;
+      if (event.target.closest(UI_BLOCK)) return;
       this.isDragging = true;
       this.previousX = event.clientX;
       this.previousY = event.clientY;
@@ -51,9 +54,12 @@ export class MouseInput {
     };
 
     this.handleWheel = (event) => {
-      if (event.target.closest('#hud')) return;
+      if (event.target.closest(UI_BLOCK)) return;
       this.zoomDistance += event.deltaY * 0.035;
-      this.zoomDistance = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomDistance));
+      if (this.zoomDistance < this.minZoom) this.zoomDistance = this.minZoom;
+      if (Number.isFinite(this.maxZoom) && this.zoomDistance > this.maxZoom) {
+        this.zoomDistance = this.maxZoom;
+      }
       event.preventDefault();
     };
 
@@ -70,7 +76,10 @@ export class MouseInput {
       this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, camera.pitch));
     }
     if (Number.isFinite(camera.zoom)) {
-      this.zoomDistance = Math.max(this.minZoom, Math.min(this.maxZoom, camera.zoom));
+      this.zoomDistance = Math.max(this.minZoom, camera.zoom);
+      if (Number.isFinite(this.maxZoom)) {
+        this.zoomDistance = Math.min(this.maxZoom, this.zoomDistance);
+      }
     }
   }
 

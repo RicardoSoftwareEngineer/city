@@ -33,12 +33,12 @@ North star: Witcher 3 (paisagem legível, densidade local, não um mapa infinito
 
 | Passo | Domínio | Aceite | Por que sozinho | Loop |
 |------:|---------|--------|-----------------|------|
-| 10 | Extrair shortlist do Source já comprado ≤15 glTFs + `SOURCE_SWAP` | ≤15 glTF da shortlist; swap documentado | Assets já no disco; só extrair/listar | Extrair shortlist → hitch → aceitar |
-| 11 | Amplitude 4–12 m + splat | Relevo 4–12 m com splat coerente | Relevo + splat juntos no visual | Amplitude/splat → hitch → aceitar |
-| 12 | Grama densa em chunks 20–30 m, prio 5 + `uGust` | Chunks 20–30 m; prio 5; vento `uGust` | Densidade + vento avançado | Chunks → hitch → aceitar |
-| 13 | Flores 3 cores + ombro do path | 3 cores; ombro do caminho preenchido | Detalhe fino pós-grama densa | Flores/ombro → hitch → aceitar |
-| 14 | LOD de árvores + 4–8 paths | LOD estável; rede 4–8 paths | LOD + rede juntos no Degrau 2 | LOD + paths → hitch → aceitar |
-| 15 | `FogExp2` + Sky/animais opcionais | FogExp2; Sky/fauna opcional sem quebrar hitch | Atmosfera no fim | Fog (+opcional) → hitch → aceitar |
+| 10 | Extrair shortlist do Source já comprado ≤15 glTFs + `SOURCE_SWAP` | **Feito** — 15 glTF em `stylized-nature/Exports/glTF/` + README + SOURCE_SWAP §8 + `kitUrls.js` | Assets já no disco; só extrair/listar | Extrair shortlist → hitch → aceitar |
+| 11 | Amplitude 4–12 m + splat | **Feito** — amplitude 4–12 m, blend 20–30 m; vertex splat grass/dirt/rock (`slopeAt>0.65`); same `surfaceY` | Relevo + splat juntos no visual | Amplitude/splat → hitch → aceitar |
+| 12 | Grama densa em chunks 20–30 m, prio 5 + `uGust` | **Feito** — Wide/Wheat denser layers prio 5; `uGust` no windMaterial; WorldStream `[0..5]` | Densidade + vento avançado | Chunks → hitch → aceitar |
+| 13 | Flores 3 cores + ombro do path | **Feito** — Flower_1/2/7 + Nature 3/4 extras; clover/flowers denser on shoulder | Detalhe fino pós-grama densa | Flores/ombro → hitch → aceitar |
+| 14 | LOD de árvores + 4–8 paths | **Feito** — `THREE.LOD` TallThick/Birch/Cherry near, GiantPine/Common far; trees near path ends; 4 exits from Passo 8 | LOD + rede juntos no Degrau 2 | LOD + paths → hitch → aceitar |
+| 15 | `FogExp2` + Sky/animais opcionais | **Feito** — FogExp2 0.0045; distant GiantPine silhouettes (no shadows); no Sky/animals | Atmosfera no fim | Fog (+opcional) → hitch → aceitar |
 
 ## Fora de escopo por agora
 
@@ -46,4 +46,4 @@ Cavalo como veículo, fauna densa, rio, mapa ≫360 m, grama GPU.
 
 ## Ordem e próximo passo
 
-Ordem: 0→1→…→9, depois 10→…→15. **Degrau 1 (passos 1–9) feito.** Próximo = **Passo 10** (MegaKit shortlist + SOURCE_SWAP).
+Ordem: 0→1→…→9, depois 10→…→15. **Degrau 1 + Degrau 2 (passos 1–15) feitos.**

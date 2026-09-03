@@ -1,5 +1,5 @@
 /**
- * Deterministic countryside vegetation poses (Passo 5–7).
+ * Deterministic countryside vegetation poses (Passo 5–7, 12–14).
  * Grid + jitter from TERRAIN_SEED. Rejects city, path bed, steep slopes.
  */
 
@@ -8,6 +8,7 @@ import { distOutsideCity, slopeAt, TERRAIN_SEED } from './heightField.js';
 import {
   distToPath,
   isPathBed,
+  pathEnds,
   PATH_HALF_WIDTH,
   PATH_SHOULDER,
   surfaceY
@@ -25,13 +26,6 @@ function mulberry32(seed) {
 
 /**
  * Scatter poses on a jittered grid.
- * @param {object} opts
- * @param {number} opts.spacing
- * @param {number} [opts.seedSalt]
- * @param {number} [opts.scaleMin]
- * @param {number} [opts.scaleMax]
- * @param {(x:number,z:number,rnd:()=>number)=>boolean} [opts.accept]
- * @param {number} [opts.halfExtent]
  */
 export function scatterGrid(opts) {
   const {
@@ -74,12 +68,20 @@ export function acceptFieldGrass(x, z, { maxSlope = 0.55, minPathDist = PATH_HAL
   return true;
 }
 
-/** Clover: field OK off bed; also sparse on shoulder. */
+/** Clover: denser on shoulder (Passo 13). */
 export function acceptClover(x, z, rnd) {
   const d = distToPath(x, z);
   if (d < PATH_HALF_WIDTH) return false;
-  if (d < PATH_SHOULDER) return rnd() < 0.3;
-  return rnd() < 0.28;
+  if (d < PATH_SHOULDER) return rnd() < 0.55;
+  return rnd() < 0.22;
+}
+
+/** Flowers prefer field + path shoulder (Passo 13). */
+export function acceptFlower(x, z, rnd) {
+  const d = distToPath(x, z);
+  if (d < PATH_HALF_WIDTH) return false;
+  if (d < PATH_SHOULDER + 1.5) return rnd() < 0.7;
+  return rnd() < 0.45;
 }
 
 /** Bushes: ≥5 m from path axis. */
@@ -91,6 +93,12 @@ export function acceptBush(x, z) {
 export function acceptTree(x, z) {
   if (distOutsideCity(x, z) < 8) return false;
   return distToPath(x, z) >= 5;
+}
+
+/** Rocks on steep slopes (Passo 11 visual companion). */
+export function acceptRock(x, z) {
+  if (distToPath(x, z) < PATH_HALF_WIDTH + 1) return false;
+  return slopeAt(x, z) > 0.65;
 }
 
 /**
@@ -146,7 +154,8 @@ export function scatterClusters(opts) {
 }
 
 /**
- * Grove centers then trees around them (6–10 groves, 40–80 trees).
+ * Grove centers then trees around them.
+ * Also plants a few trees near each path end so exits enter groves (Passo 14).
  */
 export function scatterTreeGroves(opts = {}) {
   const {
@@ -154,7 +163,8 @@ export function scatterTreeGroves(opts = {}) {
     treesPerGrove = [5, 10],
     groveMinDist = 45,
     seedSalt = 90,
-    halfExtent = GROUND_BODY_HALF - 20
+    halfExtent = GROUND_BODY_HALF - 20,
+    pathEndTrees = 4
   } = opts;
 
   const rnd = mulberry32(TERRAIN_SEED + seedSalt);
@@ -178,17 +188,32 @@ export function scatterTreeGroves(opts = {}) {
     centers.push({ x, z });
   }
 
+  // Path-end mini-groves so dirt exits visually enter woodland.
+  for (const end of pathEnds()) {
+    if (!end) continue;
+    if (isInsideCity(end.x, end.z)) continue;
+    centers.push({ x: end.x, z: end.z, pathEnd: true });
+  }
+
   const poses = [];
   for (const c of centers) {
-    const n =
-      treesPerGrove[0] +
-      Math.floor(rnd() * (treesPerGrove[1] - treesPerGrove[0] + 1));
+    const n = c.pathEnd
+      ? pathEndTrees
+      : treesPerGrove[0] +
+        Math.floor(rnd() * (treesPerGrove[1] - treesPerGrove[0] + 1));
     for (let i = 0; i < n; i++) {
       const ang = rnd() * Math.PI * 2;
-      const rad = 2 + rnd() * 14;
+      const rad = c.pathEnd ? 4 + rnd() * 10 : 2 + rnd() * 14;
       const x = c.x + Math.cos(ang) * rad;
       const z = c.z + Math.sin(ang) * rad;
-      if (!acceptTree(x, z)) continue;
+      if (c.pathEnd) {
+        if (isInsideCity(x, z)) continue;
+        if (distOutsideCity(x, z) < 6) continue;
+        // Allow slightly closer to path at exits.
+        if (distToPath(x, z) < 3.5) continue;
+      } else if (!acceptTree(x, z)) {
+        continue;
+      }
       poses.push({
         x,
         y: surfaceY(x, z),
@@ -197,6 +222,35 @@ export function scatterTreeGroves(opts = {}) {
         scale: 0.95 + rnd() * 0.45
       });
     }
+  }
+  return poses;
+}
+
+/** Sparse distant silhouette pines (Passo 15). */
+export function scatterHorizonPines(opts = {}) {
+  const {
+    count = 14,
+    seedSalt = 210,
+    minR = 210,
+    maxR = 280
+  } = opts;
+  const rnd = mulberry32(TERRAIN_SEED + seedSalt);
+  const poses = [];
+  let attempts = 0;
+  while (poses.length < count && attempts < 200) {
+    attempts += 1;
+    const ang = rnd() * Math.PI * 2;
+    const r = minR + rnd() * (maxR - minR);
+    const x = Math.cos(ang) * r;
+    const z = Math.sin(ang) * r;
+    if (isInsideCity(x, z)) continue;
+    poses.push({
+      x,
+      y: surfaceY(x, z),
+      z,
+      rot: rnd() * Math.PI * 2,
+      scale: 1.2 + rnd() * 0.6
+    });
   }
   return poses;
 }

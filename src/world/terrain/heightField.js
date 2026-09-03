@@ -1,6 +1,7 @@
 /**
- * Shared CPU height for open countryside (Passo 1).
- * Flat inside the city AABB; smooth blend into low hills outside.
+ * Shared CPU height for open countryside (Passo 1 + 11).
+ * Flat inside the city AABB; smooth blend into hills outside.
+ * Amplitude and blend are parameterized (Degrau-1 values were a dead end).
  */
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
@@ -9,11 +10,33 @@ import { cityBounds, isInsideCity } from '../RoadDimensions.js';
 /** Fixed seed so every boot gets the same hills. */
 export const TERRAIN_SEED = 42;
 
-const AMPLITUDE_MIN = 1.5;
-const AMPLITUDE_MAX = 4.0;
-/** Blend width from city AABB edge (meters). */
-const BLEND_IN = 8;
-const BLEND_OUT = 16;
+/**
+ * Countryside hill amplitude (meters).
+ * Passo 11: 4–12 m far from city. Override via setAmplitudeRange for tests.
+ */
+let amplitudeMin = 4.0;
+let amplitudeMax = 12.0;
+/** Blend width from city AABB edge (meters). Passo 11: ~20–30 m. */
+let blendIn = 20;
+let blendOut = 30;
+
+export function setAmplitudeRange(min, max) {
+  amplitudeMin = min;
+  amplitudeMax = max;
+}
+
+export function setBlendRange(inner, outer) {
+  blendIn = inner;
+  blendOut = outer;
+}
+
+export function getAmplitudeRange() {
+  return { min: amplitudeMin, max: amplitudeMax };
+}
+
+export function getBlendRange() {
+  return { inner: blendIn, outer: blendOut };
+}
 
 const noise = new ImprovedNoise();
 const seedOffset = TERRAIN_SEED * 0.137;
@@ -37,18 +60,18 @@ function rawHills(x, z) {
   const n2 = noise.noise(x * 0.045 + seedOffset * 2, seedOffset + 1.7, z * 0.045);
   const n = n1 * 0.7 + n2 * 0.3;
   const t = (n + 1) * 0.5;
-  return AMPLITUDE_MIN + t * (AMPLITUDE_MAX - AMPLITUDE_MIN);
+  return amplitudeMin + t * (amplitudeMax - amplitudeMin);
 }
 
 /**
  * World Y of the countryside surface at (x, z).
- * Inside the city: 0 (sidewalk). Outside: hills with an 8–16 m soft blend.
+ * Inside the city: 0 (sidewalk). Outside: hills with soft blend.
  */
 export function heightAt(x, z) {
   if (isInsideCity(x, z)) return 0;
 
   const d = distOutsideCity(x, z);
-  const w = smoothstep(BLEND_IN, BLEND_OUT, d);
+  const w = smoothstep(blendIn, blendOut, d);
   if (w <= 0) return 0;
   return rawHills(x, z) * w;
 }

@@ -1,7 +1,7 @@
 /**
- * Shared foliage wind (Passo 4).
- * applyWind clones/mutates a material with onBeforeCompile: one sin wave
- * driven by uTime + world XZ phase; bend scales with local position.y > 0.
+ * Shared foliage wind (Passo 4 + 12).
+ * applyWind clones/mutates a material with onBeforeCompile: primary sin wave
+ * + slow uGust second sine. Bend scales with local position.y > 0.
  * tickWind(elapsed) updates every registered uniform — call from main.js.
  * Do not import Godot/Unity shaders.
  */
@@ -13,25 +13,29 @@ const windUniforms = [];
 /**
  * Inject a simple bend into a MeshStandard / MeshLambert material.
  * @param {THREE.Material} material
- * @param {{ strength?: number }} [opts]
+ * @param {{ strength?: number, gust?: number }} [opts]
  * @returns {THREE.Material} the material (mutated, same instance)
  */
 export function applyWind(material, opts = {}) {
   if (!material || material.userData._windApplied) return material;
 
   const strength = opts.strength ?? 0.25;
+  const gust = opts.gust ?? 0.35;
   const uTime = { value: 0 };
   const uWindStrength = { value: strength };
+  const uGust = { value: gust };
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uTime;
     shader.uniforms.uWindStrength = uWindStrength;
+    shader.uniforms.uGust = uGust;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `#include <common>
 uniform float uTime;
-uniform float uWindStrength;`
+uniform float uWindStrength;
+uniform float uGust;`
       )
       .replace(
         '#include <begin_vertex>',
@@ -39,7 +43,9 @@ uniform float uWindStrength;`
 {
   float bend = max(transformed.y, 0.0);
   float phase = (transformed.x + transformed.z) * 0.35 + uTime * 1.4;
-  float w = sin(phase) * bend * uWindStrength;
+  float primary = sin(phase);
+  float gustWave = sin(uTime * 0.37 + phase * 0.22);
+  float w = (primary + gustWave * uGust) * bend * uWindStrength;
   transformed.x += w;
   transformed.z += w * 0.6;
 }`

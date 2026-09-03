@@ -116,3 +116,29 @@ sit further out so those meshes are in the scene.
 - Game glTFs: `public/models/downtown/Exports/glTF/`
 - Roads (Godot): `public/models/downtown/Exports/glTF (Godot)/`
 - Zip (do not commit): `../quaternius/Downtown City MegaKit[Source].zip`
+
+
+---
+
+## 8. Stylized Nature MegaKit — shortlist (Passo 10) — done
+
+Locked ≤15 glTFs live in `public/models/stylized-nature/Exports/glTF/`.
+See that folder’s `README.md`. Do **not** commit Engine Projects or Godot shaders.
+
+| Role | Preferred (MegaKit) | Fallback (Nature Pack) |
+|---|---|---|
+| Dense tall grass | `Grass_Wide_Tall` | `Grass_Common_Tall` |
+| Dense short grass | `Grass_Wide_Short` | `Grass_Common_Short` |
+| Wheat | `Grass_Wheat` | `Grass_Wispy_Tall` |
+| Flower A/B/tall | `Flower_1/2/7_Group` | `Flower_3/4_Group` |
+| Bush mid / long | `Bush_Large_Flowers`, `Bush_Long_1` | `Bush_Common(_Flowers)` |
+| Canopy trees | `TallThick_1/2`, `Birch_1`, `CherryBlossom_1` | `CommonTree_*` |
+| Horizon / LOD far | `GiantPine_1` | `Pine_1` |
+| Plant / rock | `Plant_5`, `Rock_Big_1` | `Plant_1`, `Rock_Medium_1` |
+
+Runtime resolver: `src/world/terrain/kitUrls.js` (`kitUrl(role)`).
+Nature extras still used: `Flower_3/4_Group`, `Clover_1`, `Grass_Common_*`, `Grass_Wispy_*`.
+
+Paths:
+- MegaKit shortlist: `public/models/stylized-nature/Exports/glTF/`
+- Nature Pack (Degrau 1 + fallbacks): `public/models/nature/`

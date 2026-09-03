@@ -20,7 +20,7 @@ North star: Witcher 3 (paisagem legível, densidade local, não um mapa infinito
 |------:|---------|--------|-----------------|------|
 | 0 | Docs (opcional) | Roadmap e checklist alinhados com o time | Evita retrabalho antes de código | Ler → ajustar → ok |
 | 1 | Mapa aberto + `heightAt` + tiles 40 m + remover 4 paredes Cannon | Mundo contínuo sem caixas; altura consultável; tiles de 40 m | Muda a base espacial e física do chão | Abrir mapa → hitch → aceitar altura/tiles |
-| 2 | Física Heightfield por tile | Colisão/ride alinhados ao heightmap do tile | Física isolada do visual | Gerar HF → testar hitch → aceitar |
+| 2 | Física Heightfield por tile | **Feito** — HF por tile 40 m (mesmo grid visual); chão city só em `cityBounds`+pad; fence ±300 | Física isolada do visual | Gerar HF → testar hitch → aceitar |
 | 3 | Primeiro caminho de terra ~4 m rideable | Faixa transitável ~4 m sem buracos | Valida rideabilidade antes de vegetação | Colocar path → hitch → aceitar |
 | 4 | Material de vento + 200 `Grass_Common_Tall` | 200 tall grass com vento, estável | Capacidade de shader/material sem scatter | Material + 200 → hitch → aceitar |
 | 5 | Scatter de grama prio 4, recusa leito do path | Densidade no campo; path livre de grama | Scatter sem misturar com flores/árvores | Scatter prio 4 → hitch → aceitar |
@@ -46,4 +46,4 @@ Cavalo como veículo, fauna densa, rio, mapa ≫360 m, grama GPU.
 
 ## Ordem e próximo passo
 
-Ordem: 0→1→…→9, depois 10→…→15. Próximo a implementar quando o usuário disser **pode começar** = **Passo 1**.
+Ordem: 0→1→…→9, depois 10→…→15. Passo 1–2 feitos. Próximo = **Passo 3** (caminho de terra ~4 m).

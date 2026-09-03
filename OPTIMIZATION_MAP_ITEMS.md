@@ -123,22 +123,24 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 
 ---
 
-## Open countryside terrain (Passo 1)
+## Open countryside terrain (Passo 1–2)
 
 `src/world/terrain/TerrainWorld.js` + `heightField.js` — stream **tasks** priority 4.
 
 - 40×40 m `PlaneGeometry` tiles (~20 segs / 2 m) covering the outer ring up to `GROUND_BODY_HALF` (±300).
 - Hole over the city: skip tiles whose **center** is inside `isInsideCity`; edge tiles still displace via `heightAt` (Y=0 inside the AABB).
 - `MeshLambertMaterial` grass hex; `receiveShadow = false` for now.
-- One task per tile; `dist` = Chebyshev from stream origin to tile center. No Heightfield physics yet (Passo 2); flat Cannon ground box stays. City perimeter walls are off.
+- One task per tile; `dist` = Chebyshev from stream origin to tile center.
+- **Passo 2 physics:** same task builds a Cannon `Heightfield` on the same `(TILE_SEGS+1)²` grid (`elementSize = 2`). Quaternion `-PI/2` on X; body at `(x0, 0, z0+TILE)` with flipped j so world Y = `heightAt`. No single giant HF.
+- City flat ground box shrunk to `cityBounds()` + ~3 m pad (top still `ASPHALT_SURFACE_Y`). Soft outer fence at ±300. City perimeter walls stay off.
 
-Log: `terrain tile {ix},{iz}`.
+Log: `terrain tile {ix},{iz}` then `terrain phys {ix},{iz}`.
 
 ---
 
 ## Physics
 
-Bank: one AABB. Buildings: per revealed instance box. Not a draw-call issue; too many bodies would be a map-item (combine colliders).
+Bank: one AABB. Buildings: per revealed instance box. Terrain: one Heightfield body per 40 m tile (Passo 2), created with the visual. City streets: one flat box over `cityBounds`+pad only. Not a draw-call issue; too many bodies would be a map-item (combine colliders).
 
 ---
 

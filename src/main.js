@@ -17,7 +17,7 @@ import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
 import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
-import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase } from './engine/loadLog.js';
+import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel } from './engine/loadLog.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
@@ -131,7 +131,11 @@ async function startGame() {
         (loadGovernor.streaming ? ' · cap' : '');
     }
     tickTerrainDebug(elapsed);
-    if (loadPhaseEl) loadPhaseEl.textContent = getLoadPhase();
+    if (loadPhaseEl) {
+      const stream = getStreamLabel();
+      const phase = getLoadPhase();
+      loadPhaseEl.textContent = stream && phase === 'play' ? `${phase} · ${stream}` : (stream || phase);
+    }
     if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();
       renderHitchList(hitchList, getTopLoadHitches(8));
@@ -155,12 +159,16 @@ async function startGame() {
   // Solid countryside under and around the spawn from frame one.
   ensureGroundAround(originX, originZ, 80, 25);
 
+  // Capture freezes as soon as the player can move / fly.
+  setInteractive(true);
+  setLoadPhase('play');
   loadGovernor.streaming = true;
   stream.pumpTo(STREAM_STEP, 0)
     .then(() => {
-      // World is already interactive; keep streaming hinterland but count
-      // further freezes toward the FPS list unless tied to fresh load work.
+      // World is already interactive — FPS hitch list captures every freeze
+      // from here on, even while hinterland keeps streaming.
       setLoadPhase('play');
+      setInteractive(true);
       return stream.continueAfter(STREAM_STEP);
     })
     .then(async () => {

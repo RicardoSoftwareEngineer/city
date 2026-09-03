@@ -1,6 +1,8 @@
 /**
- * Dirt paths for open countryside (Passo 3).
+ * Dirt paths for open countryside (Passo 3 + 8).
  * Seed-fixed Catmull-Rom corridors; bed ~4 m (half-width 2).
+ * Four exits: south, west, north, east — mid-edges of cityBounds.
+ * Optional short cross-link between south and west arms.
  * surfaceY = heightAt - pathDepression — shared by mesh + Heightfield.
  */
 
@@ -60,6 +62,28 @@ function sampleSpline(controls, samplesPerSeg = 12) {
   return pts;
 }
 
+/**
+ * Radial exit from a city mid-edge outward.
+ * @param {'south'|'west'|'north'|'east'} dir
+ */
+function radialExit(rnd, b, midX, midZ, dir, length, steps, lateralAmp) {
+  const ctrl = [];
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const lateral = (rnd() - 0.5) * lateralAmp * Math.sin(u * Math.PI);
+    if (dir === 'south') {
+      ctrl.push({ x: midX + lateral, z: b.minZ - u * length });
+    } else if (dir === 'north') {
+      ctrl.push({ x: midX + lateral, z: b.maxZ + u * length });
+    } else if (dir === 'west') {
+      ctrl.push({ x: b.minX - u * length, z: midZ + lateral });
+    } else {
+      ctrl.push({ x: b.maxX + u * length, z: midZ + lateral });
+    }
+  }
+  return ctrl;
+}
+
 function buildPaths() {
   const rnd = mulberry32(TERRAIN_SEED + 17);
   const b = cityBounds();
@@ -67,32 +91,42 @@ function buildPaths() {
   const midX = (0 + 180) * 0.5;
   const midZ = (0 + 180) * 0.5;
 
-  /** South exit: city south edge → ~130 m south with slight lateral noise. */
-  const southCtrl = [];
-  const southLen = 130;
-  const southSteps = 8;
-  for (let i = 0; i <= southSteps; i++) {
-    const u = i / southSteps;
-    const z = b.minZ - u * southLen;
-    const lateral = (rnd() - 0.5) * 10 * Math.sin(u * Math.PI);
-    southCtrl.push({ x: midX + lateral, z });
-  }
+  const southCtrl = radialExit(rnd, b, midX, midZ, 'south', 130, 8, 10);
+  const westCtrl = radialExit(rnd, b, midX, midZ, 'west', 120, 7, 8);
+  const northCtrl = radialExit(rnd, b, midX, midZ, 'north', 120, 7, 9);
+  const eastCtrl = radialExit(rnd, b, midX, midZ, 'east', 110, 7, 8);
 
-  /** West exit: city west edge → ~120 m west. */
-  const westCtrl = [];
-  const westLen = 120;
-  const westSteps = 7;
-  for (let i = 0; i <= westSteps; i++) {
-    const u = i / westSteps;
-    const x = b.minX - u * westLen;
-    const lateral = (rnd() - 0.5) * 8 * Math.sin(u * Math.PI);
-    westCtrl.push({ x, z: midZ + lateral });
-  }
+  // Short cross-link: mid-south arm → mid-west arm (keeps network connected).
+  const southMid = southCtrl[Math.floor(southCtrl.length * 0.45)];
+  const westMid = westCtrl[Math.floor(westCtrl.length * 0.45)];
+  const linkCtrl = [
+    { x: southMid.x, z: southMid.z },
+    {
+      x: southMid.x + (westMid.x - southMid.x) * 0.35 + (rnd() - 0.5) * 6,
+      z: southMid.z + (westMid.z - southMid.z) * 0.35 + (rnd() - 0.5) * 6
+    },
+    {
+      x: southMid.x + (westMid.x - southMid.x) * 0.7 + (rnd() - 0.5) * 5,
+      z: southMid.z + (westMid.z - southMid.z) * 0.7 + (rnd() - 0.5) * 5
+    },
+    { x: westMid.x, z: westMid.z }
+  ];
 
-  polylines = [sampleSpline(southCtrl), sampleSpline(westCtrl)];
+  polylines = [
+    sampleSpline(southCtrl),
+    sampleSpline(westCtrl),
+    sampleSpline(northCtrl),
+    sampleSpline(eastCtrl),
+    sampleSpline(linkCtrl, 10)
+  ];
 }
 
 buildPaths();
+
+/** Path polyline ends (far tips) — used by tree scatter near exits. */
+export function pathEnds() {
+  return polylines.map((line) => line[line.length - 1]).filter(Boolean);
+}
 
 /**
  * Distance from (x,z) to the nearest path polyline (meters).

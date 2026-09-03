@@ -1,5 +1,5 @@
 /**
- * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–3).
+ * Open countryside visual tiles + per-tile Cannon Heightfield (Passo 1–3, 8–9).
  * 40×40 m PlaneGeometry ring around the city up to GROUND_BODY_HALF.
  * Vertex colors paint dirt path beds; Y uses shared surfaceY (path groove).
  * Stream tasks at priority 4 — after buildings.
@@ -131,13 +131,22 @@ export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
   group.name = 'terrain';
   parentGroup.add(group);
 
+  // One-shot tag so hitch logs show path network (seed-fixed, rebuilt at init).
+  stream.addTask({
+    dist: 0,
+    priority: TERRAIN_PRIORITY,
+    run: async () => {
+      beginLoad('path', 'network 4 exits + link');
+    }
+  });
+
   for (const t of tileIndices()) {
     const dist = chebyshev(t.cx, t.cz, ox, oz);
     stream.addTask({
       dist,
       priority: TERRAIN_PRIORITY,
       run: async () => {
-        beginLoad('terrain', `tile ${t.ix},${t.iz}`);
+        beginLoad('terrain', `mesh ${t.ix},${t.iz}`);
         group.add(buildTileMesh(t.x0, t.z0));
         if (physicsWorld) {
           beginLoad('terrain', `phys ${t.ix},${t.iz}`);

@@ -123,14 +123,14 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 
 ---
 
-## Open countryside terrain (Passo 1–7)
+## Open countryside terrain (Passo 1–9)
 
 `src/world/terrain/TerrainWorld.js` + `heightField.js` + `paths.js` — stream **tasks** priority 4.
 
 - 40×40 m `PlaneGeometry` tiles (~20 segs / 2 m) covering the outer ring up to `GROUND_BODY_HALF` (±300).
 - Hole over the city: skip tiles whose **center** is inside `isInsideCity`; edge tiles still displace via `surfaceY` (Y=0 inside the AABB minus path groove outside).
 - Shared `MeshLambertMaterial({ vertexColors: true, color: 0xffffff })`: dirt bed `0x8b7355` vs grass `0x4a7c3f`, soft falloff halfWidth→halfWidth+1.5 m. `receiveShadow = false`.
-- **Path bed:** `paths.js` seed-fixed south + west exits, `PATH_HALF_WIDTH = 2` (~4 m). `surfaceY = heightAt - pathDepression` used by mesh **and** Heightfield so the car follows the groove.
+- **Path bed:** `paths.js` seed-fixed south/west/north/east exits (~110–130 m) + one short SW cross-link, `PATH_HALF_WIDTH = 2` (~4 m). `surfaceY = heightAt - pathDepression` used by mesh **and** Heightfield so the car follows the groove. Regenerating paths stays seed-fixed (`TERRAIN_SEED+17`).
 - One task per tile; `dist` = Chebyshev from stream origin to tile center.
 - **Passo 2 physics:** same task builds a Cannon `Heightfield` on the same `(TILE_SEGS+1)²` grid (`elementSize = 2`). Quaternion `-PI/2` on X; body at `(x0, 0, z0+TILE)` with flipped j so world Y = `surfaceY`. No single giant HF.
 - City flat ground box shrunk to `cityBounds()` + ~3 m pad (top still `ASPHALT_SURFACE_Y`). Soft outer fence at ±300. City perimeter walls stay off.
@@ -145,7 +145,8 @@ PCF on every receiver was the play hitch (~1s CPU, 0 new programs, 600–900 dra
 - Trees/bushes: `castShadow: true`. Grass/flowers/clover: no cast.
 - Degrau 1 field half-extent ~180 m; budgets: tall/wispy grass thousands, flowers ~200–400, bushes ~80–150, trees 40–80 in 6–10 groves.
 
-Log: `terrain tile {ix},{iz}` then `terrain phys {ix},{iz}`; veg `gltf:parse Grass_*` / `CommonTree_*`.
+Log: `path network 4 exits + link`; `terrain mesh {ix},{iz}` then `terrain phys {ix},{iz}`; veg `veg Grass_*` / `CommonTree_*` (+ `gltf:parse`).
+- Fog: `FogExp2(0xdbeafe, 0.004)` in `Renderer.js` (Passo 9) — city readable at 100 m.
 
 ---
 

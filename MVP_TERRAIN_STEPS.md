@@ -26,8 +26,8 @@ North star: Witcher 3 (paisagem legível, densidade local, não um mapa infinito
 | 5 | Scatter de grama prio 4, recusa leito do path | **Feito** — tall + wispy; `isPathBed` reject | Scatter sem misturar com flores/árvores | Scatter prio 4 → hitch → aceitar |
 | 6 | Flores + arbustos | **Feito** — Flower_3/4 groups, Clover shoulder, Bush_Common(+Flowers) | Separado da grama e das árvores | Colocar → hitch → aceitar |
 | 7 | Bosques de árvores | **Feito** — 6–10 groves, CommonTree_1/2/3, castShadow, ≥8 m city / ≥5 m path | Árvores pesam; isoladas | Groves → hitch → aceitar |
-| 8 | Rede de 2–4 caminhos | 2–4 paths conectados, rideable | Rede depois do path piloto | Expandir → hitch → aceitar |
-| 9 | Gate: checklist MVP simples + hitch estável | Checklist verde; hitch estável no loop | Gate antes do Degrau 2 | Checklist + hitch → aceitar |
+| 8 | Rede de 2–4 caminhos | **Feito** — south/west/north/east ~110–130 m + short SW cross-link; PATH_HALF_WIDTH=2 | Rede depois do path piloto | Expandir → hitch → aceitar |
+| 9 | Gate: checklist MVP simples + hitch estável | **Feito** — FogExp2 subtle; load tags terrain/path/veg; checklist 1–9 verde | Gate antes do Degrau 2 | Checklist + hitch → aceitar |
 
 ## Degrau 2 (Witcher) — passos 10–15 (somente após o 9)
 
@@ -46,4 +46,4 @@ Cavalo como veículo, fauna densa, rio, mapa ≫360 m, grama GPU.
 
 ## Ordem e próximo passo
 
-Ordem: 0→1→…→9, depois 10→…→15. Passos 1–7 feitos. Próximo = **Passo 8** (rede de 2–4 caminhos).
+Ordem: 0→1→…→9, depois 10→…→15. **Degrau 1 (passos 1–9) feito.** Próximo = **Passo 10** (MegaKit shortlist + SOURCE_SWAP).

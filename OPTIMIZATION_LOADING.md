@@ -52,7 +52,7 @@ Entry: `src/main.js`.
 - `createGrowingInstancedGltf` then `reveal(radius, loadGovernor.chunk)` in budget ticks.
 - Run tasks with `dist <= radius`.
 - `revealBuildings` only at priority 3.
-- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). Same priority: vegetation `urlJobs` from `registerVegetation` (growing instancers; optional `options.prepare` for wind). First boot pump may stay `maxPriority 0`.
+- Priority **4**: open-countryside terrain tile tasks (`registerTerrain`) — after buildings; each task also builds that tile’s Heightfield (`phys {ix},{iz}`). One-shot `path network` tag. Same priority: vegetation `urlJobs` from `registerVegetation` (growing instancers; `beginLoad('veg', file)` + optional `options.prepare` for wind). First boot pump may stay `maxPriority 0`.
 - **Wind tick:** `main.js` GameLoop calls `tickWind(elapsed)` every frame (`windMaterial.js`); no extra systems.
 
 `continueAfter(r)`: `pumpTo(r, 4)` then rings `r+10, r+20, …` until `maxRadius()`.

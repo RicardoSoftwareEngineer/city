@@ -12,6 +12,7 @@ import {
 import { createBudget, waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
+import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
 
 export const STREAM_STEP = 10;
@@ -83,6 +84,7 @@ export class WorldStream {
   async pumpTo(radius, maxPriority = 5) {
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
     const budget = createBudget();
+    beginRing(radius);
 
     for (const priority of priorities) {
       setStreamLabel(`stream r${radius} p${priority}`);
@@ -96,10 +98,11 @@ export class WorldStream {
 
       for (const job of toLoad) {
         await waitIfSlow();
-        const template = await loadGltf(job.url, job.options);
+        const template = await measureRingItem(job.url, () => loadGltf(job.url, job.options));
         if (template && typeof job.options.prepare === 'function') {
           job.options.prepare(template);
         }
+        const tGrow = performance.now();
         job.grower = template
           ? createGrowingInstancedGltf(
             this.parent,
@@ -110,6 +113,7 @@ export class WorldStream {
             job.options
           )
           : { reveal() { return 0; } };
+        if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
         await yieldAfterWork();
       }
 
@@ -117,14 +121,16 @@ export class WorldStream {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
         await waitIfSlow();
-        job.grower = createGrowingInstancedGltf(
-          this.parent,
-          job.template,
-          job.poses,
-          this.ox,
-          this.oz,
-          job.options
-        );
+        measureRingItemSync('template instancer', () => {
+          job.grower = createGrowingInstancedGltf(
+            this.parent,
+            job.template,
+            job.poses,
+            this.ox,
+            this.oz,
+            job.options
+          );
+        });
         await yieldAfterWork();
       }
 
@@ -137,7 +143,9 @@ export class WorldStream {
           await budget.tick();
         }
         if (added && this.renderer) {
-          await this.renderer.compileSubtree(this.parent);
+          await measureRingItem(`compile urls r${radius} p${priority}`, () =>
+            this.renderer.compileSubtree(this.parent)
+          );
           this.renderer.resumeDraw();
           await yieldToMain();
           this.renderer.pauseDraw();
@@ -151,7 +159,9 @@ export class WorldStream {
           await budget.tick();
         }
         if (added && this.renderer) {
-          await this.renderer.compileSubtree(this.parent);
+          await measureRingItem(`compile templates r${radius} p${priority}`, () =>
+            this.renderer.compileSubtree(this.parent)
+          );
           this.renderer.resumeDraw();
           await yieldToMain();
           this.renderer.pauseDraw();
@@ -164,13 +174,14 @@ export class WorldStream {
       );
       for (const task of tasks) {
         await waitIfSlow();
-        await task.run();
+        await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () => task.run());
         task.done = true;
         await yieldAfterWork();
       }
 
       await this.revealBuildings(radius, priority, budget);
     }
+    endRing(radius);
   }
 
   async revealBuildings(radius, priority, budget) {
@@ -182,22 +193,24 @@ export class WorldStream {
 
       if (!b.grower) {
         if (b.heavy) await waitUntilSmooth(42);
-        const template = await b.load();
+        const template = await measureRingItem(b.url || b.name || 'building', () => b.load());
         await yieldAfterWork();
         if (!template) continue;
         if (b.heavy) await waitUntilSmooth(42);
         b.template = template;
-        b.grower = createGrowingInstancedGltf(
-          this.parent,
-          template,
-          b.sorted,
-          this.ox,
-          this.oz,
-          {
-            ...castOpts(),
-            onReveal: (p) => b.onReveal?.(p, template)
-          }
-        );
+        measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
+          b.grower = createGrowingInstancedGltf(
+            this.parent,
+            template,
+            b.sorted,
+            this.ox,
+            this.oz,
+            {
+              ...castOpts(),
+              onReveal: (p) => b.onReveal?.(p, template)
+            }
+          );
+        });
         await yieldToMain();
       }
 
@@ -216,7 +229,9 @@ export class WorldStream {
         await budget.tick();
       }
       if (added && this.renderer) {
-        await this.renderer.compileSubtree(this.parent);
+        await measureRingItem(`compile building r${radius}`, () =>
+          this.renderer.compileSubtree(this.parent)
+        );
         this.renderer.resumeDraw();
         await yieldToMain();
         this.renderer.pauseDraw();

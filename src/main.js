@@ -18,6 +18,7 @@ import { Intersection } from './world/Intersection.js';
 import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel } from './engine/loadLog.js';
+import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
@@ -83,6 +84,7 @@ async function startGame() {
   const playHitchList = document.getElementById('play-hitch-list');
   const loadPhaseEl = document.getElementById('load-phase');
   let shownHitchRev = -1;
+  const paintRingLoad = initRingLoadHud();
 
   function renderHitchList(el, rows) {
     if (!el) return;
@@ -141,6 +143,7 @@ async function startGame() {
       renderHitchList(hitchList, getTopLoadHitches(8));
       renderHitchList(playHitchList, getTopPlayHitches(8));
     }
+    paintRingLoad();
   });
 
   gameLoop.start();

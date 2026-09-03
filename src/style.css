@@ -302,3 +302,95 @@ kbd {
   margin-top: 0.3rem;
   max-height: 11rem;
 }
+
+/* Per-ring load accordion (left side, above FPS hitch list). */
+#ring-load-hud {
+  position: fixed;
+  left: 12px;
+  top: 14.5rem;
+  z-index: 20;
+  pointer-events: auto;
+  padding: 8px 10px;
+  max-width: 22rem;
+  max-height: calc(100vh - 22rem);
+  overflow: auto;
+  background: rgba(8, 12, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  font-variant-numeric: tabular-nums;
+}
+#ring-load-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a78bfa;
+}
+#ring-load-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  font-size: 0.65rem;
+  color: #cbd5e1;
+}
+#ring-load-list .ring-empty {
+  color: #64748b;
+}
+.ring-toggle {
+  display: grid;
+  grid-template-columns: 2.6rem 3.4rem 1fr auto;
+  gap: 0.35rem;
+  align-items: baseline;
+  width: 100%;
+  margin: 0;
+  padding: 0.2rem 0.15rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ring-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ring-r {
+  color: #c4b5fd;
+  font-weight: 700;
+}
+.ring-ms {
+  color: #f472b6;
+  font-weight: 600;
+}
+.ring-meta {
+  color: #64748b;
+  font-size: 0.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ring-chev {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+.ring-top {
+  margin: 0.15rem 0 0.45rem 0.4rem;
+  padding-left: 1rem;
+  color: #94a3b8;
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+.ring-item-ms {
+  color: #fb7185;
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+#ring-load-footer {
+  margin-top: 0.45rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.6rem;
+  color: #94a3b8;
+}

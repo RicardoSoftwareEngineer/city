@@ -4,6 +4,9 @@
  * Always adapts (including while streaming). setPixelRatio / shadow toggles
  * can cost the *next* draw — apply only when the valve is not holding, and
  * pauseDraw briefly around the mutate if available.
+ *
+ * Wall-clock hysteresis so a 3 FPS soak still drops quality within ~1s
+ * (frame-count streaks would stall).
  */
 
 import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
@@ -19,6 +22,12 @@ const LEVELS = [
   { id: 3, label: 'no-shadow', pixelRatio: 1, shadows: false }
 ];
 
+/** ms of bad FPS before each quality step down. */
+const LOW_MS = 1400;
+const LOW_MS_CRITICAL = 600;
+/** ms of smooth FPS before each quality step up. */
+const HIGH_MS = 3500;
+
 let lastZoneNote = '';
 
 /** Zone policy helper — outer ring prefers low-quality intent (logged). */
@@ -32,8 +41,8 @@ export function noteZonePolicy(x, z) {
 
 export function createQualityAdapter(renderer) {
   let level = 0;
-  let lowStreak = 0;
-  let highStreak = 0;
+  let lowSince = 0;
+  let highSince = 0;
   let shadowWanted = false;
   const basePr = Math.min(window.devicePixelRatio || 1, BASE_PR_CAP);
 
@@ -74,21 +83,28 @@ export function createQualityAdapter(renderer) {
     },
     /** Call once per frame after loadGovernor.noteFrame. */
     tick() {
-      if (loadGovernor.instantFps < TARGET_FPS - 5) {
-        lowStreak++;
-        highStreak = 0;
-        if (lowStreak >= 8 && level < LEVELS.length - 1) {
-          if (apply(level + 1)) lowStreak = 0;
+      const now = performance.now();
+      const bad =
+        loadGovernor.instantFps < TARGET_FPS - 5 ||
+        loadGovernor.fps < TARGET_FPS - 8;
+      const critical = loadGovernor.fps < 25 || loadGovernor.instantFps < 18;
+
+      if (bad) {
+        highSince = 0;
+        if (!lowSince) lowSince = now;
+        const need = critical ? LOW_MS_CRITICAL : LOW_MS;
+        if (now - lowSince >= need && level < LEVELS.length - 1) {
+          if (apply(level + 1)) lowSince = now;
         }
       } else if (loadGovernor.isSmooth) {
-        highStreak++;
-        lowStreak = 0;
-        if (highStreak >= 20 && level > 0) {
-          if (apply(level - 1)) highStreak = 0;
+        lowSince = 0;
+        if (!highSince) highSince = now;
+        if (now - highSince >= HIGH_MS && level > 0) {
+          if (apply(level - 1)) highSince = now;
         }
       } else {
-        lowStreak = 0;
-        highStreak = 0;
+        lowSince = 0;
+        highSince = 0;
       }
     }
   };

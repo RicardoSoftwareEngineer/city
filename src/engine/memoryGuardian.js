@@ -2,27 +2,54 @@
  * MemoryGuardian — owns residency radius + budget + eviction.
  *
  * Loader only fills what is inside `radius` around the focus (car).
- * When memory pressure is high, radius shrinks and outsiders are disposed.
- * When there is headroom, radius grows (hysteresis) so the circle can expand.
+ * Adapts from real runtime signals (sustained FPS, hitchy instant FPS,
+ * JS heap pressure, last draw ms) — not a fake GPU tier. When performance
+ * is bad, radius shrinks (hard floor ~10 m) and outsiders are disposed.
+ * When healthy, radius grows toward max with hysteresis.
+ *
+ * Timing is wall-clock based so a 3 FPS soak still ratchets within a few
+ * seconds (frame-count hysteresis would stall). Soft-cap never dispose-
+ * thrash inside the circle (STATUS_BREAKPOINT lesson from PR #72).
  */
 
-import { loadGovernor } from './LoadGovernor.js';
+import { getLastDraw } from './loadLog.js';
+import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
 import { noteDecision } from './personaLog.js';
 
-const MIN_RADIUS = 80;
-const MAX_RADIUS = 600;
+export const MIN_RADIUS = 10;
+export const MAX_RADIUS = 600;
 const STEP = 10;
+/** Big step when FPS/draw are critical so idle 3 FPS recovers quickly. */
+const STEP_FAST = 40;
 /** Heap used/limit — expand only below LOW, shrink above HIGH. */
 const HEAP_EXPAND_BELOW = 0.55;
 const HEAP_SHRINK_ABOVE = 0.72;
 /** Soft cap on registered residents before we treat the "table" as full. */
 const RESIDENT_SOFT_CAP = 280;
-const HYSTERESIS_FRAMES = 45;
+/** Wall-clock (ms) of sustained bad signals before each shrink step. */
+const SHRINK_MS = 1800;
+const SHRINK_MS_FULL = 1000;
+const SHRINK_MS_CRITICAL = 700;
+/** Wall-clock (ms) of healthy signals before each expand step. */
+const EXPAND_MS = 3200;
+/** Sustained / instant FPS below these → shrink. */
+const FPS_SHRINK_EMA = TARGET_FPS - 12; // ~48
+const FPS_CRITICAL_EMA = 22;
+const FPS_CRITICAL_INSTANT = 15;
+/** Draw ms (renderer.render wait on main thread) → shrink. */
+const DRAW_SHRINK_MS = 22;
+const DRAW_CRITICAL_MS = 40;
+const DRAW_EXPAND_BELOW_MS = 14;
 
 function heapPressure() {
   const m = typeof performance !== 'undefined' ? performance.memory : null;
   if (!m?.jsHeapSizeLimit) return 0.5; // unknown — neutral
   return m.usedJSHeapSize / m.jsHeapSizeLimit;
+}
+
+function softCapFor(radius) {
+  // Tiny circles should not keep a 280-resident "table" — scale with radius.
+  return Math.max(48, Math.round(RESIDENT_SOFT_CAP * Math.max(0.15, radius / MAX_RADIUS)));
 }
 
 function chebyshev(ax, az, bx, bz) {
@@ -35,12 +62,15 @@ const residents = new Map();
 let focusX = 0;
 let focusZ = 0;
 let radius = 120;
-let expandStreak = 0;
-let shrinkStreak = 0;
+let badSince = 0;
+let goodSince = 0;
 let lastEvictCount = 0;
 let lastPressure = 0.5;
 let lastTableFull = false;
 let lastRadiusNoted = radius;
+let lastAdaptReason = 'boot';
+let lastDrawMs = 0;
+let lastSoftCap = softCapFor(radius);
 
 export const memoryGuardian = {
   get radius() {
@@ -60,7 +90,7 @@ export const memoryGuardian = {
     return { x: focusX, z: focusZ };
   },
   get softCap() {
-    return RESIDENT_SOFT_CAP;
+    return lastSoftCap;
   },
   get residentCount() {
     return residents.size;
@@ -71,9 +101,12 @@ export const memoryGuardian = {
   get lastEvictCount() {
     return lastEvictCount;
   },
+  get adaptReason() {
+    return lastAdaptReason;
+  },
   /** Table / budget full — loader should not prepare more. */
   get isTableFull() {
-    return lastPressure >= HEAP_SHRINK_ABOVE || residents.size >= RESIDENT_SOFT_CAP;
+    return lastPressure >= HEAP_SHRINK_ABOVE || residents.size >= lastSoftCap;
   },
   /** Loader may advance the ring. */
   get wantsLoad() {
@@ -157,38 +190,94 @@ export const memoryGuardian = {
 
   /**
    * Call once per frame after focus is set.
-   * Adjusts radius with hysteresis; returns { radius, evicted, pressure }.
+   * Adjusts radius with wall-clock hysteresis; returns { radius, evicted, pressure }.
    */
   tick() {
+    const now = performance.now();
     lastPressure = heapPressure();
-    const full = residents.size >= RESIDENT_SOFT_CAP;
+    lastSoftCap = softCapFor(radius);
+    const full = residents.size >= lastSoftCap;
+    const draw = getLastDraw();
+    lastDrawMs = draw?.ms || 0;
+    const ema = loadGovernor.fps;
+    const inst = loadGovernor.instantFps;
 
-    if (lastPressure >= HEAP_SHRINK_ABOVE || full) {
-      shrinkStreak += 1;
-      expandStreak = 0;
-      // Over resident soft-cap: shrink sooner so outsiders become evictable.
-      const need = full ? Math.max(8, HYSTERESIS_FRAMES / 3) : HYSTERESIS_FRAMES;
-      if (shrinkStreak >= need && radius > MIN_RADIUS) {
-        radius = Math.max(MIN_RADIUS, radius - STEP);
-        shrinkStreak = 0;
+    const fpsBad = ema < FPS_SHRINK_EMA || inst < TARGET_FPS - 20;
+    const fpsCritical = ema < FPS_CRITICAL_EMA || inst < FPS_CRITICAL_INSTANT;
+    const drawBad = lastDrawMs >= DRAW_SHRINK_MS;
+    const drawCritical = lastDrawMs >= DRAW_CRITICAL_MS;
+    const heapBad = lastPressure >= HEAP_SHRINK_ABOVE;
+
+    const wantShrink = fpsBad || drawBad || heapBad || full;
+    const wantExpand =
+      !wantShrink &&
+      lastPressure <= HEAP_EXPAND_BELOW &&
+      !full &&
+      loadGovernor.isSmooth &&
+      lastDrawMs < DRAW_EXPAND_BELOW_MS;
+
+    if (wantShrink) {
+      goodSince = 0;
+      if (!badSince) badSince = now;
+      const held = now - badSince;
+      const need =
+        fpsCritical || drawCritical
+          ? SHRINK_MS_CRITICAL
+          : full || heapBad
+            ? SHRINK_MS_FULL
+            : SHRINK_MS;
+      const step = fpsCritical || drawCritical ? STEP_FAST : STEP;
+      if (held >= need && radius > MIN_RADIUS) {
+        radius = Math.max(MIN_RADIUS, radius - step);
+        badSince = now;
+        lastSoftCap = softCapFor(radius);
+        const why = fpsCritical
+          ? 'fps!'
+          : drawCritical
+            ? 'draw!'
+            : fpsBad
+              ? 'fps'
+              : drawBad
+                ? 'draw'
+                : heapBad
+                  ? 'heap'
+                  : 'full';
+        lastAdaptReason = `shrink ${why}`;
+      } else if (wantShrink) {
+        lastAdaptReason = fpsCritical
+          ? 'hold fps!'
+          : drawCritical
+            ? 'hold draw!'
+            : fpsBad
+              ? 'hold fps'
+              : drawBad
+                ? 'hold draw'
+                : heapBad
+                  ? 'hold heap'
+                  : 'hold full';
       }
-    } else if (lastPressure <= HEAP_EXPAND_BELOW && !full && loadGovernor.isSmooth) {
-      expandStreak += 1;
-      shrinkStreak = 0;
-      if (expandStreak >= HYSTERESIS_FRAMES && radius < MAX_RADIUS) {
+    } else if (wantExpand) {
+      badSince = 0;
+      if (!goodSince) goodSince = now;
+      if (now - goodSince >= EXPAND_MS && radius < MAX_RADIUS) {
         radius = Math.min(MAX_RADIUS, radius + STEP);
-        expandStreak = 0;
+        goodSince = now;
+        lastSoftCap = softCapFor(radius);
+        lastAdaptReason = 'expand';
+      } else {
+        lastAdaptReason = 'hold expand';
       }
     } else {
-      expandStreak = 0;
-      shrinkStreak = 0;
+      badSince = 0;
+      goodSince = 0;
+      lastAdaptReason = 'steady';
     }
 
     if (radius < lastRadiusNoted) {
-      noteDecision('Guardian', `shrink →${Math.round(radius)}`);
+      noteDecision('Guardian', `${lastAdaptReason} →${Math.round(radius)}m`);
       lastRadiusNoted = radius;
     } else if (radius > lastRadiusNoted) {
-      noteDecision('Guardian', `expand →${Math.round(radius)}`);
+      noteDecision('Guardian', `expand →${Math.round(radius)}m`);
       lastRadiusNoted = radius;
     }
 
@@ -206,13 +295,19 @@ export const memoryGuardian = {
   snapshot() {
     return {
       radius,
+      minRadius: MIN_RADIUS,
+      maxRadius: MAX_RADIUS,
       innerRadius: this.innerRadius,
       focusX,
       focusZ,
       residents: residents.size,
+      softCap: lastSoftCap,
       pressure: lastPressure,
       tableFull: this.isTableFull,
-      lastEvictCount
+      lastEvictCount,
+      adaptReason: lastAdaptReason,
+      drawMs: lastDrawMs,
+      fps: loadGovernor.fps
     };
   }
 };

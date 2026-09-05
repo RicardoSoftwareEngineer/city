@@ -89,9 +89,15 @@ export function initPersonaHud(opts = {}) {
     const draw = getLastDraw();
     const quality = opts.getQuality?.();
 
+    const span = Math.max(1, memoryGuardian.maxRadius - memoryGuardian.minRadius);
+    const radiusTight = (1 - (g.radius - memoryGuardian.minRadius) / span) * 100;
     setOverload(
       'Guardian',
-      Math.max(g.pressure * 100, (g.residents / memoryGuardian.softCap) * 100)
+      Math.max(
+        g.pressure * 100,
+        (g.residents / memoryGuardian.softCap) * 100,
+        radiusTight * 0.5
+      )
     );
     setOverload(
       'LoadGovernor',

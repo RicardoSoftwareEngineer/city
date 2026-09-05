@@ -1,5 +1,5 @@
 /**
- * Live load-order phases for the left HUD (terrain-first pipeline).
+ * Live load-order phases for the left HUD (spawn streets + terrain mesh may overlap).
  *
  * mode:
  *   sync  — hard dependency before play is safe (phys Heightfield under the car)
@@ -175,17 +175,14 @@ export function endGroundPhysPhase() {
 }
 
 export function beginLoadPhase(id, detail = '') {
-  if (activeId && activeId !== id) {
-    const prev = row(activeId);
-    if (prev) {
-      stopClock(prev);
-      prev.status = 'done';
-    }
-  }
   const p = row(id);
   if (!p) return;
-  p.status = 'running';
-  p.t0 = performance.now();
+  // Concurrent async phases (terrain mesh + spawn streets) may run together.
+  // Do not force-complete another running phase when this one starts.
+  if (p.status !== 'running') {
+    p.status = 'running';
+    p.t0 = performance.now();
+  }
   if (detail) p.detail = detail;
   activeId = id;
   bump();
@@ -194,10 +191,13 @@ export function beginLoadPhase(id, detail = '') {
 export function tickLoadPhase(id, detail) {
   const p = row(id);
   if (!p) return;
-  if (activeId !== id || p.status !== 'running') beginLoadPhase(id, detail);
+  if (p.status !== 'running') beginLoadPhase(id, detail);
   else if (detail && detail !== p.detail) {
     p.detail = detail;
+    activeId = id;
     bump();
+  } else {
+    activeId = id;
   }
 }
 

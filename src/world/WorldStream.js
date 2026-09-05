@@ -1,6 +1,6 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Terrain meshes first via pumpTerrainTo (own radius sweep, mesh-only).
+ * Terrain meshes via pumpTerrainTo (own radius sweep, mesh-only; may overlap spawn streets).
  * Then streets → props → bank → buildings → countryside veg (prio 4) + dense (prio 5).
  */
 

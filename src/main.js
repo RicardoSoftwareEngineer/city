@@ -99,10 +99,11 @@ async function startGame() {
   let shownHitchRev = -1;
   const paintRingLoad = initRingLoadHud();
   const paintLoadOrder = initLoadOrderHud();
-  initMinimizableHud();
   const paintResources = initResourceHud({ getRenderer: () => renderer });
   const quality = createQualityAdapter(renderer);
+  // Persona panels must exist in the DOM before minimizableHud binds them.
   const paintPersona = initPersonaHud({ getQuality: () => quality });
+  initMinimizableHud();
   const tickRadiusDebug = initRadiusDebug(renderer.scene);
   const fpsSacredStats = document.getElementById('fps-sacred-stats');
 

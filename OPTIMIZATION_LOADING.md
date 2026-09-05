@@ -1,3 +1,5 @@
+> **2026-09-05:** Fast boot — GameLoop starts before Porsche glTF / Intersection / full-scene compile. Phys pin (`ensureGroundAround`) + placeholder chassis + boot city ground plane first; Porsche load+compile and street stream run async under Valve/Guardian.
+
 > **2026-09-05:** Phys pin — MemoryGuardian never disposes `phys` inside PHYS_PIN_RADIUS (~20 m); HUD ground timer uses real elapsed ms (not `built*8`); spawn streets demoted to async — only phys under the car is hard sync.
 
 > **2026-09-05:** QualityAdapter always adapts (no streaming freeze); Guardian innerRadius 0.1R + zone helpers; debug rings + Personas HUD (`personaLog`); outer-zone urlJobs skip castShadow.
@@ -44,13 +46,21 @@ Never block the main thread with: one giant `InstancedMesh` allocation, one `ren
 
 Entry: `src/main.js`.
 
-1. `Renderer` — `shadowMap.enabled = false` (shadows are a post-stream GPU feature).
-2. Intersection (local, small).
-3. `createCityStream(cityGroup, physics, originX, originZ)` — origin is saved car pose or `(0, 4)`.
-4. Load Porsche, start `GameLoop`.
-5. Background: `stream.pumpTo(STREAM_STEP, 0)` then `stream.continueAfter(STREAM_STEP)`.
-6. `waitUntilSmooth(40)` then `renderer.resumeShadows()` (enable map, **no** full-scene `compile()`).
-7. `dumpLoadLog()`.
+**Critical path (before first paint):** cheap only.
+
+1. `Renderer` — sky color; `shadowMap.enabled = false`.
+2. Lighting + `PhysicsWorld` (flat city ground box).
+3. Boot city ground plane (Lambert paved-rect stand-in) + session origin.
+4. `setTerrainPhysics` + `ensureGroundAround(origin, PHYS_PIN_RADIUS)` — immortal phys pin.
+5. Porsche **placeholder** chassis (boxes/cylinders); `VehicleController` + camera + HUD.
+6. `gameLoop.start()` → interactive immediately.
+
+**Off the critical path (after ≥1 frame):**
+
+7. Intersection corner markers (canvas).
+8. `createCityStream(...)` — job registration only (no glTF parse).
+9. `porscheModel.load()` then Valve `compileSubtree(chassisGroup)` only (not whole scene).
+10. Background: `stream.pumpTo(STREAM_STEP, 0)` → terrain → `continueAfter` residency; `waitUntilSmooth` then `resumeShadows()`.
 
 `STREAM_STEP = 10` meters Chebyshev (`src/world/WorldStream.js`).
 

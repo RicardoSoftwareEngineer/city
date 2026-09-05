@@ -27,10 +27,72 @@ export class PorscheModel {
   constructor() {
     this.chassisGroup = new THREE.Group();  // The group added to the scene
     this.wheelPivots = {};                  // { frontLeft: { steerPivot, spinPivot, isFront }, ... }
+    this._placeholder = null;
+    this.ready = false;
+  }
+
+  /**
+   * Cheap stand-in so GameLoop can start before the glTF finishes.
+   * Cleared automatically when setupModel runs.
+   */
+  attachPlaceholder() {
+    if (this._placeholder || this.ready) return;
+    const group = new THREE.Group();
+    group.name = 'porsche-placeholder';
+
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+    const cabinMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+    const wheelMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.55, 4.2), bodyMat);
+    body.position.y = 0.55;
+    group.add(body);
+
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 1.7), cabinMat);
+    cabin.position.set(0, 0.95, -0.15);
+    group.add(cabin);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.28, 10);
+    const tracks = [-0.82, 0.82];
+    const axles = [1.25, -1.35];
+    for (const x of tracks) {
+      for (const z of axles) {
+        const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(x, 0.35, z);
+        group.add(wheel);
+      }
+    }
+
+    this._placeholder = group;
+    this.chassisGroup.add(group);
+  }
+
+  clearPlaceholder() {
+    if (!this._placeholder) return;
+    this._placeholder.removeFromParent();
+    const seenGeo = new Set();
+    const seenMat = new Set();
+    this._placeholder.traverse((obj) => {
+      if (obj.geometry && !seenGeo.has(obj.geometry)) {
+        seenGeo.add(obj.geometry);
+        obj.geometry.dispose();
+      }
+      const mats = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+      for (const mat of mats) {
+        if (!mat || seenMat.has(mat)) continue;
+        seenMat.add(mat);
+        mat.dispose();
+      }
+    });
+    this._placeholder = null;
   }
 
   /**
    * Load the Porsche GLB and return when ready.
+   * Safe to call after GameLoop is already running (placeholder stays until then).
    */
   async load() {
     const loader = new GLTFLoader();
@@ -48,6 +110,7 @@ export class PorscheModel {
   }
 
   setupModel(root) {
+    this.clearPlaceholder();
     // Measure and center
     const boundingBox = new THREE.Box3().setFromObject(root);
     const size = boundingBox.getSize(new THREE.Vector3());
@@ -111,6 +174,7 @@ export class PorscheModel {
     for (const mesh of drop) mesh.removeFromParent();
 
     this.chassisGroup.add(root);
+    this.ready = true;
   }
 
   /**

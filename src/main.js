@@ -24,13 +24,18 @@ import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
 import { initResourceHud } from './engine/resourceHud.js';
 import { beginLoadPhase, endLoadPhase, endGroundPhysPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
-import { bindValveDraw, waitUntilSmooth, yieldToMain } from './world/yield.js';
+import { bindValveDraw, waitUntilSmooth, yieldToMain, throughValve } from './world/yield.js';
 import { memoryGuardian, PHYS_PIN_RADIUS } from './engine/memoryGuardian.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
-import { isInsideCity } from './world/RoadDimensions.js';
+import {
+  isInsideCity,
+  CITY_PAVED_MIN,
+  CITY_PAVED_MAX,
+  ASPHALT_SURFACE_Y
+} from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
-import { ensureGroundAround } from './world/terrain/terrainCollision.js';
+import { ensureGroundAround, setTerrainPhysics } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { initTerrainDebug } from './world/terrain/terrainDebug.js';
 import { initRadiusDebug } from './engine/radiusDebug.js';
@@ -53,20 +58,28 @@ async function startGame() {
   // ── Physics ─────────────────────────────────────────────────────────
   const physicsWorld = new PhysicsWorld();
 
-  // ── World (all city geometry) ───────────────────────────────────────
+  // ── World group + cheap boot visuals (sky already on Renderer) ──────
   const cityGroup = new THREE.Group();
   renderer.scene.add(cityGroup);
-
-  await new Intersection().build(cityGroup);
+  addBootCityGround(cityGroup);
 
   const saved = loadSession();
   const originX = saved?.car?.x ?? 0;
   const originZ = saved?.car?.z ?? 4.0;
 
-  const porscheModel = new PorscheModel();
-  const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
+  // Minimal phys FIRST — pin Heightfield under spawn before any glTF / GPU compile.
+  // City asphalt already has PhysicsWorld's flat ground box; this covers countryside spawn.
+  setTerrainPhysics(physicsWorld);
+  {
+    const t0 = performance.now();
+    const built = ensureGroundAround(originX, originZ, PHYS_PIN_RADIUS, 25);
+    if (built) noteGroundPhys(built, `boot ${built} tile(s)`, performance.now() - t0);
+    endGroundPhysPhase();
+  }
 
-  await porscheModel.load();
+  // Placeholder chassis so the player can move before porsche.glb arrives.
+  const porscheModel = new PorscheModel();
+  porscheModel.attachPlaceholder();
   renderer.scene.add(porscheModel.chassisGroup);
 
   const keyboard = new KeyboardInput();
@@ -207,34 +220,38 @@ async function startGame() {
     paintPersona();
   });
 
+  // First paint ASAP — sky + boot ground + placeholder; phys already pinned.
+  // Heavy work (Porsche glTF, Intersection, full stream, GPU compile) runs after.
   gameLoop.start();
 
-  // Present one stable frame (Porsche + intersection) before compile pause,
-  // so pauseDraw has a real framebuffer to hold (no blank blue hold).
-  await yieldToMain();
-
-  // Porsche + corner markers (~13 programs) used to compile on the first
-  // stream frame, tagged `stream ring 10 prio 0 +13prog`.
-  renderer.pauseDraw();
-  await renderer.compileSubtree(renderer.scene, { instancersOnly: false });
-  renderer.resumeDraw();
-  await yieldToMain();
-
-  // Mandatory sync: Heightfield under the car (pinned by MemoryGuardian).
-  // City asphalt already has PhysicsWorld's flat ground box; street glTFs are visual.
-  {
-    const t0 = performance.now();
-    const built = ensureGroundAround(originX, originZ, PHYS_PIN_RADIUS, 25);
-    if (built) noteGroundPhys(built, `boot ${built} tile(s)`, performance.now() - t0);
-    endGroundPhysPhase();
-  }
-
-  // Capture freezes as soon as the player can move / fly.
   setInteractive(true);
   setLoadPhase('play');
   loadGovernor.streaming = true;
   memoryGuardian.setFocus(originX, originZ);
   memoryGuardian.tick();
+
+  // Let at least one frame present before more sync registration work.
+  await yieldToMain();
+
+  // Corner markers — local canvas work; never blocked boot (~ms, but off critical path).
+  void new Intersection().build(cityGroup);
+
+  // Register stream jobs (sync CPU, no glTF parse). createCityStream also
+  // re-asserts setTerrainPhysics for registerTerrain.
+  const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
+
+  // Porsche glTF + compile only its meshes under Valve — do NOT pauseDraw the
+  // whole scene for a full-scene compile before the player can drive.
+  porscheModel.load()
+    .then(async () => {
+      await throughValve(() =>
+        renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
+      );
+    })
+    .catch((error) => {
+      console.error('Porsche load failed:', error);
+    });
+
   // Preferred early asphalt visuals — async under Guardian, not a hard sync gate.
   beginLoadPhase('spawn', 'r10 p0');
   stream.pumpTo(STREAM_STEP, 0)
@@ -261,6 +278,29 @@ async function startGame() {
     });
 
   console.log('🏙️ City started successfully!');
+}
+
+/**
+ * Flat paved-rect stand-in so first frames show ground (not only sky).
+ * Street glTFs draw on top; phys uses PhysicsWorld's city box + Heightfields.
+ */
+function addBootCityGround(parent) {
+  const size = CITY_PAVED_MAX - CITY_PAVED_MIN;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshLambertMaterial({ color: 0x3f3f46 })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(
+    (CITY_PAVED_MIN + CITY_PAVED_MAX) * 0.5,
+    ASPHALT_SURFACE_Y + 0.02,
+    (CITY_PAVED_MIN + CITY_PAVED_MAX) * 0.5
+  );
+  mesh.name = 'boot-city-ground';
+  mesh.receiveShadow = false;
+  mesh.castShadow = false;
+  parent.add(mesh);
+  return mesh;
 }
 
 /**

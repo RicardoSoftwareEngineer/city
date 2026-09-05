@@ -85,7 +85,7 @@ const phases = [
   {
     id: 'carpet',
     mode: 'async',
-    label: 'Carpet denso',
+    label: 'Carpet denso (fundo)',
     status: 'pending',
     ms: 0,
     detail: '',

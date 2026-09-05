@@ -267,7 +267,7 @@ async function startGame() {
   const startBtn = document.getElementById('start-load-btn');
   const bootGate = document.getElementById('boot-gate');
 
-  function beginCityLoad() {
+  async function beginCityLoad() {
     if (document.body.dataset.loading === '1') return;
     document.body.dataset.loading = '1';
     document.body.classList.remove('boot-idle');
@@ -285,10 +285,15 @@ async function startGame() {
     }
     memoryGuardian.tick();
 
+    // Let the click paint "Carregando…" before sync job registration.
+    await yieldToMain();
+
     // Corner markers — off critical path.
     void new Intersection().build(cityGroup);
 
+    await yieldToMain();
     const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
+    await yieldToMain();
 
     porscheModel.load()
       .then(async () => {

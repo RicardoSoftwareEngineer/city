@@ -16,6 +16,7 @@
 import * as CANNON from 'cannon-es';
 import { CITY_PAVED_MIN, CITY_PAVED_MAX } from '../RoadDimensions.js';
 import { loadGovernor } from '../../engine/LoadGovernor.js';
+import { memoryGuardian } from '../../engine/memoryGuardian.js';
 import { surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
@@ -139,7 +140,21 @@ function buildBody(tile) {
 /** Build this tile's collider if it does not exist yet. Returns true if built. */
 export function ensureTile(tile) {
   if (!physics || !tile || bodies.has(tile.key)) return false;
-  bodies.set(tile.key, buildBody(tile));
+  const body = buildBody(tile);
+  bodies.set(tile.key, body);
+  const id = `phys:${tile.key}`;
+  memoryGuardian.retain(id, {
+    kind: 'phys',
+    x: tile.cx,
+    z: tile.cz,
+    dispose: () => {
+      const cur = bodies.get(tile.key);
+      if (cur) {
+        physics.removeBody(cur);
+        bodies.delete(tile.key);
+      }
+    }
+  });
   return true;
 }
 

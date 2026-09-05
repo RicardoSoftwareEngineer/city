@@ -25,6 +25,7 @@ import { initMinimizableHud } from './engine/minimizableHud.js';
 import { initResourceHud } from './engine/resourceHud.js';
 import { beginLoadPhase, endLoadPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
 import { bindValveDraw, waitUntilSmooth, yieldToMain } from './world/yield.js';
+import { memoryGuardian } from './engine/memoryGuardian.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
@@ -140,6 +141,8 @@ async function startGame() {
     // Ground under the car exists before physics needs it, even if the
     // visual stream has not reached this ring yet.
     const car = vehicleController.chassisBody.position;
+    memoryGuardian.setFocus(car.x, car.z);
+    memoryGuardian.tick();
     const builtGround = ensureGroundAround(car.x, car.z);
     if (builtGround) noteGroundPhys(builtGround, `${builtGround} tile(s)`);
     rescueIfBelowGround(vehicleController);
@@ -215,31 +218,27 @@ async function startGame() {
   setInteractive(true);
   setLoadPhase('play');
   loadGovernor.streaming = true;
+  memoryGuardian.setFocus(originX, originZ);
+  memoryGuardian.tick();
   beginLoadPhase('spawn', 'r10 p0');
   stream.pumpTo(STREAM_STEP, 0)
     .then(() => {
       endLoadPhase('spawn');
-      // World is already interactive — FPS hitch list captures every freeze
-      // from here on, even while hinterland keeps streaming.
       setLoadPhase('play');
       setInteractive(true);
       beginLoadPhase('terrain', 'mesh…');
-      // Terrain mesh circle first (far vista), phys stays under the car.
+      // Terrain inside Guardian radius first (phys stays under the car).
       return stream.pumpTerrainTo(STREAM_STEP);
     })
-    .then(() => {
+    .then(async () => {
       endLoadPhase('terrain');
+      finishAllLoadPhases();
       setLoadPhase('play');
       setInteractive(true);
-      return stream.continueAfter(STREAM_STEP);
-    })
-    .then(async () => {
-      finishAllLoadPhases();
-      loadGovernor.streaming = false;
       await waitUntilSmooth();
       await renderer.resumeShadows();
-      setLoadPhase('play');
-      dumpLoadLog();
+      // Residency loop — never finishes; Guardian radius grows/shrinks forever.
+      return stream.continueAfter(STREAM_STEP);
     })
     .catch((error) => {
       console.error('City stream failed:', error);

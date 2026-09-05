@@ -6,6 +6,7 @@
 
 import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
 import { getLastDraw } from './loadLog.js';
+import { memoryGuardian } from './memoryGuardian.js';
 
 const SOFT = {
   tris: 2_500_000,
@@ -87,6 +88,7 @@ export function initResourceHud({ getRenderer }) {
       rowHtml('geo', 'Geometrias', 'Geometrias no renderer.info') +
       rowHtml('prog', 'Programas', 'Shaders GL compilados') +
       rowHtml('store', 'Storage', 'Quota da origem (cache/assets no browser — não é o HD do PC)') +
+      rowHtml('guard', 'Guardian', 'Raio de residência + residentes (MemoryGuardian)') +
       `<div class="res-note" id="res-note">Browser não expõe RAM/GPU%/HD do Windows. Task Manager continua a fonte do sistema.</div>`;
     body.dataset.ready = '1';
   }
@@ -146,13 +148,23 @@ export function initResourceHud({ getRenderer }) {
       setBar('store', 0, '…');
     }
 
+    const g = memoryGuardian.snapshot();
+    const gPct = Math.round((g.radius / memoryGuardian.maxRadius) * 100);
+    setBar(
+      'guard',
+      g.tableFull ? 100 : gPct,
+      `r${Math.round(g.radius)} · ${g.residents} · p${Math.round(g.pressure * 100)}%` +
+        (g.lastEvictCount ? ` · -${g.lastEvictCount}` : '')
+    );
+
     const note = document.getElementById('res-note');
     if (note) {
       const hold = loadGovernor.holding ? ' · VALVE HOLD' : '';
       const stream = loadGovernor.streaming ? ' · streaming' : '';
+      const full = g.tableFull ? ' · MESA CHEIA' : '';
       note.textContent =
         (deviceGb ? `deviceMemory ~${deviceGb} GB · ` : '') +
-        `heap≠RAM sistema · draw≠GPU% Task Manager${stream}${hold}`;
+        `heap≠RAM sistema · draw≠GPU% Task Manager${stream}${hold}${full}`;
     }
   };
 }

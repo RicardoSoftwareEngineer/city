@@ -7,7 +7,7 @@
 
 import { noteHitch, setGovernorSnap } from './loadLog.js';
 
-export const TARGET_FPS = 45;
+export const TARGET_FPS = 60;
 
 export const loadGovernor = {
   fps: 60,
@@ -22,7 +22,8 @@ export const loadGovernor = {
     this.instantFps = fps;
     this.fps = this.fps * 0.88 + fps * 0.12;
 
-    if (deltaSeconds > 1 / 24) {
+    // ~50 fps floor: log as hitch (ideal is 60; 1/24 was too lenient).
+    if (deltaSeconds > 1 / 50) {
       setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch, streaming: this.streaming });
       this.level = Math.max(0, this.level - 1.2);
       noteHitch(deltaSeconds * 1000);
@@ -83,7 +84,13 @@ export const loadGovernor = {
     return 3;
   },
 
+  /** True while we should not start more stream CPU (below target FPS). */
   get needsRest() {
-    return this.fps < 30 || this.level < 0.8;
+    return this.instantFps < TARGET_FPS || this.fps < TARGET_FPS - 5 || this.level < 0.8;
+  },
+
+  /** Soft: EMA recovered enough to resume after a pause. */
+  get isSmooth() {
+    return this.instantFps >= TARGET_FPS && this.fps >= TARGET_FPS - 3;
   }
 };

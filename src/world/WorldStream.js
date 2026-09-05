@@ -222,11 +222,11 @@ export class WorldStream {
       if (chebyshev(b.sorted[0].x, b.sorted[0].z, this.ox, this.oz) > radius) continue;
 
       if (!b.grower) {
-        if (b.heavy) await waitUntilSmooth(42);
+        if (b.heavy) await waitUntilSmooth();
         const template = await measureRingItem(b.url || b.name || 'building', () => b.load());
         await yieldAfterWork();
         if (!template) continue;
-        if (b.heavy) await waitUntilSmooth(42);
+        if (b.heavy) await waitUntilSmooth();
         b.template = template;
         measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
           b.grower = createGrowingInstancedGltf(
@@ -266,7 +266,7 @@ export class WorldStream {
         await yieldToMain();
         this.renderer.pauseDraw();
       } else if (added) {
-        if (b.heavy) await waitUntilSmooth(42);
+        if (b.heavy) await waitUntilSmooth();
         await yieldToMain();
       }
       if (this.renderer) this.renderer.resumeDraw();

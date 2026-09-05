@@ -1,4 +1,5 @@
-import { loadGovernor } from '../engine/LoadGovernor.js';
+import { loadGovernor, TARGET_FPS } from '../engine/LoadGovernor.js';
+import { beginLoad } from '../engine/loadLog.js';
 
 export function yieldToMain() {
   // Two rAFs: one can fire in the same turn as other rAFs queued here
@@ -24,28 +25,42 @@ export async function yieldAfterWork() {
 }
 
 /**
- * If the last frames dropped under ~30 FPS, wait until the loop recovers.
+ * Hard gate: pause ALL stream work until FPS is back at/above target.
+ * Load wall-clock can stretch; play frames must stay near 60.
  */
-export async function waitIfSlow() {
+export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
+  if (loadGovernor.isSmooth && loadGovernor.instantFps >= minFps) return;
+
+  beginLoad('fps-gate', `wait ≥${minFps}`);
   let n = 0;
-  while (loadGovernor.needsRest && n < 12) {
+  while (n < maxFrames) {
+    const okInstant = loadGovernor.instantFps >= minFps;
+    const okEma = loadGovernor.fps >= minFps - 3;
+    if (okInstant && okEma) break;
     await yieldToMain();
     n++;
   }
 }
 
-/** Wait until FPS is back near the target before a heavy merge/GPU spike. */
-export async function waitUntilSmooth(minFps = 42, maxFrames = 48) {
-  let n = 0;
-  while (loadGovernor.fps < minFps && n < maxFrames) {
-    await yieldToMain();
-    n++;
-  }
+/** Before each stream slice: do not proceed while under target FPS. */
+export async function waitIfSlow() {
+  await holdForTargetFps(TARGET_FPS, 180);
 }
+
+/** Wait until FPS is back near the target before a heavy merge/GPU spike. */
+export async function waitUntilSmooth(minFps = TARGET_FPS, maxFrames = 120) {
+  await holdForTargetFps(minFps, maxFrames);
+}
+
 export function createBudget() {
   let start = performance.now();
   return {
     async tick() {
+      if (loadGovernor.needsRest) {
+        await holdForTargetFps(TARGET_FPS, 60);
+        start = performance.now();
+        return;
+      }
       if (performance.now() - start < loadGovernor.budgetMs) return;
       await yieldToMain();
       start = performance.now();

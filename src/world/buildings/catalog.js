@@ -19,7 +19,7 @@ export async function getBuildingTemplate(index) {
       const root = await loadGltf(buildingUrl(spec), { keepVertexColors: true });
       if (!root) return emptyPlaceholder(spec);
       await prepareInteriors(root, spec.id % 2);
-      if (spec.name.startsWith('Large')) await waitUntilSmooth(42);
+      if (spec.name.startsWith('Large')) await waitUntilSmooth();
       return await mergeBuilding(prepareSourceBuilding(root, spec), spec.file);
     })();
   }

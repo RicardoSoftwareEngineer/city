@@ -163,6 +163,7 @@ export function noteHitch(frameMs) {
     work: lastWork.name,
     md,
     phase,
+    stream: streamLabel || '',
     agoMs: Math.round(Math.min(workAgo, opAgo)),
     calls: lastDraw.calls,
     tris: lastDraw.tris,
@@ -174,16 +175,18 @@ export function noteHitch(frameMs) {
     carga: govSnap.carga,
     batch: govSnap.batch,
     streaming: Boolean(govSnap.streaming),
-    interactive
+    interactive,
+    recent: recentWork.slice(-4).join(' ← ')
   };
   hitchEntries.push(row);
   hitchRevision++;
 
   console.warn(
     `[hitch] ${row.frameMs.toString().padStart(5)}ms ${row.fps.toString().padStart(3)}fps  ${md.padEnd(4)} ${phase.padEnd(14)}  ` +
-    `work:${row.work}  draw:${row.drawMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
+    `stream:${row.stream || '-'}  work:${row.work}  draw:${row.drawMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
     `${row.programDelta ? ` +${row.programDelta}prog` : ''}  ` +
-    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch}  | ${hint}`
+    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch}  | ${hint}` +
+    (row.recent ? `  recent:${row.recent}` : '')
   );
 }
 

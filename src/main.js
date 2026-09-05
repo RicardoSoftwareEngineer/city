@@ -96,10 +96,10 @@ async function startGame() {
     el.innerHTML = rows.length
       ? rows.map((h) => {
         const extra = h.programDelta > 0 ? ` +${h.programDelta}prog` : '';
-        const work = (h.work || h.cause).length > 28
-          ? `${(h.work || h.cause).slice(0, 26)}…`
-          : (h.work || h.cause);
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}</li>`;
+        const stream = h.stream ? ` · ${h.stream}` : '';
+        const label = h.work && h.work !== 'none' ? h.work : h.cause;
+        const work = label.length > 32 ? `${label.slice(0, 30)}…` : label;
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }
@@ -197,7 +197,7 @@ async function startGame() {
     .then(async () => {
       finishAllLoadPhases();
       loadGovernor.streaming = false;
-      await waitUntilSmooth(40, 60);
+      await waitUntilSmooth();
       await renderer.resumeShadows();
       setLoadPhase('play');
       dumpLoadLog();

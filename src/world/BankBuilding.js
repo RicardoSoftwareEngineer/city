@@ -138,7 +138,7 @@ export class BankBuilding {
     const bankGroup = new THREE.Group();
     bankGroup.name = 'BankBuilding';
 
-    await waitUntilSmooth(40);
+    await waitUntilSmooth();
     if (renderer) renderer.pauseDraw();
     parentGroup.add(bankGroup);
     for (const key of Object.keys(ASSET_PATHS)) {

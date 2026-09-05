@@ -14,7 +14,7 @@ import {
 import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain, pushDeferValveHold, popDeferValveHold } from './yield.js';
 import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
-import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
+import { beginLoad, clearLoadTag, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
 import { phaseIdForPriority, tickLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
@@ -406,11 +406,14 @@ export class WorldStream {
 
     const flushCompile = async (label) => {
       if (!sinceCompile || !this.renderer) return;
+      // Do not leave prior terrain/street loadMark sticky across pauseDraw/compile.
+      clearLoadTag();
       this.renderer.pauseDraw();
       await measureRingItem(label, () =>
         throughValve(() => this.renderer.compileSubtree(this.parent))
       );
       this.renderer.resumeDraw();
+      clearLoadTag();
       await yieldToMain();
       sinceCompile = 0;
     };
@@ -418,10 +421,10 @@ export class WorldStream {
     setStreamLabel(`terrain r${Math.round(memoryGuardian.radius)}`);
     tickLoadPhase('terrain', `r${Math.round(memoryGuardian.radius)}`);
 
-    // While near tiles are still missing, do not let concurrent street Valve HOLD
-    // pauseDraw across terrain yieldToMain gaps (felt as multi-second freezes).
-    const priming = !this.hasNearTerrainProgress();
-    if (priming) pushDeferValveHold();
+    // Defer Valve HOLD for the whole terrain pump slice (not only first near
+    // tiles). Concurrent street throughValve pauseDraw must not freeze the view
+    // across tile commits / yieldToMain while this slice is building.
+    pushDeferValveHold();
     try {
       for (const task of pending) {
         if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
@@ -447,7 +450,7 @@ export class WorldStream {
 
       await flushCompile('compile terrain slice final');
     } finally {
-      if (priming) popDeferValveHold();
+      popDeferValveHold();
     }
     return built;
   }

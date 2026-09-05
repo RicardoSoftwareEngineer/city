@@ -157,9 +157,13 @@ export async function registerTerrain(stream, parentGroup, ox, oz, physicsWorld)
         // CPU-only — yield waits must not look like multi-second LOAD hitches.
         beginLoad('terrain', label);
         loadMark('terrain', label, built.cpuMs);
+        // Drop sticky lastWork so Valve HOLD / compile / street frames are not
+        // Travamentos-blamed as "terrain mesh near…" (HUD prefers work over cause).
+        clearLoadTag();
         await throughValve(async () => {
           group.add(mesh);
         });
+        clearLoadTag();
         if (!mesh) return false;
         memoryGuardian.retain(residentId, {
           kind: 'terrain',

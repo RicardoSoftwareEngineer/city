@@ -1,0 +1,8 @@
+{
+  "size": 2048,
+  "mapMeters": 2000.0,
+  "elevMin": -37.0,
+  "elevMax": 45.0,
+  "source": "WhiteOrchard_winter_res4096x.png (Til-Weimann/witcher3-heightmaps, fan/ref)",
+  "note": "16-bit PNG downsampled to 2048; float32 row-major meters"
+}

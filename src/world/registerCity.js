@@ -61,7 +61,7 @@ export async function createCityStream(parentGroup, physicsWorld, ox, oz, render
   new CityBuildings().register(stream, parentGroup, physicsWorld);
   await yieldToMain();
 
-  registerTerrain(stream, parentGroup, ox, oz, physicsWorld);
+  await registerTerrain(stream, parentGroup, ox, oz, physicsWorld);
   await yieldToMain();
 
   return stream;

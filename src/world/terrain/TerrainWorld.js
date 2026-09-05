@@ -22,6 +22,7 @@ import {
   allTiles,
   setTerrainPhysics
 } from './terrainCollision.js';
+import { ensureWhiteOrchardHeightmap } from './whiteOrchardHeight.js';
 
 export { TERRAIN_TILE, TERRAIN_TILE_FAR, TERRAIN_NEAR_HALF };
 export const TERRAIN_PRIORITY = 4;
@@ -90,7 +91,10 @@ function gridSlope(heights, i, cols, step) {
   return Math.hypot(dx, dz);
 }
 
-export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
+export async function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
+  // Decode heightmap before any tile samples heightAt (mesh + phys share surfaceY).
+  await ensureWhiteOrchardHeightmap();
+
   const group = new THREE.Group();
   group.name = 'terrain';
   parentGroup.add(group);

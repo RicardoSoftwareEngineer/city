@@ -295,11 +295,19 @@ async function startGame() {
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
     await yieldToMain();
 
+    // Overlap light terrain mesh with spawn streets (Promise concurrency on awaits;
+    // Valve still serializes heavy GPU commits). Green countryside appears sooner.
     beginLoadPhase('spawn', 'r10 p0');
-    // One pipeline: streets → heavy register → terrain → residency. No parallel Porsche yet.
-    stream.pumpTo(STREAM_STEP, 0)
+    beginLoadPhase('terrain', 'mesh…');
+    const spawnStreets = stream.pumpTo(STREAM_STEP, 0).then(() => {
+      endLoadPhase('spawn');
+    });
+    const nearTerrain = stream.pumpTerrainTo(STREAM_STEP).then(() => {
+      endLoadPhase('terrain');
+    });
+
+    Promise.all([nearTerrain, spawnStreets])
       .then(async () => {
-        endLoadPhase('spawn');
         setLoadPhase('play');
         setInteractive(true);
         await registerHeavyWorld(stream, cityGroup, originX, originZ, renderer.scene);
@@ -314,11 +322,6 @@ async function startGame() {
           .catch((error) => {
             console.error('Porsche load failed:', error);
           });
-        beginLoadPhase('terrain', 'mesh…');
-        return stream.pumpTerrainTo(STREAM_STEP);
-      })
-      .then(async () => {
-        endLoadPhase('terrain');
         finishAllLoadPhases();
         setLoadPhase('play');
         setInteractive(true);

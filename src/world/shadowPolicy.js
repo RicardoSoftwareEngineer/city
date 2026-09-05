@@ -7,7 +7,7 @@ export const VC = { keepVertexColors: true };
 
 /** Asphalt, sidewalks, intersections — building/tree shadows land here. */
 export function groundOpts() {
-  return { keepVertexColors: true, castShadow: false, receiveShadow: true, useLambert: true };
+  return { keepVertexColors: true, castShadow: false, receiveShadow: true };
 }
 
 /** Signs, windows, awnings, decals, bank trim. */

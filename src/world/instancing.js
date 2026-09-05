@@ -62,6 +62,35 @@ function makeBatchMesh(parent, spec, capacity) {
   return mesh;
 }
 
+/**
+ * Build capacity-1 InstancedMeshes (hidden), compileAsync one program at a time,
+ * stamp materials so later batches skip driver compile. Geometry/material stay shared.
+ */
+export async function warmupInstancedTemplate(renderer, parent, template, options = {}) {
+  if (!renderer || !template) return;
+  const specs = collectSpecs(template, options);
+  if (!specs.length) return;
+
+  const group = new THREE.Group();
+  group.name = 'gpu-warmup';
+  parent.add(group);
+  const meshes = [];
+  for (const spec of specs) {
+    const mesh = makeBatchMesh(group, spec, 1);
+    writePose(mesh, spec, { x: 0, y: -5000, z: 0, scale: 0.001 }, 0);
+    mesh.count = 1;
+    mesh.visible = false;
+    mesh.instanceMatrix.needsUpdate = true;
+    meshes.push(mesh);
+  }
+  await renderer.compileSubtree(group);
+  for (const mesh of meshes) {
+    group.remove(mesh);
+    // Do not dispose geometry/material — shared with the live template.
+  }
+  parent.remove(group);
+}
+
 export function addInstancedGltf(parent, template, poses, options = {}) {
   if (!template || poses.length === 0) return;
   const specs = collectSpecs(template, options);
@@ -140,6 +169,27 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
 
   return {
     maxDist,
+    /**
+     * Allocate batch 0 and compile its InstancedMesh programs before any reveal.
+     * Later rings fill the same meshes; further batches reuse material._gpuInstancedProgramWarmed.
+     */
+    async warmup(renderer) {
+      if (!renderer || !specs.length) return;
+      const batch = ensureBatch(0);
+      for (let s = 0; s < specs.length; s++) {
+        const mesh = batch.meshes[s];
+        writePose(mesh, specs[s], { x: ox, y: -2000, z: oz, scale: 0.001 }, 0);
+        mesh.count = 1;
+        mesh.visible = false;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+      await renderer.compileSubtree(parent);
+      for (const mesh of batch.meshes) {
+        mesh.count = 0;
+        mesh.visible = true;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    },
     reveal(radius, maxAdd = Infinity) {
       let n = revealed;
       while (n < sorted.length && chebyshev(sorted[n].x, sorted[n].z, ox, oz) <= radius) n++;

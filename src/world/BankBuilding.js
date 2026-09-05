@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { loadGltf } from './AssetLoader.js';
-import { addInstancedGltfAsync } from './instancing.js';
+import { addInstancedGltfAsync, warmupInstancedTemplate } from './instancing.js';
 import { waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadMark } from '../engine/loadLog.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
@@ -147,11 +147,16 @@ export class BankBuilding {
       const template = await loadGltf(ASSET_PATHS[key], CAST_KEYS.has(key) ? castOpts() : noCastOpts());
       await yieldAfterWork();
       if (!template) continue;
+      const kitOpts = CAST_KEYS.has(key) ? castOpts() : noCastOpts();
+      // Compile InstancedMesh programs before massing instances (Prop_Ornament_1 ~900ms).
+      if (renderer) {
+        await warmupInstancedTemplate(renderer, bankGroup, template, kitOpts);
+      }
       await addInstancedGltfAsync(
         bankGroup,
         template,
         poses[key],
-        CAST_KEYS.has(key) ? castOpts() : noCastOpts()
+        kitOpts
       );
       if (renderer) await renderer.compileSubtree(bankGroup);
       await yieldAfterWork();

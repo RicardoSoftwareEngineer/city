@@ -179,6 +179,17 @@ export class Renderer {
     root.traverse((object) => {
       if (!object.isMesh || object.userData._gpuCompiled) return;
       if (instancersOnly && !object.userData._streamInstancer) return;
+      // Same material already compiled as InstancedMesh → program is in the driver.
+      const mat = object.material;
+      if (
+        object.isInstancedMesh &&
+        mat &&
+        !Array.isArray(mat) &&
+        mat.userData?._gpuInstancedProgramWarmed
+      ) {
+        object.userData._gpuCompiled = true;
+        return;
+      }
       objects.push(object);
     });
     for (let i = 0; i < objects.length; i++) {
@@ -190,6 +201,10 @@ export class Renderer {
       await waitIfSlow();
       await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       object.userData._gpuCompiled = true;
+      const mat = object.material;
+      if (object.isInstancedMesh && mat && !Array.isArray(mat)) {
+        mat.userData._gpuInstancedProgramWarmed = true;
+      }
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await yieldToMain();
     }

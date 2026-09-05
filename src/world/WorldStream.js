@@ -1,6 +1,6 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Terrain meshes via pumpTerrainTo (own radius sweep, mesh-only; may overlap spawn streets).
+ * Terrain meshes run on a continuous background loop (never gated by street pumps).
  * Then streets → props → bank → buildings → countryside veg (prio ≤4).
  * Dense carpet (prio 5) is background-only — never blocks radius expansion.
  */
@@ -451,6 +451,46 @@ export class WorldStream {
   }
 
   /**
+   * Continuous terrain mesh pump. Concurrent with street pumpTo — Valve serializes
+   * GPU commits, but green tiles no longer wait for a whole asphalt ring.
+   */
+  startTerrainBackground() {
+    if (this._terrainBg) return;
+    this._terrainBg = true;
+    const loop = async () => {
+      for (;;) {
+        tickLoadPhase('terrain', `bg r${Math.round(memoryGuardian.radius)}`);
+        const n = await this.pumpTerrainSlice(16);
+        if (n === 0) {
+          const pending = this.tasks.some(
+            (t) =>
+              t.kind === 'terrain' &&
+              !t.done &&
+              t.x != null &&
+              memoryGuardian.allowsAt(t.x, t.z)
+          );
+          if (!pending) endLoadPhase('terrain');
+          await yieldToMain();
+        }
+      }
+    };
+    void loop().catch((err) => console.error('terrain background failed:', err));
+  }
+
+  /** Continuous dense-carpet slices (prio 5), independent of ring expansion. */
+  startCarpetBackground() {
+    if (this._carpetBg) return;
+    this._carpetBg = true;
+    const loop = async () => {
+      for (;;) {
+        await this.pumpCarpetSlice({ maxLoads: 1, maxRevealPasses: 3 });
+        await yieldToMain();
+      }
+    };
+    void loop().catch((err) => console.error('carpet background failed:', err));
+  }
+
+  /**
    * One background slice of dense carpet (prio 5). Never expands rings and never
    * runs inside pumpTo(core) — light/core work must not wait on this.
    * Returns work units done (loads + reveal passes).
@@ -535,15 +575,14 @@ export class WorldStream {
    */
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
+    // Terrain + carpet already run on their own loops; this only expands core rings.
+    this.startTerrainBackground();
+    this.startCarpetBackground();
     await this.pumpTo(Math.min(radius, memoryGuardian.radius), core);
     let r = Math.min(radius, memoryGuardian.radius);
     let dumped = false;
 
     for (;;) {
-      await this.pumpTerrainSlice(8);
-      // Background carpet — one thin slice; does not await full prio-5 drain.
-      await this.pumpCarpetSlice();
-
       if (memoryGuardian.wantsLoad) {
         const cap = memoryGuardian.radius;
         if (r + STREAM_STEP <= cap + 0.01) {

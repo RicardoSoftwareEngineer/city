@@ -295,23 +295,22 @@ async function startGame() {
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
     await yieldToMain();
 
-    // Overlap light terrain mesh with spawn streets (Promise concurrency on awaits;
-    // Valve still serializes heavy GPU commits). Green countryside appears sooner.
+    // Terrain mesh runs as a continuous background loop (never waits on street pumps).
+    // Spawn streets overlap via Promise concurrency; Valve still serializes GPU commits.
     beginLoadPhase('spawn', 'r10 p0');
-    beginLoadPhase('terrain', 'mesh…');
+    beginLoadPhase('terrain', 'bg…');
+    stream.startTerrainBackground();
     const spawnStreets = stream.pumpTo(STREAM_STEP, 0).then(() => {
       endLoadPhase('spawn');
     });
-    const nearTerrain = stream.pumpTerrainTo(STREAM_STEP).then(() => {
-      endLoadPhase('terrain');
-    });
 
-    Promise.all([nearTerrain, spawnStreets])
+    spawnStreets
       .then(async () => {
         setLoadPhase('play');
         setInteractive(true);
         await registerHeavyWorld(stream, cityGroup, originX, originZ, renderer.scene);
         await yieldToMain();
+        stream.startCarpetBackground();
         // Porsche after first ring — not competing with createCityStream on click.
         porscheModel.load()
           .then(async () => {
@@ -322,7 +321,8 @@ async function startGame() {
           .catch((error) => {
             console.error('Porsche load failed:', error);
           });
-        finishAllLoadPhases();
+        // Keep terrain + carpet phases alive — they end themselves when idle.
+        finishAllLoadPhases(['terrain', 'carpet']);
         setLoadPhase('play');
         setInteractive(true);
         await waitUntilSmooth();

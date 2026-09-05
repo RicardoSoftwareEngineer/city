@@ -22,8 +22,9 @@ import { createQualityAdapter } from './engine/qualityAdapter.js';
 import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
+import { initResourceHud } from './engine/resourceHud.js';
 import { beginLoadPhase, endLoadPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
-import { waitUntilSmooth, yieldToMain } from './world/yield.js';
+import { bindValveDraw, waitUntilSmooth, yieldToMain } from './world/yield.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
@@ -37,6 +38,11 @@ async function startGame() {
   // ── Engine ──────────────────────────────────────────────────────────
   const canvas = document.getElementById('game-canvas');
   const renderer = new Renderer(canvas);
+  // Valve HOLD must freeze draw — otherwise wait-frames still cost 3s+ with huge scenes.
+  bindValveDraw({
+    pause: () => renderer.pauseDraw(),
+    resume: () => renderer.resumeDraw()
+  });
 
   // ── Lighting ────────────────────────────────────────────────────────
   setupLighting(renderer.scene);
@@ -91,6 +97,7 @@ async function startGame() {
   const paintRingLoad = initRingLoadHud();
   const paintLoadOrder = initLoadOrderHud();
   initMinimizableHud();
+  const paintResources = initResourceHud({ getRenderer: () => renderer });
   const quality = createQualityAdapter(renderer);
   const fpsSacredStats = document.getElementById('fps-sacred-stats');
 
@@ -182,6 +189,7 @@ async function startGame() {
     }
     paintRingLoad();
     paintLoadOrder();
+    paintResources();
   });
 
   gameLoop.start();

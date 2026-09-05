@@ -1,5 +1,26 @@
 import { loadGovernor, TARGET_FPS } from '../engine/LoadGovernor.js';
-import { beginLoad, noteGateWait } from '../engine/loadLog.js';
+import { beginLoad, loadMark, noteGateWait } from '../engine/loadLog.js';
+
+/** Optional: pause GameLoop draw while the valve is closed (keeps last frame). */
+let drawPauseDepth = 0;
+let drawHooks = { pause: null, resume: null };
+
+export function bindValveDraw({ pause, resume }) {
+  drawHooks.pause = pause;
+  drawHooks.resume = resume;
+}
+
+function enterDrawPause() {
+  drawPauseDepth += 1;
+  if (drawPauseDepth === 1) drawHooks.pause?.();
+}
+
+function leaveDrawPause() {
+  if (drawPauseDepth <= 0) return;
+  drawPauseDepth -= 1;
+  if (drawPauseDepth === 0) drawHooks.resume?.();
+}
+
 
 export function yieldToMain() {
   return new Promise((resolve) => {
@@ -28,19 +49,28 @@ export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
     return;
   }
 
+  // Pause draw FIRST — otherwise each "wait" frame still renders 4–16M tris
+  // and the gate wait itself shows up as multi-second Travamentos (HOLD + draw3s).
   beginLoad('fps-gate', `wait ≥${minFps}`);
   loadGovernor.holding = true;
+  enterDrawPause();
   const t0 = performance.now();
   let n = 0;
-  while (n < maxFrames) {
-    const okInstant = loadGovernor.instantFps >= minFps;
-    const okEma = loadGovernor.fps >= minFps - 3;
-    if (okInstant && okEma) break;
-    await yieldToMain();
-    n++;
+  try {
+    while (n < maxFrames) {
+      const okInstant = loadGovernor.instantFps >= minFps;
+      const okEma = loadGovernor.fps >= minFps - 3;
+      if (okInstant && okEma) break;
+      await yieldToMain();
+      n++;
+    }
+  } finally {
+    const waited = performance.now() - t0;
+    noteGateWait(waited);
+    loadMark('fps-gate', `wait ≥${minFps}`, waited);
+    leaveDrawPause();
+    loadGovernor.holding = false;
   }
-  noteGateWait(performance.now() - t0);
-  loadGovernor.holding = false;
 }
 
 export async function waitIfSlow() {

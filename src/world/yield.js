@@ -1,5 +1,6 @@
 import { loadGovernor, TARGET_FPS } from '../engine/LoadGovernor.js';
 import { beginLoad, loadMark, noteGateWait } from '../engine/loadLog.js';
+import { noteDecision } from '../engine/personaLog.js';
 
 /** Optional: pause GameLoop draw while the valve is closed (keeps last frame). */
 let drawPauseDepth = 0;
@@ -53,6 +54,7 @@ export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
   // and the gate wait itself shows up as multi-second Travamentos (HOLD + draw3s).
   beginLoad('fps-gate', `wait ≥${minFps}`);
   loadGovernor.holding = true;
+  noteDecision('Valve', 'HOLD open');
   enterDrawPause();
   const t0 = performance.now();
   let n = 0;
@@ -70,6 +72,7 @@ export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
     loadMark('fps-gate', `wait ≥${minFps}`, waited);
     leaveDrawPause();
     loadGovernor.holding = false;
+    noteDecision('Valve', 'HOLD close');
   }
 }
 

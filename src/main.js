@@ -33,6 +33,8 @@ import { tickWater } from './world/water/registerLakes.js';
 import { ensureGroundAround } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { initTerrainDebug } from './world/terrain/terrainDebug.js';
+import { initRadiusDebug } from './engine/radiusDebug.js';
+import { initPersonaHud } from './engine/personaHud.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -100,6 +102,8 @@ async function startGame() {
   initMinimizableHud();
   const paintResources = initResourceHud({ getRenderer: () => renderer });
   const quality = createQualityAdapter(renderer);
+  const paintPersona = initPersonaHud({ getQuality: () => quality });
+  const tickRadiusDebug = initRadiusDebug(renderer.scene);
   const fpsSacredStats = document.getElementById('fps-sacred-stats');
 
   function renderHitchList(el, rows) {
@@ -165,6 +169,7 @@ async function startGame() {
         (loadGovernor.streaming ? ' · cap' : '');
     }
     tickTerrainDebug(elapsed);
+    tickRadiusDebug(car);
     if (loadPhaseEl) {
       const stream = getStreamLabel();
       const phase = getLoadPhase();
@@ -193,6 +198,7 @@ async function startGame() {
     paintRingLoad();
     paintLoadOrder();
     paintResources();
+    paintPersona();
   });
 
   gameLoop.start();

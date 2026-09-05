@@ -1,3 +1,5 @@
+> **2026-09-05:** QualityAdapter always adapts (no streaming freeze); Guardian innerRadius 0.1R + zone helpers; debug rings + Personas HUD (`personaLog`); outer-zone urlJobs skip castShadow.
+
 > **2026-09-05:** MemoryGuardian owns world/building growers (urlJobs, templateJobs, buildings) — retain/dispose with focus filter; bank/lakes still one-shot tasks.
 
 > **2026-09-05:** Fix Guardian thrash — never evict *inside* the circle for soft-cap (load→dispose→reload spun Chrome to STATUS_BREAKPOINT); residency loop always `yieldToMain`; terrain boot slice-capped.

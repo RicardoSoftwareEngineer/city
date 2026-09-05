@@ -17,6 +17,8 @@ import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
 import { phaseIdForPriority, tickLoadPhase } from '../engine/loadOrderLog.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
+import { noteDecision } from '../engine/personaLog.js';
+import { noteZonePolicy } from '../engine/qualityAdapter.js';
 
 export const STREAM_STEP = 10;
 
@@ -26,6 +28,19 @@ function posesCentroid(poses) {
   for (const p of poses) { sx += p.x; sz += p.z; }
   return { x: sx / n, z: sz / n };
 }
+
+/** Outer zone: drop castShadow if it was on (subtle low-quality intent). */
+function zoneAwareOptions(options, poses) {
+  const c = posesCentroid(poses);
+  noteZonePolicy(c.x, c.z);
+  if (memoryGuardian.isInnerZone(c.x, c.z)) return options || {};
+  if (options && options.castShadow === true) {
+    noteDecision('QualityAdapter', 'outer zone: skip castShadow');
+    return { ...options, castShadow: false };
+  }
+  return options || {};
+}
+
 function registerGrowerResident(id, kind, poses, job) {
   if (!job?.grower || typeof job.grower.dispose !== 'function') return;
   const c = posesCentroid(poses);
@@ -48,6 +63,8 @@ export class WorldStream {
     this.templateJobs = [];
     this.tasks = [];
     this.buildings = [];
+    this._lastPumpNote = 0;
+    this._lastWantsNote = 0;
   }
 
   addUrl(url, poses, options = {}, priority = 0) {
@@ -108,7 +125,18 @@ export class WorldStream {
   }
 
   async pumpTo(radius, maxPriority = 5) {
-    if (!memoryGuardian.wantsLoad) return;
+    const now = performance.now();
+    if (!memoryGuardian.wantsLoad) {
+      if (now - this._lastWantsNote > 2000) {
+        noteDecision('Carregador', 'wantsLoad false');
+        this._lastWantsNote = now;
+      }
+      return;
+    }
+    if (now - this._lastPumpNote > 2000) {
+      noteDecision('Carregador', `pump r${Math.round(radius)}`);
+      this._lastPumpNote = now;
+    }
     const capped = Math.min(radius, memoryGuardian.radius);
     radius = capped;
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
@@ -154,7 +182,7 @@ export class WorldStream {
 
       for (const job of toLoad) {
         const template = await measureRingItem(job.url, () =>
-          throughValve(() => loadGltf(job.url, job.options))
+          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
         );
         if (template && typeof job.options.prepare === 'function') {
           await throughValve(async () => { job.options.prepare(template); });
@@ -167,7 +195,7 @@ export class WorldStream {
             job.poses,
             this.ox,
             this.oz,
-            job.options
+            zoneAwareOptions(job.options, job.poses)
           )
           : { reveal() { return 0; } };
         if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
@@ -192,7 +220,7 @@ export class WorldStream {
               job.poses,
               this.ox,
               this.oz,
-              job.options
+              zoneAwareOptions(job.options, job.poses)
             );
           });
         });

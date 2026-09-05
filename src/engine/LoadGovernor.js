@@ -6,8 +6,13 @@
  */
 
 import { noteHitch, setGovernorSnap } from './loadLog.js';
+import { noteDecision } from './personaLog.js';
 
 export const TARGET_FPS = 60;
+
+let _lastHitchNote = 0;
+let _lastLevelNoted = -1;
+let _lastLevelNoteAt = 0;
 
 export const loadGovernor = {
   fps: 60,
@@ -31,6 +36,11 @@ export const loadGovernor = {
       this.level = Math.max(0, this.level - 1.2);
       this._snap();
       noteHitch(deltaSeconds * 1000);
+      const now = performance.now();
+      if (now - _lastHitchNote > 400) {
+        noteDecision('LoadGovernor', `hitch ${Math.round(deltaSeconds * 1000)}ms`);
+        _lastHitchNote = now;
+      }
       return;
     }
 
@@ -42,6 +52,13 @@ export const loadGovernor = {
     // B1: while streaming, never sprint — max level 1.5 (~ few ms budget).
     if (this.streaming && this.level > 1.5) this.level = 1.5;
     if (this.holding) this.level = Math.min(this.level, 0.5);
+    const lvl = Math.round(this.level * 2) / 2;
+    const now = performance.now();
+    if (lvl !== _lastLevelNoted && now - _lastLevelNoteAt > 1500) {
+      noteDecision('LoadGovernor', `level ${lvl}`);
+      _lastLevelNoted = lvl;
+      _lastLevelNoteAt = now;
+    }
     this._snap();
   },
 

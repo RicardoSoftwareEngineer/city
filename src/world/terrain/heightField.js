@@ -1,7 +1,8 @@
 /**
  * Shared CPU height for open countryside.
- * Witcher-style vista: flush apron at the city → rolling mid → ridges →
- * distant peaks. Biome hill boosts + watershed river beds + avenue grade.
+ * Flush apron at the city (no curb shelf). Outside: White Orchard fan
+ * heightmap when loaded, else procedural mid/ridge/peaks. River beds +
+ * avenue grade still carve in heightAt().
  *
  * World extent scaled by √10 (~3.16× linear, ~10× area) vs legacy ±560 m.
  */
@@ -25,6 +26,7 @@ import {
   applyAvenueGrade,
   avenueTunnelCut
 } from './countryAvenue.js';
+import { whiteOrchardHeightAt } from './whiteOrchardHeight.js';
 
 /** Fixed seed so every boot gets the same hills. */
 export const TERRAIN_SEED = 42;
@@ -95,11 +97,19 @@ function uncarvedHeightAt(x, z) {
   const apron = smoothstep(blendIn, blendOut, d);
   if (apron <= 0) return 0;
 
+  // White Orchard fan heightmap (~2 km): shape of the apron/campo.
+  // Relative to curb so blend starts at Y≈0. Tiny micro-roll for grit only.
+  const orch = whiteOrchardHeightAt(x, z);
+  if (orch != null) {
+    const micro = (n01(x, z, 0.05, 9.1, 2.2) - 0.5) * 0.12 * apron;
+    return orch * apron + micro;
+  }
+
+  // Procedural fallback if the heightmap has not loaded yet.
   const roll = n01(x, z, 0.014) * 0.65 + n01(x, z, 0.038, 2.1, 1.3) * 0.35;
   const ridge = n01(x, z, 0.0045, 4.0, 0.7) * 0.7 + n01(x, z, 0.011, 1.2, 3.4) * 0.3;
   const peak = n01(x, z, 0.0019, 8.0, 2.2) * 0.75 + n01(x, z, 0.0055, 0.4, 6.1) * 0.25;
 
-  // Distance bands scaled with the larger world.
   const mid = smoothstep(45 * S, 170 * S, d);
   const rise = smoothstep(150 * S, 310 * S, d);
   const far = smoothstep(280 * S, 520 * S, d);
@@ -109,11 +119,7 @@ function uncarvedHeightAt(x, z) {
   h += (2.5 + roll * 11) * mid * (1 - rise * 0.4);
   h += (14 + ridge * 36) * rise * (1 - far * 0.3);
   h += (48 + peak * 100) * far;
-
-  // Soft mountains that channel the watershed.
   h += riverMountainHeight(x, z);
-
-  // Biome-specific hill / basin boost (wetland negative, highland strong).
   const biomeF = biomeHillFactor(x, z);
   h += biomeF * (6 + roll * 10) * apron;
 

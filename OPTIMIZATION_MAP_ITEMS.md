@@ -263,3 +263,8 @@ terrain group hidden, and `LineSegments` borders built from `builtTiles()`
 collider count, the tile under the car and whether it has a collider, and
 surface vs car height. Overlay geometry is rebuilt only when the collider count
 changes, and nothing is created while the mode is `oculta`.
+
+### Shop signs (`streetFurniture/shopSigns.js`)
+- JadeGarden is **4 unique glTFs** (main, vertical, Side_L, Side_R). HUD used to
+  truncate them all to `Prop_Sign_JadeGarde…` — look like one file, four parses.
+- Next MAP win: reuse one sign mesh + material variants, or defer side signs.

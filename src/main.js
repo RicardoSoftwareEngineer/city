@@ -102,7 +102,8 @@ async function startGame() {
         const stream = h.stream ? ` · ${h.stream}` : '';
         const hold = h.holding ? ' · HOLD' : '';
         const label = h.work && h.work !== 'none' ? h.work : h.cause;
-        const work = label.length > 32 ? `${label.slice(0, 30)}…` : label;
+        // Prefer the filename tail so Prop_Sign_JadeGarden_Side_L ≠ JadeGarden.
+        const work = label.length > 36 ? `…${label.slice(-34)}` : label;
         return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';

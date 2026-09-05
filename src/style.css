@@ -520,3 +520,69 @@ kbd {
 }
 #fps-sacred-stats .hold-on { color: #fbbf24; }
 #fps-sacred-stats .q-temp { color: #38bdf8; }
+
+
+/* Resource bars (browser-measurable proxies) */
+#resource-hud {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  left: auto;
+  z-index: 20;
+  pointer-events: auto;
+  min-width: 15rem;
+  max-width: 18rem;
+  padding: 0.55rem 0.75rem 0.65rem;
+  background: rgba(8, 12, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(12px);
+  font-variant-numeric: tabular-nums;
+}
+#resource-label {
+  color: #a78bfa;
+  margin-bottom: 0.35rem;
+}
+.res-row {
+  margin-top: 0.35rem;
+}
+.res-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.12rem;
+}
+.res-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.res-val {
+  font-size: 0.62rem;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+.res-track {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.res-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.15s linear, background-color 0.2s;
+}
+.res-fill.res-ok { background: #34d399; }
+.res-fill.res-warm { background: #fbbf24; }
+.res-fill.res-hot { background: #f87171; }
+.res-note {
+  margin-top: 0.45rem;
+  font-size: 0.55rem;
+  line-height: 1.35;
+  color: #64748b;
+}

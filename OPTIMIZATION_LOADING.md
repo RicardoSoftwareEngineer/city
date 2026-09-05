@@ -1,3 +1,5 @@
+> **2026-09-05:** `holdForTargetFps` now **pauseDraw** while HOLD — gate wait no longer re-renders 4–16M tris each recovery frame (was showing as 3s `fps-gate` Travamentos).
+
 > **2026-09-05:** Load **valve** (`throughValve` in `yield.js`): every stream unit opens only at FPS≥60 and re-closes after a heavy job. Terrain `buildTileMesh` yields every 48 verts. Quality ladder **frozen** while `loadGovernor.streaming` (no mid-stream `quality apply`).
 
 > **2026-09-05:** Travamentos HUD now shows `after:` cause, heapMB (Chrome), ktri, recent tail; quality ladder tags `quality apply {label}` so a cheap apply is not mistaken for the multi-second redraw.

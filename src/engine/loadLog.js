@@ -134,6 +134,10 @@ export function loadMark(kind, label, ms) {
   else if (ms >= 4) console.log(line);
 }
 
+export function getLastDraw() {
+  return { ...lastDraw };
+}
+
 export function snapshotDraw(stats) {
   const programDelta = stats.programs - prevPrograms;
   prevPrograms = stats.programs;

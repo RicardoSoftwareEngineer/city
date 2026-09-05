@@ -24,6 +24,28 @@ const PATH_DEPRESS = 0.08;
 
 /** @type {{ x: number, z: number }[][]} */
 let polylines = [];
+/** Combined AABB of all path samples (+ shoulder). */
+let pathBounds = null;
+
+function ensurePathBounds() {
+  if (pathBounds) return pathBounds;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const line of polylines) {
+    for (let i = 0; i < line.length; i++) {
+      const p = line[i];
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+  }
+  const pad = PATH_SHOULDER + PATH_BLEND + 1;
+  pathBounds = { minX: minX - pad, maxX: maxX + pad, minZ: minZ - pad, maxZ: maxZ + pad };
+  return pathBounds;
+}
 
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -125,6 +147,7 @@ function buildPaths() {
     sampleSpline(eastCtrl),
     sampleSpline(linkCtrl, 10)
   ];
+  pathBounds = null;
 }
 
 buildPaths();
@@ -138,6 +161,8 @@ export function pathEnds() {
  * Distance from (x,z) to the nearest path polyline (meters).
  */
 export function distToPath(x, z) {
+  const b = ensurePathBounds();
+  if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return Infinity;
   let best = Infinity;
   for (const line of polylines) {
     for (let i = 0; i < line.length - 1; i++) {

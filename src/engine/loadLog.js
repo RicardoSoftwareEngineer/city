@@ -111,6 +111,15 @@ export function beginLoad(kind, label) {
   }
 }
 
+/**
+ * Drop the active CPU tag so await gaps (yieldToMain / Valve HOLD) are not
+ * blamed on the previous beginLoad. Call immediately before yielding.
+ */
+export function clearLoadTag() {
+  lastOp = { name: 'none', kind: 'none', at: performance.now() };
+  lastWork = lastOp;
+}
+
 export function loadMark(kind, label, ms) {
   const name = shortName(label);
   const row = { kind, name, ms: Math.round(ms * 10) / 10, phase };

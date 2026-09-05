@@ -112,6 +112,34 @@ function riverControls(river) {
 }
 
 const polylineCache = new Map();
+/** Expanded AABB per river (halfWidth+blend) — skip full polyline scan when far. */
+const boundsCache = new Map();
+
+function riverBounds(river) {
+  let b = boundsCache.get(river.id);
+  if (b) return b;
+  const line = riverPolyline(river);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < line.length; i++) {
+    const p = line[i];
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  const pad = (river.halfWidth ?? RIVER_HALF_WIDTH) + RIVER_BLEND + 1;
+  b = { minX: minX - pad, maxX: maxX + pad, minZ: minZ - pad, maxZ: maxZ + pad };
+  boundsCache.set(river.id, b);
+  return b;
+}
+
+function outsideRiverBounds(x, z, river) {
+  const b = riverBounds(river);
+  return x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ;
+}
 
 /** Sampled Catmull-Rom polyline for a river (cached). */
 export function riverPolyline(river) {
@@ -160,10 +188,14 @@ export function distToPolyline(x, z, line) {
 }
 
 export function distToRiver(x, z, river) {
+  if (outsideRiverBounds(x, z, river)) return Infinity;
   return distToPolyline(x, z, riverPolyline(river));
 }
 
 export function nearestOnRiver(x, z, river) {
+  if (outsideRiverBounds(x, z, river)) {
+    return { x, z, dist: Infinity, tApprox: 0 };
+  }
   const line = riverPolyline(river);
   let best = {
     x: line[0]?.x ?? x,

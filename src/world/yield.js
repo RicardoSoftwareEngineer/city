@@ -115,11 +115,31 @@ export function createBudget() {
 }
 
 /**
+ * While >0, throughValve skips HOLD/pauseDraw (plain run). Used so the first
+ * near terrain tiles are not stranded under multi-second street Valve freezes.
+ */
+let deferValveHoldDepth = 0;
+
+export function pushDeferValveHold() {
+  deferValveHoldDepth += 1;
+}
+
+export function popDeferValveHold() {
+  if (deferValveHoldDepth > 0) deferValveHoldDepth -= 1;
+}
+
+export function isValveHoldDeferred() {
+  return deferValveHoldDepth > 0;
+}
+
+/**
  * Single admission gate for streaming work ("porteira").
  * Opens only when FPS is at target; after a heavy unit, closes until FPS recovers.
- * All stream jobs should run through this — not only waitIfSlow beforehand.
  */
 export async function throughValve(fn) {
+  if (deferValveHoldDepth > 0) {
+    return await fn();
+  }
   await holdForTargetFps(TARGET_FPS, 180);
   const t0 = performance.now();
   try {

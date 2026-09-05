@@ -20,6 +20,7 @@ export const ROCK_SLOPE = 0.65;
 
 const dirtColor = new THREE.Color(DIRT_HEX);
 const asphaltColor = new THREE.Color(ASPHALT_HEX);
+const wetColor = new THREE.Color(0x3a5c48);
 const mixColor = new THREE.Color();
 const grassTmp = new THREE.Color();
 const rockTmp = new THREE.Color();
@@ -57,7 +58,7 @@ export function writeSplatColor(colors, i, x, z, slopeOverride = null) {
 
   const wet = biomeWetland(x, z);
   if (wet > 0.05) {
-    grassTmp.lerp(new THREE.Color(0x3a5c48), wet * 0.55);
+    grassTmp.lerp(wetColor, wet * 0.55);
   }
 
   const dirt = pathDirtFactor(x, z);

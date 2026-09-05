@@ -11,6 +11,7 @@ import {
   minPoseDist
 } from './instancing.js';
 import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
+import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
 import { phaseIdForPriority, tickLoadPhase } from '../engine/loadOrderLog.js';
@@ -47,8 +48,13 @@ export class WorldStream {
     this.templateJobs.push({ template, poses, options, priority, grower: null });
   }
 
-  addTask({ dist, priority = 2, run, kind = null }) {
-    this.tasks.push({ dist, priority, run, kind, done: false });
+  addTask(entry) {
+    this.tasks.push({
+      priority: 2,
+      kind: null,
+      done: false,
+      ...entry
+    });
   }
 
   addBuilding(entry) {
@@ -84,6 +90,9 @@ export class WorldStream {
   }
 
   async pumpTo(radius, maxPriority = 5) {
+    if (!memoryGuardian.wantsLoad) return;
+    const capped = Math.min(radius, memoryGuardian.radius);
+    radius = capped;
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
     const budget = createBudget();
     beginRing(radius);
@@ -296,21 +305,29 @@ export class WorldStream {
   }
 
   /**
-   * Own loading circle for countryside meshes: expand Chebyshev radius and
-   * build PlaneGeometry tiles only. Yields when FPS dips. Phys stays on
-   * ensureGroundAround under the car.
+   * Build terrain tiles currently allowed by MemoryGuardian (car circle).
+   * Returns how many tiles were successfully built this call.
    */
-  async pumpTerrainTo(step = STREAM_STEP) {
-    const pending = this.tasks.filter((task) => task.kind === 'terrain' && !task.done);
-    if (pending.length === 0) return;
+  async pumpTerrainSlice(maxTiles = 12) {
+    const focus = memoryGuardian.focus;
+    const pending = this.tasks
+      .filter(
+        (task) =>
+          task.kind === 'terrain' &&
+          !task.done &&
+          task.x != null &&
+          memoryGuardian.allowsAt(task.x, task.z)
+      )
+      .sort(
+        (a, b) =>
+          chebyshev(a.x, a.z, focus.x, focus.z) - chebyshev(b.x, b.z, focus.x, focus.z)
+      );
 
-    let max = 0;
-    for (const task of pending) {
-      if (task.dist > max) max = task.dist;
-    }
+    if (!pending.length || !memoryGuardian.wantsLoad) return 0;
 
     const COMPILE_EVERY = 8;
     let sinceCompile = 0;
+    let built = 0;
 
     const flushCompile = async (label) => {
       if (!sinceCompile || !this.renderer) return;
@@ -323,38 +340,76 @@ export class WorldStream {
       sinceCompile = 0;
     };
 
-    for (let r = step; r < max + 0.01; r += step) {
-      beginRing(r);
-      setStreamLabel(`terrain r${r}`);
-      beginLoad('terrain', `ring ${r}`);
-      tickLoadPhase('terrain', `r${r}`);
+    setStreamLabel(`terrain r${Math.round(memoryGuardian.radius)}`);
+    tickLoadPhase('terrain', `r${Math.round(memoryGuardian.radius)}`);
 
-      const batch = pending.filter((task) => !task.done && task.dist <= r);
-      for (const task of batch) {
-        await measureRingItem(
-          `terrain mesh d${Math.round(task.dist)}`,
-          () => task.run()
-        );
+    for (const task of pending) {
+      if (built >= maxTiles || !memoryGuardian.wantsLoad) break;
+      if (!memoryGuardian.allowsAt(task.x, task.z)) continue;
+
+      const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
+      beginRing(Math.round(dFocus / STREAM_STEP) * STREAM_STEP || STREAM_STEP);
+      const ok = await measureRingItem(
+        `terrain mesh d${Math.round(dFocus)}`,
+        () => task.run()
+      );
+      endRing();
+      if (ok) {
         task.done = true;
+        built += 1;
         sinceCompile += 1;
-        await yieldAfterWork();
-        if (sinceCompile >= COMPILE_EVERY) {
-          await flushCompile(`compile terrain r${r}`);
-        }
       }
-
-      endRing(r);
+      await yieldAfterWork();
+      if (sinceCompile >= COMPILE_EVERY) {
+        await flushCompile(`compile terrain slice`);
+      }
     }
 
-    await flushCompile('compile terrain final');
+    await flushCompile('compile terrain slice final');
+    return built;
   }
 
-  async continueAfter(radius) {
-    await this.pumpTo(radius, 5);
-    const max = this.maxRadius();
-    for (let r = radius + STREAM_STEP; r < max + 0.01; r += STREAM_STEP) {
-      await this.pumpTo(r);
+  /** Fill allowed terrain until the guardian table is full or nothing left in-circle. */
+  async pumpTerrainTo(step = STREAM_STEP) {
+    for (;;) {
+      const n = await this.pumpTerrainSlice(12);
+      if (n === 0) break;
+      if (!memoryGuardian.wantsLoad) break;
     }
-    dumpLoadLog();
+  }
+
+  /**
+   * Long-running residency loop: city rings + terrain only while Guardian wants load
+   * and only up to Guardian.radius (spawn rings capped). Never exits — radius can
+   * grow again after eviction frees the table.
+   */
+  async continueAfter(radius) {
+    await this.pumpTo(Math.min(radius, memoryGuardian.radius), 5);
+    let r = Math.min(radius, memoryGuardian.radius);
+    let dumped = false;
+
+    for (;;) {
+      await this.pumpTerrainSlice(8);
+
+      if (!memoryGuardian.wantsLoad) {
+        await yieldToMain();
+        continue;
+      }
+
+      const cap = memoryGuardian.radius;
+      if (r + STREAM_STEP <= cap + 0.01) {
+        r = Math.min(r + STREAM_STEP, cap);
+        await this.pumpTo(r, 5);
+      } else if (r < cap) {
+        r = cap;
+        await this.pumpTo(r, 5);
+      } else {
+        if (!dumped) {
+          dumpLoadLog();
+          dumped = true;
+        }
+        await yieldToMain();
+      }
+    }
   }
 }

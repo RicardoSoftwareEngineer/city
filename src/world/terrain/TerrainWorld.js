@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { chebyshev } from '../instancing.js';
 import { beginLoad, loadMark } from '../../engine/loadLog.js';
 import { createSlice, throughValve } from '../yield.js';
+import { memoryGuardian } from '../../engine/memoryGuardian.js';
 import { surfaceY } from './paths.js';
 import { terrainLambert, writeSplatColor } from './splatMaterial.js';
 import {
@@ -69,21 +70,43 @@ export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
   // so the far vista can stream without Cannon heightfield spikes.
   for (const t of allTiles()) {
     const dist = chebyshev(t.cx, t.cz, ox, oz);
-    stream.addTask({
+    const residentId = `terrain:${t.key}`;
+    const task = {
       dist,
       priority: TERRAIN_PRIORITY,
       kind: 'terrain',
-      run: async () => {
-        const tag = t.far ? 'far' : 'near';
-        const label = `mesh ${tag} ${t.x0},${t.z0}`;
-        await throughValve(async () => {
-          beginLoad('terrain', label);
-          const t0 = performance.now();
-          const mesh = await buildTileMesh(t.x0, t.z0, t.size, t.segs);
-          group.add(mesh);
-          loadMark('terrain', label, performance.now() - t0);
-        });
-      }
-    });
+      x: t.cx,
+      z: t.cz,
+      done: false,
+      run: null
+    };
+    task.run = async () => {
+      if (!memoryGuardian.allowsAt(t.cx, t.cz)) return false;
+      const tag = t.far ? 'far' : 'near';
+      const label = `mesh ${tag} ${t.x0},${t.z0}`;
+      let mesh = null;
+      await throughValve(async () => {
+        beginLoad('terrain', label);
+        const t0 = performance.now();
+        mesh = await buildTileMesh(t.x0, t.z0, t.size, t.segs);
+        group.add(mesh);
+        loadMark('terrain', label, performance.now() - t0);
+      });
+      if (!mesh) return false;
+      memoryGuardian.retain(residentId, {
+        kind: 'terrain',
+        x: t.cx,
+        z: t.cz,
+        dispose: () => {
+          if (mesh.parent) mesh.parent.remove(mesh);
+          mesh.geometry?.dispose();
+          // terrainLambert is shared — do not dispose material
+          mesh = null;
+          task.done = false;
+        }
+      });
+      return true;
+    };
+    stream.addTask(task);
   }
 }

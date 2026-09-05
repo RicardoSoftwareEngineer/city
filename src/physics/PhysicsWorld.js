@@ -122,6 +122,11 @@ export class PhysicsWorld {
     return body;
   }
 
+  removeBody(body) {
+    if (!body) return;
+    this.world.removeBody(body);
+  }
+
   step(delta) {
     this.world.step(1 / 60, delta, 3);
   }

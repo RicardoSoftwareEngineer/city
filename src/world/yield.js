@@ -45,7 +45,7 @@ export async function yieldAfterWork() {
  * Sets loadGovernor.holding so hitch logs / HUD show the pause.
  */
 export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
-  if (loadGovernor.isSmooth && loadGovernor.instantFps >= minFps) {
+  if (loadGovernor.instantFps >= minFps && loadGovernor.fps >= minFps - 3) {
     loadGovernor.holding = false;
     return;
   }
@@ -56,13 +56,27 @@ export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
   loadGovernor.holding = true;
   noteDecision('Valve', 'HOLD open');
   enterDrawPause();
+  // EMA stays poisoned after a hitch and used to block the stream for tens of
+  // seconds on slower machines (Windows) while the box recovered. Snap EMA up
+  // toward instant so HOLD exits once real frames are healthy again.
+  loadGovernor.fps = Math.max(loadGovernor.fps, Math.min(loadGovernor.instantFps, minFps));
   const t0 = performance.now();
   let n = 0;
+  let okStreak = 0;
+  const needStreak = 3;
+  // Hard wall-clock cap — never strand the loader (was ~38s on Windows).
+  const maxMs = Math.min(2500, maxFrames * 20);
   try {
-    while (n < maxFrames) {
-      const okInstant = loadGovernor.instantFps >= minFps;
-      const okEma = loadGovernor.fps >= minFps - 3;
-      if (okInstant && okEma) break;
+    while (n < maxFrames && performance.now() - t0 < maxMs) {
+      const okInstant = loadGovernor.instantFps >= minFps * 0.9;
+      if (okInstant) {
+        okStreak += 1;
+        // Pull EMA toward target while paused so we do not wait forever.
+        loadGovernor.fps = loadGovernor.fps * 0.7 + Math.max(loadGovernor.instantFps, minFps) * 0.3;
+        if (okStreak >= needStreak) break;
+      } else {
+        okStreak = 0;
+      }
       await yieldToMain();
       n++;
     }

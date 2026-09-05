@@ -141,7 +141,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      this.renderer.compile(object, this.camera, this.lightProbe());
+      await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await budget.tick();
       await waitIfSlow();
@@ -187,6 +187,7 @@ export class Renderer {
       const label = `${kind} ${object.name || i}`;
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
+      await waitIfSlow();
       await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       object.userData._gpuCompiled = true;
       loadMark('gpu', `compile ${label}`, performance.now() - t0);

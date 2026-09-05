@@ -27,7 +27,17 @@ let phase = 'boot';
 let interactive = false;
 let streamLabel = '';
 let hitchRevision = 0;
-let govSnap = { carga: 50, batch: 16, streaming: false };
+let govSnap = { carga: 50, batch: 16, streaming: false, holding: false, quality: 'full' };
+const sessionStats = {
+  gateMs: 0,
+  gateEnters: 0,
+  compileCount: 0,
+  compileMs: 0,
+  hitchCount: 0,
+  worstFrameMs: 0,
+  worstFrameAt: 0,
+  worstCause: ''
+};
 
 const TAB_AWAY_MS = 45000;
 const RECENT_CAP = 8;
@@ -104,6 +114,14 @@ export function loadMark(kind, label, ms) {
     lastWork = lastOp;
     pushRecent(lastOp.name);
   }
+  if (kind === 'gpu' && String(label).includes('compile')) {
+    sessionStats.compileCount += 1;
+    sessionStats.compileMs += ms;
+  }
+  if (kind === 'fps-gate') {
+    sessionStats.gateMs += ms;
+    sessionStats.gateEnters += 1;
+  }
 
   const line = `[cpu] ${row.ms.toFixed(1).padStart(7)}ms  ${kind.padEnd(14)} ${name}  [${phase}]`;
   if (ms >= 16) console.warn(line);
@@ -176,22 +194,41 @@ export function noteHitch(frameMs) {
     batch: govSnap.batch,
     streaming: Boolean(govSnap.streaming),
     interactive,
+    holding: Boolean(govSnap.holding),
+    quality: govSnap.quality || 'full',
     recent: recentWork.slice(-4).join(' ← ')
   };
   hitchEntries.push(row);
   hitchRevision++;
+  sessionStats.hitchCount += 1;
+  if (row.frameMs > sessionStats.worstFrameMs) {
+    sessionStats.worstFrameMs = row.frameMs;
+    sessionStats.worstFrameAt = performance.now();
+    sessionStats.worstCause = row.cause;
+  }
 
   console.warn(
     `[hitch] ${row.frameMs.toString().padStart(5)}ms ${row.fps.toString().padStart(3)}fps  ${md.padEnd(4)} ${phase.padEnd(14)}  ` +
     `stream:${row.stream || '-'}  work:${row.work}  draw:${row.drawMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
     `${row.programDelta ? ` +${row.programDelta}prog` : ''}  ` +
-    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch}  | ${hint}` +
+    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch} hold:${row.holding ? 1 : 0} q:${row.quality}  | ${hint}` +
     (row.recent ? `  recent:${row.recent}` : '')
   );
 }
 
 export function getHitchRevision() {
   return hitchRevision;
+}
+
+export function getSessionStats() {
+  return { ...sessionStats };
+}
+
+export function noteGateWait(ms) {
+  if (ms > 0) {
+    sessionStats.gateMs += ms;
+    sessionStats.gateEnters += 1;
+  }
 }
 
 function isFreshStreamWork(e) {
@@ -291,6 +328,11 @@ export function dumpLoadLog() {
     console.log(`  cpu    sum ${String(r.sumMs).padStart(5)}ms  ${String(r.hits).padStart(3)}x  max ${String(r.maxMs).padStart(4)}ms  ${r.what}`);
   }
   console.log('[opt] recent work', recentWork.join(' ← '));
+  console.log(
+    `[opt] session gate ${Math.round(sessionStats.gateMs)}ms ×${sessionStats.gateEnters}` +
+    `  compile ${sessionStats.compileCount} / ${Math.round(sessionStats.compileMs)}ms` +
+    `  hitches ${sessionStats.hitchCount}  worst ${sessionStats.worstFrameMs}ms (${sessionStats.worstCause})`
+  );
 }
 
 if (typeof window !== 'undefined') {

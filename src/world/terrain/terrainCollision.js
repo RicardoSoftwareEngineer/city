@@ -15,6 +15,7 @@
 
 import * as CANNON from 'cannon-es';
 import { CITY_PAVED_MIN, CITY_PAVED_MAX } from '../RoadDimensions.js';
+import { loadGovernor } from '../../engine/LoadGovernor.js';
 import { surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
@@ -153,6 +154,8 @@ export function hasTile(tile) {
  */
 export function ensureGroundAround(x, z, radius = 60, maxBuilds = 2) {
   if (!physics) return 0;
+  // B1: under FPS pressure, at most one heightfield per frame.
+  if (loadGovernor.needsRest || loadGovernor.holding) maxBuilds = Math.min(maxBuilds, 1);
   let built = 0;
   const step = TERRAIN_TILE * 0.5;
   for (let dx = -radius; dx <= radius && built < maxBuilds; dx += step) {

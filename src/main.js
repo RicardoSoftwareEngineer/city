@@ -17,7 +17,8 @@ import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
 import { createCityStream, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
-import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel } from './engine/loadLog.js';
+import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel, getSessionStats } from './engine/loadLog.js';
+import { createQualityAdapter } from './engine/qualityAdapter.js';
 import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
@@ -90,6 +91,8 @@ async function startGame() {
   const paintRingLoad = initRingLoadHud();
   const paintLoadOrder = initLoadOrderHud();
   initMinimizableHud();
+  const quality = createQualityAdapter(renderer);
+  const fpsSacredStats = document.getElementById('fps-sacred-stats');
 
   function renderHitchList(el, rows) {
     if (!el) return;
@@ -97,9 +100,10 @@ async function startGame() {
       ? rows.map((h) => {
         const extra = h.programDelta > 0 ? ` +${h.programDelta}prog` : '';
         const stream = h.stream ? ` · ${h.stream}` : '';
+        const hold = h.holding ? ' · HOLD' : '';
         const label = h.work && h.work !== 'none' ? h.work : h.cause;
         const work = label.length > 32 ? `${label.slice(0, 30)}…` : label;
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}</li>`;
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }
@@ -144,10 +148,25 @@ async function startGame() {
       const phase = getLoadPhase();
       loadPhaseEl.textContent = stream && phase === 'play' ? `${phase} · ${stream}` : (stream || phase);
     }
+    quality.tick();
+    loadGovernor.quality = quality.label;
+
     if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();
       renderHitchList(hitchList, getTopLoadHitches(8));
       renderHitchList(playHitchList, getTopPlayHitches(8));
+    }
+    if (fpsSacredStats) {
+      const s = getSessionStats();
+      const hold = loadGovernor.holding ? ' · <span class="hold-on">HOLD</span>' : '';
+      const q = quality.level > 0
+        ? ` · <span class="q-temp">q:${quality.label}</span>`
+        : '';
+      fpsSacredStats.innerHTML =
+        `gate ${Math.round(s.gateMs)}ms×${s.gateEnters}` +
+        ` · compile ${s.compileCount}/${Math.round(s.compileMs)}ms` +
+        ` · worst ${s.worstFrameMs || '—'}ms` +
+        hold + q;
     }
     paintRingLoad();
     paintLoadOrder();

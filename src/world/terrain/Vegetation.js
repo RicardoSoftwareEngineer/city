@@ -24,6 +24,7 @@ import {
 import { registerTreeLods } from './treeLod.js';
 import { WORLD_LINEAR_SCALE } from './biomes.js';
 import { GROUND_BODY_HALF } from '../RoadDimensions.js';
+import { yieldToMain } from '../yield.js';
 
 export const VEG_PRIORITY = 4;
 export const VEG_DENSE_PRIORITY = 5;
@@ -78,7 +79,7 @@ function addVeg(stream, url, poses, opts, priority) {
  * Register vegetation urlJobs + tree LODs on the stream.
  * Call after registerTerrain(...).
  */
-export function registerVegetation(stream, parentGroup, ox, oz) {
+export async function registerVegetation(stream, parentGroup, ox, oz) {
   // --- Passo 4/5 base grass (prio 4) ---
   const tallGrass = scatterGrid({
     spacing: 3.5,
@@ -95,6 +96,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     foliageOpts(0.28),
     VEG_PRIORITY
   );
+  await yieldToMain();
 
   const wispy = scatterGrid({
     spacing: 4,
@@ -112,6 +114,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     foliageOpts(0.24),
     VEG_PRIORITY
   );
+  await yieldToMain();
 
   // --- Passo 12 denser MegaKit carpet (prio 5) ---
   const wideTall = scatterGrid({
@@ -129,6 +132,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     foliageOpts(0.3, 0.4),
     VEG_DENSE_PRIORITY
   );
+  await yieldToMain();
 
   const wideShort = scatterGrid({
     spacing: 2.5,
@@ -145,6 +149,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     foliageOpts(0.26, 0.38),
     VEG_DENSE_PRIORITY
   );
+  await yieldToMain();
 
   const wheat = scatterGrid({
     spacing: 2.8,
@@ -161,6 +166,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     foliageOpts(0.32, 0.42),
     VEG_DENSE_PRIORITY
   );
+  await yieldToMain();
 
   // --- Passo 13 Witcher flowers (MegaKit 1/2/7 + Nature 3/4 extras, ≤6) ---
   const flowersA = scatterClusters({
@@ -218,6 +224,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     { ...castOpts(), prepare: windPrepare(0.12) },
     VEG_PRIORITY
   );
+  await yieldToMain();
   addVeg(
     stream,
     kitUrl('bushLong'),
@@ -225,6 +232,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     { ...castOpts(), prepare: windPrepare(0.12) },
     VEG_PRIORITY
   );
+  await yieldToMain();
   addVeg(
     stream,
     NATURE.bushCommon,
@@ -232,6 +240,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     { ...castOpts(), prepare: windPrepare(0.12) },
     VEG_PRIORITY
   );
+  await yieldToMain();
   addVeg(
     stream,
     NATURE.bushCommonFlowers,
@@ -239,6 +248,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     { ...castOpts(), prepare: windPrepare(0.12) },
     VEG_PRIORITY
   );
+  await yieldToMain();
 
   // Accent plants
   const plants = scatterGrid({
@@ -270,6 +280,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     pathEndTrees: 4
   });
   registerTreeLods(stream, parentGroup, ox, oz, trees);
+  await yieldToMain();
 
   // --- Passo 15 / vista: silhouette on far rising ridges (no shadows) ---
   const horizon = scatterHorizonPines({ count: 36, minR: HORIZON_MIN, maxR: HORIZON_MAX });
@@ -280,6 +291,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     noCastOpts(),
     VEG_PRIORITY
   );
+  await yieldToMain();
 
   // Sparse mid-ridge pines so the rise reads from a low camera.
   const ridgePines = scatterHorizonPines({ count: 28, minR: RIDGE_MIN, maxR: RIDGE_MAX, seedSalt: 311 });
@@ -290,4 +302,5 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
     noCastOpts(),
     VEG_PRIORITY
   );
+  await yieldToMain();
 }

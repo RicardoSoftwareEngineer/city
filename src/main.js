@@ -38,6 +38,7 @@ import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
 import { ensureGroundAround, setTerrainPhysics, TERRAIN_TILE, GRID_OFFSET } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
+import { ensureWhiteOrchardHeightmap } from './world/terrain/whiteOrchardHeight.js';
 import { initTerrainDebug } from './world/terrain/terrainDebug.js';
 import { initRadiusDebug } from './engine/radiusDebug.js';
 import { initPersonaHud } from './engine/personaHud.js';
@@ -46,6 +47,8 @@ import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 
 async function startGame() {
   setLoadPhase('boot');
+  // Prefetch orchard heightmap during boot UI — mesh samples need it ready.
+  void ensureWhiteOrchardHeightmap();
   // ── Engine ──────────────────────────────────────────────────────────
   const canvas = document.getElementById('game-canvas');
   const renderer = new Renderer(canvas);

@@ -101,10 +101,13 @@ async function startGame() {
         const extra = h.programDelta > 0 ? ` +${h.programDelta}prog` : '';
         const stream = h.stream ? ` · ${h.stream}` : '';
         const hold = h.holding ? ' · HOLD' : '';
+        const draw = h.drawMs > 0 ? ` · draw${h.drawMs}` : '';
+        const fps = h.fps ? ` · ${h.fps}fps` : '';
+        const q = h.quality && h.quality !== 'full' ? ` · q:${h.quality}` : '';
         const label = h.work && h.work !== 'none' ? h.work : h.cause;
         // Prefer the filename tail so Prop_Sign_JadeGarden_Side_L ≠ JadeGarden.
         const work = label.length > 36 ? `…${label.slice(-34)}` : label;
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}</li>`;
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }
@@ -154,8 +157,8 @@ async function startGame() {
 
     if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();
-      renderHitchList(hitchList, getTopLoadHitches(8));
-      renderHitchList(playHitchList, getTopPlayHitches(8));
+      renderHitchList(hitchList, getTopLoadHitches(12));
+      renderHitchList(playHitchList, getTopPlayHitches(12));
     }
     if (fpsSacredStats) {
       const s = getSessionStats();

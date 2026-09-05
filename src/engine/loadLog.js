@@ -208,10 +208,12 @@ export function noteHitch(frameMs) {
   }
 
   console.warn(
-    `[hitch] ${row.frameMs.toString().padStart(5)}ms ${row.fps.toString().padStart(3)}fps  ${md.padEnd(4)} ${phase.padEnd(14)}  ` +
-    `stream:${row.stream || '-'}  work:${row.work}  draw:${row.drawMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
+    `[hitch] ${row.frameMs.toString().padStart(5)}ms ${row.fps.toString().padStart(3)}fps  ${md.padEnd(4)} ${String(phase).padEnd(14)}  ` +
+    `stream:${row.stream || '-'}  work:${row.work}  cause:${row.cause}  ` +
+    `draw:${row.drawMs}ms ago:${row.agoMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
     `${row.programDelta ? ` +${row.programDelta}prog` : ''}  ` +
-    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch} hold:${row.holding ? 1 : 0} q:${row.quality}  | ${hint}` +
+    `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch} ` +
+    `hold:${row.holding ? 1 : 0} q:${row.quality} streaming:${row.streaming ? 1 : 0}  | ${hint}` +
     (row.recent ? `  recent:${row.recent}` : '')
   );
 }
@@ -333,6 +335,7 @@ export function dumpLoadLog() {
     `  compile ${sessionStats.compileCount} / ${Math.round(sessionStats.compileMs)}ms` +
     `  hitches ${sessionStats.hitchCount}  worst ${sessionStats.worstFrameMs}ms (${sessionStats.worstCause})`
   );
+  console.log('[opt] hitch threshold: frame > 1/(TARGET_FPS-2) ≈ under 58fps; see Travamentos — FPS');
 }
 
 if (typeof window !== 'undefined') {

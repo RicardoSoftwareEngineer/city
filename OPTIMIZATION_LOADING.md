@@ -1,5 +1,7 @@
 # Loading optimization (scheduler / pacing)
 
+> **2026-09-05:** Travamentos — FPS logs any frame under ~58fps (was ~50) with richer HUD/console fields.
+
 > **2026-09-05 Plan B:** FPS gate ≥60 (`holdForTargetFps`), streaming budget ≤4ms, `compileAsync` everywhere, temporary quality ladder (pixelRatio/shadows only — textures stay), session stats on Travamentos FPS. Full glTF Worker still pending.
 
 Audience: another coding agent. This file is the **when and how much** of world construction, not the **what** of each mesh.

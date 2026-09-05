@@ -26,8 +26,8 @@ export const loadGovernor = {
     this.instantFps = fps;
     this.fps = this.fps * 0.88 + fps * 0.12;
 
-    // ~50 fps floor: log as hitch (ideal is 60; 1/24 was too lenient).
-    if (deltaSeconds > 1 / 50) {
+    // Log any frame under ~58 fps (TARGET 60). Missed spikes were hiding between 50–58.
+    if (deltaSeconds > 1 / (TARGET_FPS - 2)) {
       this.level = Math.max(0, this.level - 1.2);
       this._snap();
       noteHitch(deltaSeconds * 1000);

@@ -16,6 +16,10 @@ export const loadGovernor = {
   level: 2.5,
   /** While true, knobs cannot sprint (EMA FPS between hitches was hitting batch 32). */
   streaming: false,
+  /** True while holdForTargetFps is waiting (B1 scheduler hold). */
+  holding: false,
+  /** Temporary quality ladder label from qualityAdapter. */
+  quality: 'full',
 
   noteFrame(deltaSeconds) {
     const fps = 1 / Math.max(deltaSeconds, 1 / 240);
@@ -24,8 +28,8 @@ export const loadGovernor = {
 
     // ~50 fps floor: log as hitch (ideal is 60; 1/24 was too lenient).
     if (deltaSeconds > 1 / 50) {
-      setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch, streaming: this.streaming });
       this.level = Math.max(0, this.level - 1.2);
+      this._snap();
       noteHitch(deltaSeconds * 1000);
       return;
     }
@@ -35,8 +39,20 @@ export const loadGovernor = {
     this.level += error * climb;
     if (this.level < 0) this.level = 0;
     if (this.level > 4) this.level = 4;
-    if (this.streaming && this.level > 2) this.level = 2;
-    setGovernorSnap({ carga: this.loadPercent, batch: this.instanceBatch, streaming: this.streaming });
+    // B1: while streaming, never sprint — max level 1.5 (~ few ms budget).
+    if (this.streaming && this.level > 1.5) this.level = 1.5;
+    if (this.holding) this.level = Math.min(this.level, 0.5);
+    this._snap();
+  },
+
+  _snap() {
+    setGovernorSnap({
+      carga: this.loadPercent,
+      batch: this.instanceBatch,
+      streaming: this.streaming,
+      holding: this.holding,
+      quality: this.quality
+    });
   },
 
   /** 0–100 for HUD */
@@ -47,7 +63,8 @@ export const loadGovernor = {
   /** CPU ms of stream work before yielding to a frame */
   get budgetMs() {
     const ms = 1.5 + (this.level / 4) * 10.5;
-    return this.streaming ? Math.min(ms, 6) : ms;
+    // B1: ≤4ms CPU slices while the world is streaming under FPS gate.
+    return this.streaming ? Math.min(ms, 4) : ms;
   },
 
   get chunk() {
@@ -56,7 +73,7 @@ export const loadGovernor = {
     else if (this.level < 1.4) n = 3;
     else if (this.level < 2.2) n = 8;
     else if (this.level < 3.2) n = 16;
-    return this.streaming ? Math.min(n, 8) : n;
+    return this.streaming ? Math.min(n, 4) : n;
   },
 
   get instanceBatch() {
@@ -65,7 +82,7 @@ export const loadGovernor = {
     else if (this.level < 1.5) n = 8;
     else if (this.level < 2.4) n = 16;
     else if (this.level < 3.3) n = 24;
-    return this.streaming ? Math.min(n, 8) : n;
+    return this.streaming ? Math.min(n, 4) : n;
   },
 
   /** Yield every N merged geometries */

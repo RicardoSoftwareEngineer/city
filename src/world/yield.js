@@ -1,10 +1,7 @@
 import { loadGovernor, TARGET_FPS } from '../engine/LoadGovernor.js';
-import { beginLoad } from '../engine/loadLog.js';
+import { beginLoad, noteGateWait } from '../engine/loadLog.js';
 
 export function yieldToMain() {
-  // Two rAFs: one can fire in the same turn as other rAFs queued here
-  // (GameLoop + compileSubtree), packing 13 compiles into one hitch
-  // (3712ms ring 10 prio 0 +13prog). The second rAF is the next paint.
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(resolve);
@@ -12,9 +9,6 @@ export function yieldToMain() {
   });
 }
 
-/**
- * Yield more when FPS is low; skip some yields when FPS is comfortably high.
- */
 export async function yieldAfterWork() {
   if (loadGovernor.needsRest || loadGovernor.level < 2.4) {
     await yieldToMain();
@@ -25,13 +19,18 @@ export async function yieldAfterWork() {
 }
 
 /**
- * Hard gate: pause ALL stream work until FPS is back at/above target.
- * Load wall-clock can stretch; play frames must stay near 60.
+ * Hard gate: pause stream work until FPS ≥ target.
+ * Sets loadGovernor.holding so hitch logs / HUD show the pause.
  */
 export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
-  if (loadGovernor.isSmooth && loadGovernor.instantFps >= minFps) return;
+  if (loadGovernor.isSmooth && loadGovernor.instantFps >= minFps) {
+    loadGovernor.holding = false;
+    return;
+  }
 
   beginLoad('fps-gate', `wait ≥${minFps}`);
+  loadGovernor.holding = true;
+  const t0 = performance.now();
   let n = 0;
   while (n < maxFrames) {
     const okInstant = loadGovernor.instantFps >= minFps;
@@ -40,14 +39,14 @@ export async function holdForTargetFps(minFps = TARGET_FPS, maxFrames = 180) {
     await yieldToMain();
     n++;
   }
+  noteGateWait(performance.now() - t0);
+  loadGovernor.holding = false;
 }
 
-/** Before each stream slice: do not proceed while under target FPS. */
 export async function waitIfSlow() {
   await holdForTargetFps(TARGET_FPS, 180);
 }
 
-/** Wait until FPS is back near the target before a heavy merge/GPU spike. */
 export async function waitUntilSmooth(minFps = TARGET_FPS, maxFrames = 120) {
   await holdForTargetFps(minFps, maxFrames);
 }

@@ -5,6 +5,9 @@
  * Scale note: world linear factor is √10 (~3.16×) vs the old ±560 m fence —
  * area ~10× — dramatic enough for 3 load-radius rings without flooding the
  * stream task table (a literal linear×10 would explode far-tile counts).
+ *
+ * Complements White Orchard heightmap (elevation only in heightField.js):
+ * biomes own tint / veg density / regions — keep BOTH; do not replace either.
  */
 
 import { cityBounds, isInsideCity } from '../RoadDimensions.js';

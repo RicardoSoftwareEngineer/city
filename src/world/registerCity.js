@@ -7,7 +7,11 @@ import { STREAM_STEP, WorldStream } from './WorldStream.js';
 import { castOpts } from './shadowPolicy.js';
 import { registerTerrain } from './terrain/TerrainWorld.js';
 import { ensureWhiteOrchardHeightmap } from './terrain/whiteOrchardHeight.js';
-import { registerVegetation } from './terrain/Vegetation.js';
+import {
+  registerNearVegetation,
+  registerFarVegetation,
+  registerDenseCarpet
+} from './terrain/Vegetation.js';
 import { registerLakes } from './water/registerLakes.js';
 import { registerCountryAvenue } from './terrain/countryAvenue.js';
 import { yieldToMain } from './yield.js';
@@ -22,8 +26,9 @@ export { STREAM_STEP };
 
 /**
  * Light registration only (streets / furniture / buildings / terrain tasks).
- * Vegetation + avenue + lakes are huge sync scatters — call registerHeavyWorld
- * later so "Começar a carregar" does not freeze the tab.
+ * Near vegetation is registered separately (registerNearCampo) so Começar can
+ * overlap spawn streets with first greens. Far veg / avenue / lakes / carpet
+ * go through registerHeavyWorld after the first street ring.
  */
 export async function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
   const stream = new WorldStream(parentGroup, ox, oz, renderer);
@@ -71,13 +76,25 @@ export async function createCityStream(parentGroup, physicsWorld, ox, oz, render
   return stream;
 }
 
-/** Scatter-heavy layers — run after the first street ring has started. */
+/** Near campo grass/bushes — sliced scatter, overlaps spawn streets. */
+export async function registerNearCampo(stream, parentGroup, ox, oz) {
+  await yieldToMain();
+  await registerNearVegetation(stream, parentGroup, ox, oz);
+  await yieldToMain();
+}
+
+/**
+ * Far veg + avenue + lakes + dense carpet jobs.
+ * Call after near campo is on the stream (and preferably after first street ring).
+ */
 export async function registerHeavyWorld(stream, parentGroup, ox, oz, scene) {
   await yieldToMain();
-  await registerVegetation(stream, parentGroup, ox, oz);
+  await registerFarVegetation(stream, parentGroup, ox, oz);
   await yieldToMain();
   registerCountryAvenue(stream, parentGroup, ox, oz);
   await yieldToMain();
   registerLakes(stream, parentGroup, ox, oz, scene);
+  await yieldToMain();
+  await registerDenseCarpet(stream);
   await yieldToMain();
 }

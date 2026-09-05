@@ -1,6 +1,9 @@
 /**
  * Deterministic countryside vegetation poses (Passo 5–7, 12–14).
  * Grid + jitter from TERRAIN_SEED. Rejects city, path bed, steep slopes.
+ *
+ * Prefer scatterGridAsync for field-sized extents — sync scatterGrid over
+ * ±300–380 m with orchard slopeAt costs multi-second main-thread freezes.
  */
 
 import { isInsideCity, GROUND_BODY_HALF } from '../RoadDimensions.js';
@@ -20,6 +23,10 @@ import {
   biomeTreeBias,
   biomeRockBias
 } from './biomes.js';
+import { yieldToMain } from '../yield.js';
+
+/** CPU budget per sync stretch inside async scatters (matches terrain SLICE_MS). */
+const SCATTER_SLICE_MS = 3.5;
 
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -32,7 +39,34 @@ function mulberry32(seed) {
 }
 
 /**
- * Scatter poses on a jittered grid.
+ * One jittered-grid cell → pose or null. Shared by sync + async scatters.
+ */
+function tryGridPose(x, z, spacing, rnd, scaleMin, scaleMax, accept, minHalfExtent) {
+  const jx = x + (rnd() - 0.5) * spacing * 0.7;
+  const jz = z + (rnd() - 0.5) * spacing * 0.7;
+  if (minHalfExtent > 0 && Math.max(Math.abs(jx), Math.abs(jz)) < minHalfExtent) {
+    return null;
+  }
+  if (isInsideCity(jx, jz)) return null;
+  if (isInAnyRiver(jx, jz)) return null;
+  if (isAvenueBed(jx, jz)) return null;
+  if (distOutsideCity(jx, jz) < 4) return null;
+  // Biome density: sparse biomes skip more samples.
+  if (rnd() > Math.min(1.35, biomeVegDensity(jx, jz))) return null;
+  if (!accept(jx, jz, rnd)) return null;
+  const scale = scaleMin + rnd() * (scaleMax - scaleMin);
+  return {
+    x: jx,
+    y: surfaceY(jx, jz),
+    z: jz,
+    rot: rnd() * Math.PI * 2,
+    scale
+  };
+}
+
+/**
+ * Scatter poses on a jittered grid (sync). Use only for small extents / sparse spacing.
+ * For campo-sized grids prefer scatterGridAsync.
  */
 export function scatterGrid(opts) {
   const {
@@ -41,32 +75,70 @@ export function scatterGrid(opts) {
     scaleMin = 0.85,
     scaleMax = 1.25,
     accept = () => true,
-    halfExtent = GROUND_BODY_HALF
+    halfExtent = GROUND_BODY_HALF,
+    minHalfExtent = 0,
+    maxPoses = Infinity
   } = opts;
 
   const poses = [];
   const rnd = mulberry32(TERRAIN_SEED + seedSalt);
   const start = -halfExtent + spacing * 0.5;
 
+  for (let x = start; x < halfExtent && poses.length < maxPoses; x += spacing) {
+    for (let z = start; z < halfExtent && poses.length < maxPoses; z += spacing) {
+      const pose = tryGridPose(x, z, spacing, rnd, scaleMin, scaleMax, accept, minHalfExtent);
+      if (pose) poses.push(pose);
+    }
+  }
+  return poses;
+}
+
+/**
+ * Same as scatterGrid but yields to rAF every SCATTER_SLICE_MS so Começar stays responsive.
+ * Supports annulus via minHalfExtent (Chebyshev) to fill far rings without re-scattering near.
+ * When maxPoses caps the list, walks outward by Chebyshev ring so the near edge of the
+ * annulus fills first (row-major from -halfExtent used to starve the NE/SE campo).
+ */
+export async function scatterGridAsync(opts) {
+  const {
+    spacing,
+    seedSalt = 1,
+    scaleMin = 0.85,
+    scaleMax = 1.25,
+    accept = () => true,
+    halfExtent = GROUND_BODY_HALF,
+    minHalfExtent = 0,
+    maxPoses = Infinity,
+    sliceMs = SCATTER_SLICE_MS
+  } = opts;
+
+  const poses = [];
+  const rnd = mulberry32(TERRAIN_SEED + seedSalt);
+  let sliceStart = performance.now();
+
+  const coords = [];
+  const start = -halfExtent + spacing * 0.5;
   for (let x = start; x < halfExtent; x += spacing) {
     for (let z = start; z < halfExtent; z += spacing) {
-      const jx = x + (rnd() - 0.5) * spacing * 0.7;
-      const jz = z + (rnd() - 0.5) * spacing * 0.7;
-      if (isInsideCity(jx, jz)) continue;
-      if (isInAnyRiver(jx, jz)) continue;
-      if (isAvenueBed(jx, jz)) continue;
-      if (distOutsideCity(jx, jz) < 4) continue;
-      // Biome density: sparse biomes skip more samples.
-      if (rnd() > Math.min(1.35, biomeVegDensity(jx, jz))) continue;
-      if (!accept(jx, jz, rnd)) continue;
-      const scale = scaleMin + rnd() * (scaleMax - scaleMin);
-      poses.push({
-        x: jx,
-        y: surfaceY(jx, jz),
-        z: jz,
-        rot: rnd() * Math.PI * 2,
-        scale
-      });
+      const cx = Math.max(Math.abs(x), Math.abs(z));
+      if (minHalfExtent > 0 && cx < minHalfExtent - spacing) continue;
+      coords.push(x, z, cx);
+    }
+  }
+  // Sort by Chebyshev ring (stable enough via insertion of triples).
+  const n = coords.length / 3;
+  const order = Array.from({ length: n }, (_, i) => i);
+  order.sort((a, b) => coords[a * 3 + 2] - coords[b * 3 + 2]);
+
+  for (let oi = 0; oi < order.length && poses.length < maxPoses; oi++) {
+    const i = order[oi];
+    const x = coords[i * 3];
+    const z = coords[i * 3 + 1];
+    const pose = tryGridPose(x, z, spacing, rnd, scaleMin, scaleMax, accept, minHalfExtent);
+    if (pose) poses.push(pose);
+    if (performance.now() - sliceStart >= sliceMs) {
+      await yieldToMain();
+      sliceStart = performance.now();
     }
   }
   return poses;

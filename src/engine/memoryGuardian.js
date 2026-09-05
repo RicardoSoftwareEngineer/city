@@ -56,7 +56,8 @@ function heapPressure() {
 function softCapFor(radius) {
   // Scale with radius, but keep a useful floor. Floor 48 at r40 filled the table
   // with terrain alone, flipped full→shrink, and starved the stream.
-  return Math.max(120, Math.round(RESIDENT_SOFT_CAP * Math.max(0.35, radius / MAX_RADIUS)));
+  // Floor 200: near streets + near veg + terrain tiles coexist (campo boot).
+  return Math.max(200, Math.round(RESIDENT_SOFT_CAP * Math.max(0.35, radius / MAX_RADIUS)));
 }
 
 function chebyshev(ax, az, bx, bz) {
@@ -133,6 +134,14 @@ export const memoryGuardian = {
    * never appeared. Only real heap pressure blocks terrain.
    */
   get wantsTerrainLoad() {
+    return heapPressure() < HEAP_SHRINK_ABOVE;
+  },
+
+  /**
+   * Base vegetation (prio 4) — soft-cap must not kill first near greens while
+   * street/url growers fill the table (same lesson as terrain #94).
+   */
+  get wantsNatureLoad() {
     return heapPressure() < HEAP_SHRINK_ABOVE;
   },
 

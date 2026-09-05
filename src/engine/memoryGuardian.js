@@ -127,23 +127,9 @@ export const memoryGuardian = {
         /* ignore */
       }
     }
-    // Still over soft cap: drop farthest inside-circle extras (except keep min bubble).
-    if (residents.size > RESIDENT_SOFT_CAP) {
-      const ranked = [...residents.values()]
-        .map((row) => ({ row, d: chebyshev(row.x, row.z, focusX, focusZ) }))
-        .sort((a, b) => b.d - a.d);
-      for (const { row, d } of ranked) {
-        if (residents.size <= RESIDENT_SOFT_CAP) break;
-        if (d <= MIN_RADIUS) continue;
-        residents.delete(row.id);
-        try {
-          row.dispose();
-          n += 1;
-        } catch {
-          /* ignore */
-        }
-      }
-    }
+    // Soft-cap does NOT dispose inside the circle — that caused load→evict→reload thrash
+    // and Chrome STATUS_BREAKPOINT. Over-cap only flips isTableFull / wantsLoad; tick
+    // shrinks radius under pressure, then the next evictOutside drops true outsiders.
     lastEvictCount = n;
     return n;
   },
@@ -159,7 +145,9 @@ export const memoryGuardian = {
     if (lastPressure >= HEAP_SHRINK_ABOVE || full) {
       shrinkStreak += 1;
       expandStreak = 0;
-      if (shrinkStreak >= HYSTERESIS_FRAMES && radius > MIN_RADIUS) {
+      // Over resident soft-cap: shrink sooner so outsiders become evictable.
+      const need = full ? Math.max(8, HYSTERESIS_FRAMES / 3) : HYSTERESIS_FRAMES;
+      if (shrinkStreak >= need && radius > MIN_RADIUS) {
         radius = Math.max(MIN_RADIUS, radius - STEP);
         shrinkStreak = 0;
       }

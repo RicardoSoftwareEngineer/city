@@ -1,5 +1,5 @@
 /**
- * Persona panel — overload % + last 10 decisions per actor.
+ * One minimizable HUD panel per persona — overload % + last 10 decisions.
  */
 
 import { getLastDraw } from './loadLog.js';
@@ -10,6 +10,16 @@ import {
   getPersonaSnapshot,
   setOverload
 } from './personaLog.js';
+
+/** Accent color per persona title */
+const PERSONA_COLOR = {
+  Guardian: '#f472b6',
+  Carregador: '#38bdf8',
+  Valve: '#a78bfa',
+  Renderer: '#34d399',
+  LoadGovernor: '#fbbf24',
+  QualityAdapter: '#fb923c'
+};
 
 function clampPct(n) {
   if (!Number.isFinite(n)) return 0;
@@ -22,28 +32,57 @@ function barClass(pct) {
   return 'persona-ok';
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function slug(id) {
+  return String(id).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
 /**
+ * Mounts one separate panel per persona (before initMinimizableHud).
  * @param {{ getQuality?: () => { level: number } }} [opts]
  */
 export function initPersonaHud(opts = {}) {
-  const root = document.getElementById('persona-hud');
-  if (!root) return () => {};
+  // Remove legacy single panel if still in HTML
+  document.getElementById('persona-hud')?.remove();
 
-  const body = root.querySelector('[data-min-body]');
-  if (body && !body.dataset.ready) {
-    body.innerHTML = PERSONA_IDS.map(
-      (id) =>
+  /** @type {Map<string, HTMLElement>} */
+  const panels = new Map();
+
+  PERSONA_IDS.forEach((id, i) => {
+    const sid = slug(id);
+    let root = document.querySelector(`[data-min-id="persona-${sid}"]`);
+    if (!root) {
+      root = document.createElement('div');
+      root.className = 'persona-panel';
+      root.id = `persona-${sid}`;
+      root.setAttribute('data-min-id', `persona-${sid}`);
+      root.innerHTML =
+        `<button type="button" class="hud-min-toggle persona-label" data-min-toggle ` +
+        `style="color:${PERSONA_COLOR[id] || '#94a3b8'}">` +
+        `${id} <span data-min-chev>▾</span></button>` +
+        `<div data-min-body>` +
         `<div class="persona-card" data-persona="${id}">` +
         `<div class="persona-head">` +
-        `<span class="persona-name">${id}</span>` +
         `<span class="persona-pct" data-pct>—</span>` +
         `</div>` +
         `<div class="persona-track"><div class="persona-fill persona-ok" data-fill style="width:0%"></div></div>` +
         `<ol class="persona-decisions" data-decisions></ol>` +
-        `</div>`
-    ).join('');
-    body.dataset.ready = '1';
-  }
+        `</div></div>`;
+      // Default stack top-right so panels don't all sit on the same spot
+      // (localStorage position wins after first drag via minimizableHud).
+      root.style.top = `${4.5 + i * 7.2}rem`;
+      root.style.right = '1rem';
+      document.body.appendChild(root);
+    }
+    panels.set(id, root);
+  });
 
   return function paintPersonaHud() {
     const g = memoryGuardian.snapshot();
@@ -81,7 +120,8 @@ export function initPersonaHud(opts = {}) {
 
     for (const id of PERSONA_IDS) {
       const snap = getPersonaSnapshot(id);
-      const card = body?.querySelector(`[data-persona="${id}"]`);
+      const root = panels.get(id);
+      const card = root?.querySelector(`[data-persona="${id}"]`);
       if (!card) continue;
       const pct = clampPct(snap.overload);
       const pctEl = card.querySelector('[data-pct]');
@@ -99,12 +139,4 @@ export function initPersonaHud(opts = {}) {
       }
     }
   };
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

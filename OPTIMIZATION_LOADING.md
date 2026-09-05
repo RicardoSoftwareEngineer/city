@@ -1,3 +1,5 @@
+> **2026-09-05:** Instancer GPU warmup — after glTF load, allocate batch-0 InstancedMeshes and `compileAsync` one program/frame (`grower.warmup` / `warmupInstancedTemplate`) before reveal; stamp `material.userData._gpuInstancedProgramWarmed` so later batches skip driver compile. Targets Grass_* / carpet / bank ornament / street asphalt first-compile hitches.
+
 # Loading optimization (scheduler / pacing)
 
 > **2026-09-05:** Travamentos — FPS logs any frame under ~58fps (was ~50) with richer HUD/console fields.

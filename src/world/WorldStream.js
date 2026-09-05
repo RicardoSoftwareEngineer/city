@@ -140,6 +140,11 @@ export class WorldStream {
           )
           : { reveal() { return 0; } };
         if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
+        if (template && this.renderer && job.grower.warmup) {
+          await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
+            job.grower.warmup(this.renderer)
+          );
+        }
         await yieldAfterWork();
       }
 
@@ -157,6 +162,9 @@ export class WorldStream {
             job.options
           );
         });
+        if (this.renderer && job.grower.warmup) {
+          await measureRingItem('warmup template', () => job.grower.warmup(this.renderer));
+        }
         await yieldAfterWork();
       }
 
@@ -241,6 +249,11 @@ export class WorldStream {
             }
           );
         });
+        if (this.renderer && b.grower.warmup) {
+          await measureRingItem(`warmup ${b.name || b.url || 'building'}`, () =>
+            b.grower.warmup(this.renderer)
+          );
+        }
         await yieldToMain();
       }
 

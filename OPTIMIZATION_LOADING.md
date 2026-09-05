@@ -1,3 +1,5 @@
+> **2026-09-05:** Phys pin — MemoryGuardian never disposes `phys` inside PHYS_PIN_RADIUS (~20 m); HUD ground timer uses real elapsed ms (not `built*8`); spawn streets demoted to async — only phys under the car is hard sync.
+
 > **2026-09-05:** QualityAdapter always adapts (no streaming freeze); Guardian innerRadius 0.1R + zone helpers; debug rings + Personas HUD (`personaLog`); outer-zone urlJobs skip castShadow.
 
 > **2026-09-05:** MemoryGuardian owns world/building growers (urlJobs, templateJobs, buildings) — retain/dispose with focus filter; bank/lakes still one-shot tasks.
@@ -210,6 +212,9 @@ Far terrain uses coarse 80 m tiles (priority 4) so expanding to ±560 m does not
 
 ### Terrain physics is not stream-gated
 
-Visual terrain tiles still stream at priority 4, but their colliders are built
-on demand by `ensureGroundAround` (see map-items). Budget note: at most 2 tile
-heightfields per frame, plus a small spawn ring at boot.
+Visual terrain tiles still stream under MemoryGuardian, but their colliders are
+built on demand by `ensureGroundAround` (see map-items) inside `PHYS_PIN_RADIUS`
+(~20 m). Those `phys` residents are **pinned**: Guardian never disposes them
+while the car is near (stronger than soft-cap / radius shrink). Budget: at most
+2 heightfields per frame + a pin-radius boot pump. Only this phys work is hard
+sync; spawn streets and other visuals are async / Guardian-streamable.

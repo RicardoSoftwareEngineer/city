@@ -23,9 +23,9 @@ import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
 import { initResourceHud } from './engine/resourceHud.js';
-import { beginLoadPhase, endLoadPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
+import { beginLoadPhase, endLoadPhase, endGroundPhysPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
 import { bindValveDraw, waitUntilSmooth, yieldToMain } from './world/yield.js';
-import { memoryGuardian } from './engine/memoryGuardian.js';
+import { memoryGuardian, PHYS_PIN_RADIUS } from './engine/memoryGuardian.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import { isInsideCity } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
@@ -143,13 +143,18 @@ async function startGame() {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
 
-    // Ground under the car exists before physics needs it, even if the
-    // visual stream has not reached this ring yet.
+    // Phys under the car is pinned by MemoryGuardian — rebuild any missing
+    // tiles inside PHYS_PIN_RADIUS even when visuals have been evicted.
     const car = vehicleController.chassisBody.position;
     memoryGuardian.setFocus(car.x, car.z);
     memoryGuardian.tick();
-    const builtGround = ensureGroundAround(car.x, car.z);
-    if (builtGround) noteGroundPhys(builtGround, `${builtGround} tile(s)`);
+    {
+      const t0 = performance.now();
+      const builtGround = ensureGroundAround(car.x, car.z);
+      if (builtGround) {
+        noteGroundPhys(builtGround, `${builtGround} tile(s)`, performance.now() - t0);
+      }
+    }
     rescueIfBelowGround(vehicleController);
 
     vehicleController.enabled = !camera.isFreeFlight;
@@ -215,10 +220,13 @@ async function startGame() {
   renderer.resumeDraw();
   await yieldToMain();
 
-  // Solid countryside under and around the spawn from frame one.
+  // Mandatory sync: Heightfield under the car (pinned by MemoryGuardian).
+  // City asphalt already has PhysicsWorld's flat ground box; street glTFs are visual.
   {
-    const built = ensureGroundAround(originX, originZ, 80, 25);
-    if (built) noteGroundPhys(built, `boot ${built} tile(s)`);
+    const t0 = performance.now();
+    const built = ensureGroundAround(originX, originZ, PHYS_PIN_RADIUS, 25);
+    if (built) noteGroundPhys(built, `boot ${built} tile(s)`, performance.now() - t0);
+    endGroundPhysPhase();
   }
 
   // Capture freezes as soon as the player can move / fly.
@@ -227,6 +235,7 @@ async function startGame() {
   loadGovernor.streaming = true;
   memoryGuardian.setFocus(originX, originZ);
   memoryGuardian.tick();
+  // Preferred early asphalt visuals — async under Guardian, not a hard sync gate.
   beginLoadPhase('spawn', 'r10 p0');
   stream.pumpTo(STREAM_STEP, 0)
     .then(() => {
@@ -234,7 +243,7 @@ async function startGame() {
       setLoadPhase('play');
       setInteractive(true);
       beginLoadPhase('terrain', 'mesh…');
-      // Terrain inside Guardian radius first (phys stays under the car).
+      // Visual terrain inside Guardian radius (phys already pinned under the car).
       return stream.pumpTerrainTo(STREAM_STEP);
     })
     .then(async () => {
@@ -244,7 +253,7 @@ async function startGame() {
       setInteractive(true);
       await waitUntilSmooth();
       await renderer.resumeShadows();
-      // Residency loop — never finishes; Guardian radius grows/shrinks forever.
+      // Residency loop — never finishes; Guardian owns all visual residency.
       return stream.continueAfter(STREAM_STEP);
     })
     .catch((error) => {

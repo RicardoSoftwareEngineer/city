@@ -1,5 +1,6 @@
 /**
  * Left HUD: sync + async load-order lists.
+ * Sync is phys-under-car only; spawn streets and the rest are async.
  */
 
 import { getLoadOrderRevision, getLoadOrderSnapshot } from './loadOrderLog.js';

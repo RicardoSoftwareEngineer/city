@@ -66,3 +66,42 @@ export function createBudget() {
     }
   };
 }
+
+/**
+ * Single admission gate for streaming work ("porteira").
+ * Opens only when FPS is at target; after a heavy unit, closes until FPS recovers.
+ * All stream jobs should run through this — not only waitIfSlow beforehand.
+ */
+export async function throughValve(fn) {
+  await holdForTargetFps(TARGET_FPS, 180);
+  const t0 = performance.now();
+  try {
+    return await fn();
+  } finally {
+    const ms = performance.now() - t0;
+    const heavy = ms >= Math.max(6, loadGovernor.budgetMs);
+    if (heavy || loadGovernor.needsRest || loadGovernor.instantFps < TARGET_FPS) {
+      await holdForTargetFps(TARGET_FPS, 180);
+    }
+  }
+}
+
+/**
+ * Cooperative CPU slice inside a long loop (terrain verts, etc.).
+ * Yields + re-gates when the slice budget is spent or FPS is already low.
+ */
+export function createSlice(budgetMs = 3) {
+  let start = performance.now();
+  return {
+    async tick(force = false) {
+      const spent = performance.now() - start;
+      if (!force && spent < budgetMs && !loadGovernor.needsRest) return;
+      if (loadGovernor.needsRest || loadGovernor.instantFps < TARGET_FPS) {
+        await holdForTargetFps(TARGET_FPS, 60);
+      } else {
+        await yieldToMain();
+      }
+      start = performance.now();
+    }
+  };
+}

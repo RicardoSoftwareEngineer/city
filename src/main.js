@@ -26,6 +26,7 @@ import { initResourceHud } from './engine/resourceHud.js';
 import { beginLoadPhase, endLoadPhase, endGroundPhysPhase, finishAllLoadPhases, noteGroundPhys } from './engine/loadOrderLog.js';
 import { bindValveDraw, waitUntilSmooth, yieldToMain, throughValve } from './world/yield.js';
 import { memoryGuardian, PHYS_PIN_RADIUS } from './engine/memoryGuardian.js';
+import { createFocusGrid } from './engine/focusGrid.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import {
   isInsideCity,
@@ -35,7 +36,7 @@ import {
 } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
-import { ensureGroundAround, setTerrainPhysics } from './world/terrain/terrainCollision.js';
+import { ensureGroundAround, setTerrainPhysics, TERRAIN_TILE, GRID_OFFSET } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { initTerrainDebug } from './world/terrain/terrainDebug.js';
 import { initRadiusDebug } from './engine/radiusDebug.js';
@@ -68,6 +69,13 @@ async function startGame() {
   const saved = loadSession();
   const originX = saved?.car?.x ?? 0;
   const originZ = saved?.car?.z ?? 4.0;
+
+  // Stream focus snaps to terrain-fine tiles — not every centimetre of the car.
+  const focusGrid = createFocusGrid({
+    cellSize: TERRAIN_TILE,
+    offset: GRID_OFFSET,
+    hysteresis: 8
+  });
 
   // Minimal phys FIRST — pin Heightfield under spawn before any glTF / GPU compile.
   // City asphalt already has PhysicsWorld's flat ground box; this covers countryside spawn.
@@ -161,7 +169,8 @@ async function startGame() {
     // Phys under the car is pinned by MemoryGuardian — rebuild any missing
     // tiles inside PHYS_PIN_RADIUS even when visuals have been evicted.
     const car = vehicleController.chassisBody.position;
-    memoryGuardian.setFocus(car.x, car.z);
+    const focus = focusGrid.update(car.x, car.z);
+    memoryGuardian.setFocus(focus.x, focus.z);
     memoryGuardian.tick();
     {
       const t0 = performance.now();
@@ -249,7 +258,10 @@ async function startGame() {
   setInteractive(true);
   setLoadPhase('idle');
   loadGovernor.streaming = false;
-  memoryGuardian.setFocus(originX, originZ);
+  {
+    const focus = focusGrid.update(originX, originZ);
+    memoryGuardian.setFocus(focus.x, focus.z);
+  }
   memoryGuardian.tick();
 
   const startBtn = document.getElementById('start-load-btn');
@@ -267,7 +279,10 @@ async function startGame() {
 
     setLoadPhase('play');
     loadGovernor.streaming = true;
-    memoryGuardian.setFocus(originX, originZ);
+    {
+      const focus = focusGrid.update(originX, originZ);
+      memoryGuardian.setFocus(focus.x, focus.z);
+    }
     memoryGuardian.tick();
 
     // Corner markers — off critical path.

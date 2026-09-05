@@ -42,7 +42,8 @@ export function createWater2River(river, opts) {
   });
 
   water.rotation.x = -Math.PI / 2;
-  water.position.set(0, opts.waterY, 0);
+  // Height encoded per-vertex (sloping watershed).
+  water.position.set(0, 0, 0);
   water.castShadow = false;
   water.receiveShadow = false;
   water.name = 'river_Water2.js';

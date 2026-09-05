@@ -10,13 +10,13 @@ import { loadGovernor } from './LoadGovernor.js';
 import { noteDecision } from './personaLog.js';
 
 const MIN_RADIUS = 80;
-const MAX_RADIUS = 400;
+const MAX_RADIUS = 600;
 const STEP = 10;
 /** Heap used/limit — expand only below LOW, shrink above HIGH. */
 const HEAP_EXPAND_BELOW = 0.55;
 const HEAP_SHRINK_ABOVE = 0.72;
 /** Soft cap on registered residents before we treat the "table" as full. */
-const RESIDENT_SOFT_CAP = 220;
+const RESIDENT_SOFT_CAP = 280;
 const HYSTERESIS_FRAMES = 45;
 
 function heapPressure() {

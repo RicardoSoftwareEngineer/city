@@ -56,13 +56,13 @@ export const VALIDATE_ITEMS = [
   },
   {
     n: 9,
-    title: 'Rio Water.js (leste)',
-    hint: 'Addon oficial Water no rio S oeste do par: reflexo + sun + waternormals. Compare com o 10.'
+    title: 'Rio principal (watershed)',
+    hint: 'Water.js no tronco: highland → vale → lago. Água desce a favor do leito.'
   },
   {
     n: 10,
-    title: 'Rio Water2.js (leste)',
-    hint: 'Addon oficial Water2 no rio S paralelo (+28 m): reflexo + refração + fluxo. Compare com o 9.'
+    title: 'Afluente Water2 + lago',
+    hint: 'Water2 no afluente das Rocky Foothills; lago de outfall no lakeshore.'
   }
 ];
 

@@ -1,7 +1,8 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
  * Terrain meshes via pumpTerrainTo (own radius sweep, mesh-only; may overlap spawn streets).
- * Then streets → props → bank → buildings → countryside veg (prio 4) + dense (prio 5).
+ * Then streets → props → bank → buildings → countryside veg (prio ≤4).
+ * Dense carpet (prio 5) is background-only — never blocks radius expansion.
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -14,13 +15,17 @@ import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMai
 import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
-import { phaseIdForPriority, tickLoadPhase } from '../engine/loadOrderLog.js';
+import { phaseIdForPriority, tickLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
 import { noteDecision } from '../engine/personaLog.js';
 import { noteZonePolicy } from '../engine/qualityAdapter.js';
 
 export const STREAM_STEP = 10;
+/** Max priority that may gate ring expansion (streets…base veg). */
+export const STREAM_PRIORITY_CORE = 4;
+/** Dense grass carpet — background slices only. */
+export const STREAM_PRIORITY_CARPET = 5;
 
 function posesCentroid(poses) {
   let sx = 0, sz = 0;
@@ -243,7 +248,7 @@ export class WorldStream {
 
       if (this.renderer) this.renderer.pauseDraw();
       for (const job of this.urlJobs) {
-        if (!job.grower) continue;
+        if (!job.grower || job.priority !== priority) continue;
         let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
           added += 1;
@@ -259,7 +264,7 @@ export class WorldStream {
         }
       }
       for (const job of this.templateJobs) {
-        if (!job.grower) continue;
+        if (!job.grower || job.priority !== priority) continue;
         let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
           added += 1;
@@ -446,26 +451,107 @@ export class WorldStream {
   }
 
   /**
-   * Long-running residency loop: city rings + terrain only while Guardian wants load
-   * and only up to Guardian.radius (spawn rings capped). Never exits — radius can
-   * grow again after eviction frees the table.
+   * One background slice of dense carpet (prio 5). Never expands rings and never
+   * runs inside pumpTo(core) — light/core work must not wait on this.
+   * Returns work units done (loads + reveal passes).
+   */
+  async pumpCarpetSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
+    const priority = STREAM_PRIORITY_CARPET;
+    const radius = memoryGuardian.radius;
+    const focus = memoryGuardian.focus;
+    if (!memoryGuardian.wantsLoad) return 0;
+
+    const pendingLoad = this.urlJobs.filter(
+      (job) =>
+        job.priority === priority &&
+        !job.grower &&
+        minPoseDist(job.poses, this.ox, this.oz) <= radius &&
+        minPoseDist(job.poses, focus.x, focus.z) <= radius
+    );
+
+    tickLoadPhase('carpet', `bg r${Math.round(radius)}`);
+    setStreamLabel(`carpet bg r${Math.round(radius)}`);
+    let work = 0;
+    const budget = createBudget();
+
+    for (const job of pendingLoad.slice(0, maxLoads)) {
+      const template = await measureRingItem(job.url, () =>
+        throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
+      );
+      if (template && typeof job.options.prepare === 'function') {
+        await throughValve(async () => { job.options.prepare(template); });
+      }
+      job.grower = template
+        ? createGrowingInstancedGltf(
+          this.parent,
+          template,
+          job.poses,
+          this.ox,
+          this.oz,
+          zoneAwareOptions(job.options, job.poses)
+        )
+        : { reveal() { return 0; } };
+      if (template && this.renderer && job.grower.warmup) {
+        await measureRingItem('warmup carpet', () =>
+          throughValve(() => job.grower.warmup(this.renderer))
+        );
+      }
+      registerGrowerResident(`url:${job.url}`, 'world', job.poses, job);
+      work += 1;
+      await yieldAfterWork();
+    }
+
+    if (this.renderer) this.renderer.pauseDraw();
+    let passes = 0;
+    for (const job of this.urlJobs) {
+      if (passes >= maxRevealPasses) break;
+      if (!job.grower || job.priority !== priority) continue;
+      let added = 0;
+      while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+        added += 1;
+        await budget.tick();
+      }
+      if (added) {
+        passes += 1;
+        work += added;
+        if (this.renderer) {
+          await measureRingItem('compile carpet', () =>
+            throughValve(() => this.renderer.compileSubtree(this.parent))
+          );
+          this.renderer.resumeDraw();
+          await yieldToMain();
+          this.renderer.pauseDraw();
+        }
+      }
+    }
+    if (this.renderer) this.renderer.resumeDraw();
+    if (!pendingLoad.length && work === 0) endLoadPhase('carpet');
+    return work;
+  }
+
+  /**
+   * Long-running residency loop: core rings (prio ≤4) + terrain expand with Guardian.
+   * Dense carpet is sliced each turn and never gates ring growth.
    */
   async continueAfter(radius) {
-    await this.pumpTo(Math.min(radius, memoryGuardian.radius), 5);
+    const core = STREAM_PRIORITY_CORE;
+    await this.pumpTo(Math.min(radius, memoryGuardian.radius), core);
     let r = Math.min(radius, memoryGuardian.radius);
     let dumped = false;
 
     for (;;) {
       await this.pumpTerrainSlice(8);
+      // Background carpet — one thin slice; does not await full prio-5 drain.
+      await this.pumpCarpetSlice();
 
       if (memoryGuardian.wantsLoad) {
         const cap = memoryGuardian.radius;
         if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);
-          await this.pumpTo(r, 5);
+          await this.pumpTo(r, core);
         } else if (r < cap) {
           r = cap;
-          await this.pumpTo(r, 5);
+          await this.pumpTo(r, core);
         } else if (!dumped) {
           dumpLoadLog();
           dumped = true;

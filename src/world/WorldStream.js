@@ -11,7 +11,7 @@ import {
   createGrowingInstancedGltf,
   minPoseDist
 } from './instancing.js';
-import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
+import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain, pushDeferValveHold, popDeferValveHold } from './yield.js';
 import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
@@ -389,6 +389,7 @@ export class WorldStream {
         (task) =>
           task.kind === 'terrain' &&
           !task.done &&
+          !task.building &&
           task.x != null &&
           memoryGuardian.allowsAt(task.x, task.z)
       )
@@ -417,29 +418,37 @@ export class WorldStream {
     setStreamLabel(`terrain r${Math.round(memoryGuardian.radius)}`);
     tickLoadPhase('terrain', `r${Math.round(memoryGuardian.radius)}`);
 
-    for (const task of pending) {
-      if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
-      if (!memoryGuardian.allowsAt(task.x, task.z)) continue;
+    // While near tiles are still missing, do not let concurrent street Valve HOLD
+    // pauseDraw across terrain yieldToMain gaps (felt as multi-second freezes).
+    const priming = !this.hasNearTerrainProgress();
+    if (priming) pushDeferValveHold();
+    try {
+      for (const task of pending) {
+        if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
+        if (!memoryGuardian.allowsAt(task.x, task.z)) continue;
 
-      const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
-      beginRing(Math.round(dFocus / STREAM_STEP) * STREAM_STEP || STREAM_STEP);
-      const ok = await measureRingItem(
-        `terrain mesh d${Math.round(dFocus)}`,
-        () => task.run()
-      );
-      endRing();
-      if (ok) {
-        task.done = true;
-        built += 1;
-        sinceCompile += 1;
+        const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
+        beginRing(Math.round(dFocus / STREAM_STEP) * STREAM_STEP || STREAM_STEP);
+        const ok = await measureRingItem(
+          `terrain mesh d${Math.round(dFocus)}`,
+          () => task.run()
+        );
+        endRing();
+        if (ok) {
+          task.done = true;
+          built += 1;
+          sinceCompile += 1;
+        }
+        await yieldAfterWork();
+        if (sinceCompile >= COMPILE_EVERY) {
+          await flushCompile(`compile terrain slice`);
+        }
       }
-      await yieldAfterWork();
-      if (sinceCompile >= COMPILE_EVERY) {
-        await flushCompile(`compile terrain slice`);
-      }
+
+      await flushCompile('compile terrain slice final');
+    } finally {
+      if (priming) popDeferValveHold();
     }
-
-    await flushCompile('compile terrain slice final');
     return built;
   }
 

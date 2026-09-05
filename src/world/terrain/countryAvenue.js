@@ -181,7 +181,13 @@ export function avenueLength() {
  * Nearest point on avenue.
  * @returns {{ x:number, z:number, y:number, dist:number, s:number, bridge:boolean, tunnel:boolean }}
  */
+/** One-slot cache: surfaceY→heightAt hits nearest 3–4× for the same (x,z). */
+let _aveX = NaN;
+let _aveZ = NaN;
+let _aveN = null;
+
 export function nearestOnAvenue(x, z) {
+  if (x === _aveX && z === _aveZ && _aveN) return _aveN;
   let best = {
     x: poly[0]?.x ?? x,
     z: poly[0]?.z ?? z,
@@ -218,6 +224,9 @@ export function nearestOnAvenue(x, z) {
       };
     }
   }
+  _aveX = x;
+  _aveZ = z;
+  _aveN = best;
   return best;
 }
 

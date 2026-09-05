@@ -13,6 +13,7 @@ import {
   CITY_BURY_RAMP
 } from '../RoadDimensions.js';
 import { heightAt, TERRAIN_SEED } from './heightField.js';
+import { avenueBlendFactor } from './countryAvenue.js';
 
 export const PATH_HALF_WIDTH = 2.0;
 /** Soft dirt→grass blend beyond the bed (meters). */
@@ -204,6 +205,10 @@ export function pathDirtFactor(x, z) {
  * city box still wins the collision because it sits 10 cm higher.
  */
 export function surfaceY(x, z) {
+  // Country avenue wins over paved bury so the downtown exit has no shelf/seam.
+  if (avenueBlendFactor(x, z) > 0.35) {
+    return heightAt(x, z);
+  }
   const inset = pavedInset(x, z);
   if (inset > 0) {
     const t = Math.min(1, inset / CITY_BURY_RAMP);

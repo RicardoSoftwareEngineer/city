@@ -1,8 +1,9 @@
 /**
  * Shared CPU height for open countryside.
  * Witcher-style vista: flush apron at the city → rolling mid → ridges →
- * distant peaks so a low camera still sees far vertical silhouette.
- * Twin S-rivers east of the city carve beds; soft mountains channel the S.
+ * distant peaks. Biome hill boosts + watershed river beds + avenue grade.
+ *
+ * World extent scaled by √10 (~3.16× linear, ~10× area) vs legacy ±560 m.
  */
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
@@ -14,11 +15,22 @@ import {
   RIVER_BLEND,
   RIVER_DEPTH,
   riverMountainHeight,
-  riverPolyline
+  riverPolyline,
+  nearestOnRiver
 } from '../water/rivers.js';
+import { LAKES, lakeInside, ellipseRadius } from '../water/lakes.js';
+import { biomeHillFactor, WORLD_LINEAR_SCALE } from './biomes.js';
+import {
+  bakeAvenueProfile,
+  applyAvenueGrade,
+  avenueTunnelCut
+} from './countryAvenue.js';
 
 /** Fixed seed so every boot gets the same hills. */
 export const TERRAIN_SEED = 42;
+
+/** Exported for docs / HUD. */
+export { WORLD_LINEAR_SCALE };
 
 /**
  * Legacy knobs (tests / older callers). Layered heightAt no longer scales
@@ -69,13 +81,15 @@ function n01(x, z, freq, ox = 0, oz = 0) {
 }
 
 /**
- * World Y of the countryside surface at (x, z) before river beds.
- * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + mountains.
+ * World Y of the countryside surface at (x, z) before river beds / avenue.
+ * Distance bands scaled by WORLD_LINEAR_SCALE so the vista still reads on
+ * the larger map.
  */
 function uncarvedHeightAt(x, z) {
   if (isInsideCity(x, z)) return 0;
 
   const d = distOutsideCity(x, z);
+  const S = WORLD_LINEAR_SCALE;
 
   // Keep the first ~12–55 m flush with streets (no shelf at the curb).
   const apron = smoothstep(blendIn, blendOut, d);
@@ -85,75 +99,128 @@ function uncarvedHeightAt(x, z) {
   const ridge = n01(x, z, 0.0045, 4.0, 0.7) * 0.7 + n01(x, z, 0.011, 1.2, 3.4) * 0.3;
   const peak = n01(x, z, 0.0019, 8.0, 2.2) * 0.75 + n01(x, z, 0.0055, 0.4, 6.1) * 0.25;
 
-  // Distance bands (meters outside city AABB).
-  const mid = smoothstep(45, 170, d); // rolling hills
-  const rise = smoothstep(150, 310, d); // rising ridges
-  const far = smoothstep(280, 520, d); // distant peaks / silhouette
+  // Distance bands scaled with the larger world.
+  const mid = smoothstep(45 * S, 170 * S, d);
+  const rise = smoothstep(150 * S, 310 * S, d);
+  const far = smoothstep(280 * S, 520 * S, d);
 
   let h = 0;
-  // Soft near rolls (still almost street-level next to the city).
   h += (0.2 + roll * 2.0) * apron * (1 - mid * 0.55);
-  // Mid countryside — readable hills without blocking the horizon.
   h += (2.5 + roll * 11) * mid * (1 - rise * 0.4);
-  // Ridges that lift the eye toward the distance.
   h += (14 + ridge * 36) * rise * (1 - far * 0.3);
-  // Far peaks — vertical silhouette visible from a low camera.
   h += (48 + peak * 100) * far;
 
-  // Soft mountains that channel the S-rivers (outside city only).
+  // Soft mountains that channel the watershed.
   h += riverMountainHeight(x, z);
+
+  // Biome-specific hill / basin boost (wetland negative, highland strong).
+  const biomeF = biomeHillFactor(x, z);
+  h += biomeF * (6 + roll * 10) * apron;
 
   return h;
 }
 
 const riverWaterYCache = new Map();
+let avenueBaked = false;
+
+function ensureAvenueBaked() {
+  if (avenueBaked) return;
+  avenueBaked = true;
+  bakeAvenueProfile(uncarvedHeightAt);
+}
 
 /**
- * Water plane Y: average uncarved+mountains height along a few polyline
- * samples, minus a small offset so the surface sits in the bed.
+ * Sloping water Y along a river: high at source (tNorm~0), low at mouth (tNorm~1).
+ * Uses uncarved samples with a monotone envelope so water clearly flows downhill.
+ */
+export function riverWaterYAt(river, tNorm) {
+  const key = river.id;
+  let profile = riverWaterYCache.get(key);
+  if (!profile) {
+    const line = riverPolyline(river);
+    const samples = [];
+    for (let i = 0; i < line.length; i++) {
+      const p = line[i];
+      samples.push({
+        t: p.tNorm ?? i / Math.max(1, line.length - 1),
+        y: uncarvedHeightAt(p.x, p.z) - 0.45
+      });
+    }
+    // Enforce monotone decrease source → mouth.
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i].y > samples[i - 1].y - 0.02) {
+        samples[i].y = samples[i - 1].y - 0.02;
+      }
+    }
+    // Mouth should sit near a low basin.
+    const mouth = samples[samples.length - 1];
+    if (mouth) mouth.y = Math.min(mouth.y, 4);
+    profile = samples;
+    riverWaterYCache.set(key, profile);
+  }
+  if (!profile.length) return 0;
+  const t = Math.min(1, Math.max(0, tNorm));
+  for (let i = 0; i < profile.length - 1; i++) {
+    if (t >= profile[i].t && t <= profile[i + 1].t) {
+      const u =
+        (t - profile[i].t) / Math.max(1e-6, profile[i + 1].t - profile[i].t);
+      return profile[i].y * (1 - u) + profile[i + 1].y * u;
+    }
+  }
+  return profile[profile.length - 1].y;
+}
+
+/**
+ * Water plane Y: average along polyline (legacy flat callers).
+ * Prefer riverWaterYAt for sloping ribbons.
  */
 export function riverSurfaceY(river) {
-  let y = riverWaterYCache.get(river.id);
-  if (y == null) {
-    const line = riverPolyline(river);
-    const n = line.length;
-    const samples = Math.min(7, Math.max(1, n));
-    let sum = 0;
-    for (let i = 0; i < samples; i++) {
-      const idx =
-        samples === 1 ? Math.floor(n / 2) : Math.floor((i / (samples - 1)) * (n - 1));
-      const p = line[idx];
-      sum += uncarvedHeightAt(p.x, p.z);
-    }
-    y = sum / samples - 0.35;
-    riverWaterYCache.set(river.id, y);
-  }
-  return y;
+  const line = riverPolyline(river);
+  if (!line.length) return 0;
+  const mid = line[Math.floor(line.length / 2)];
+  return riverWaterYAt(river, mid.tNorm ?? 0.5);
 }
 
 /** @deprecated Prefer riverSurfaceY — kept for any stray lake callers. */
 export function lakeSurfaceY(lake) {
-  return riverSurfaceY(lake);
+  // Outfall lake sits at the main-stem mouth water level.
+  const main = RIVERS[0];
+  return riverWaterYAt(main, 1) + 0.15;
+}
+
+function applyLakeBasins(h, x, z) {
+  let out = h;
+  for (let i = 0; i < LAKES.length; i++) {
+    const lake = LAKES[i];
+    const t = ellipseRadius(x, z, lake);
+    if (t >= 1.15) continue;
+    const waterY = lakeSurfaceY(lake);
+    const floor = waterY - (lake.depth ?? 2);
+    const shore = smoothstep(0.85, 1.15, t);
+    out = floor * (1 - shore) + out * shore;
+  }
+  return out;
 }
 
 /**
- * Carve smooth river beds: flat floor at waterY-depth inside halfWidth,
- * blend out to RIVER_HALF_WIDTH+RIVER_BLEND.
+ * Carve smooth river beds: floor follows sloping waterY - depth.
  */
 function applyRiverBeds(h, x, z) {
   let out = h;
   for (let i = 0; i < RIVERS.length; i++) {
     const river = RIVERS[i];
-    const d = distToRiver(x, z, river);
-    const outer = RIVER_HALF_WIDTH + RIVER_BLEND;
-    if (d >= outer) continue;
-    const waterY = riverSurfaceY(river);
-    const floor = waterY - (river.depth ?? RIVER_DEPTH);
+    const halfW = river.halfWidth ?? RIVER_HALF_WIDTH;
+    const depth = river.depth ?? RIVER_DEPTH;
+    const n = nearestOnRiver(x, z, river);
+    const outer = halfW + RIVER_BLEND;
+    if (n.dist >= outer) continue;
+    const waterY = riverWaterYAt(river, n.tApprox);
+    const floor = waterY - depth;
     let shore;
-    if (d <= RIVER_HALF_WIDTH) {
+    if (n.dist <= halfW) {
       shore = 0;
     } else {
-      shore = smoothstep(RIVER_HALF_WIDTH, outer, d);
+      shore = smoothstep(halfW, outer, n.dist);
     }
     out = floor * (1 - shore) + out * shore;
   }
@@ -162,10 +229,17 @@ function applyRiverBeds(h, x, z) {
 
 /**
  * World Y of the countryside surface at (x, z).
- * Inside the city: 0 (sidewalk). Outside: layered Witcher vista + mountains + river beds.
+ * Inside the city: 0 (sidewalk). Outside: vista + biomes + rivers + avenue grade.
  */
 export function heightAt(x, z) {
-  return applyRiverBeds(uncarvedHeightAt(x, z), x, z);
+  ensureAvenueBaked();
+  let h = uncarvedHeightAt(x, z);
+  h = applyRiverBeds(h, x, z);
+  h = applyLakeBasins(h, x, z);
+  // Tunnel cut before avenue grade so the bore opens, then road fills the floor.
+  h += avenueTunnelCut(x, z, h);
+  h = applyAvenueGrade(h, x, z);
+  return h;
 }
 
 /**
@@ -176,4 +250,9 @@ export function slopeAt(x, z) {
   const dx = (heightAt(x + e, z) - heightAt(x - e, z)) / (2 * e);
   const dz = (heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e);
   return Math.hypot(dx, dz);
+}
+
+/** Raw uncarved height for tools that must avoid feedback loops. */
+export function rawHeightAt(x, z) {
+  return uncarvedHeightAt(x, z);
 }

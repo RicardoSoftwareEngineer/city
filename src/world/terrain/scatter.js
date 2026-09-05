@@ -14,6 +14,12 @@ import {
   PATH_SHOULDER,
   surfaceY
 } from './paths.js';
+import { isAvenueBed, AVENUE_HALF_WIDTH, distToAvenue } from './countryAvenue.js';
+import {
+  biomeVegDensity,
+  biomeTreeBias,
+  biomeRockBias
+} from './biomes.js';
 
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -48,7 +54,10 @@ export function scatterGrid(opts) {
       const jz = z + (rnd() - 0.5) * spacing * 0.7;
       if (isInsideCity(jx, jz)) continue;
       if (isInAnyRiver(jx, jz)) continue;
+      if (isAvenueBed(jx, jz)) continue;
       if (distOutsideCity(jx, jz) < 4) continue;
+      // Biome density: sparse biomes skip more samples.
+      if (rnd() > Math.min(1.35, biomeVegDensity(jx, jz))) continue;
       if (!accept(jx, jz, rnd)) continue;
       const scale = scaleMin + rnd() * (scaleMax - scaleMin);
       poses.push({
@@ -66,12 +75,14 @@ export function scatterGrid(opts) {
 /** Tall / wispy grass: no path bed, slope cap for tall. */
 export function acceptFieldGrass(x, z, { maxSlope = 0.55, minPathDist = PATH_HALF_WIDTH } = {}) {
   if (distToPath(x, z) < minPathDist) return false;
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 1) return false;
   if (maxSlope != null && slopeAt(x, z) > maxSlope) return false;
   return true;
 }
 
 /** Clover: denser on shoulder (Passo 13). */
 export function acceptClover(x, z, rnd) {
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 1) return false;
   const d = distToPath(x, z);
   if (d < PATH_HALF_WIDTH) return false;
   if (d < PATH_SHOULDER) return rnd() < 0.55;
@@ -80,6 +91,7 @@ export function acceptClover(x, z, rnd) {
 
 /** Flowers prefer field + path shoulder (Passo 13). */
 export function acceptFlower(x, z, rnd) {
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 1) return false;
   const d = distToPath(x, z);
   if (d < PATH_HALF_WIDTH) return false;
   if (d < PATH_SHOULDER + 1.5) return rnd() < 0.7;
@@ -88,19 +100,25 @@ export function acceptFlower(x, z, rnd) {
 
 /** Bushes: ≥5 m from path axis. */
 export function acceptBush(x, z) {
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 3) return false;
   return distToPath(x, z) >= 5;
 }
 
 /** Trees: ≥8 m from city, ≥5 m from path. */
 export function acceptTree(x, z) {
   if (distOutsideCity(x, z) < 8) return false;
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 4) return false;
+  if (biomeTreeBias(x, z) < 0.2) return false;
   return distToPath(x, z) >= 5;
 }
 
 /** Rocks on steep slopes (Passo 11 visual companion). */
 export function acceptRock(x, z) {
   if (distToPath(x, z) < PATH_HALF_WIDTH + 1) return false;
-  return slopeAt(x, z) > 0.65;
+  if (distToAvenue(x, z) < AVENUE_HALF_WIDTH + 2) return false;
+  const bias = biomeRockBias(x, z);
+  const need = 0.65 / Math.max(0.35, bias);
+  return slopeAt(x, z) > need;
 }
 
 /**
@@ -129,6 +147,7 @@ export function scatterClusters(opts) {
       const sz = z + (rnd() - 0.5) * seedSpacing * 0.5;
       if (isInsideCity(sx, sz)) continue;
       if (isInAnyRiver(sx, sz)) continue;
+      if (isAvenueBed(sx, sz)) continue;
       if (distOutsideCity(sx, sz) < 4) continue;
       if (isPathBed(sx, sz)) continue;
       if (!accept(sx, sz, rnd)) continue;

@@ -1,31 +1,28 @@
 /**
- * Two demo lakes for the official Three.js water addons.
- * Layout only — Water.js / Water2.js stay in their own modules.
- *
- * water  — larger still body (Water.js was designed as a reflective lake/ocean plane)
- * water2 — smaller flowing pool (Water2.js was designed for flow + reflection + refraction)
+ * Outfall lake at the river mouth (lakeshore biome) + a small wetland pool.
+ * Layout only — Water.js / Water2.js stay in their own modules when used as lakes.
  */
 
 export const LAKE_WATER = {
-  id: 'water',
+  id: 'outfall-lake',
   kind: 'water',
-  cx: 258,
-  cz: 46,
-  rx: 56,
-  rz: 40,
-  depth: 2.4,
+  cx: 220,
+  cz: -1140,
+  rx: 90,
+  rz: 70,
+  depth: 3.2,
   segments: 96
 };
 
 export const LAKE_WATER2 = {
-  id: 'water2',
+  id: 'wetland-pool',
   kind: 'water2',
-  cx: 38,
-  cz: -88,
-  rx: 26,
-  rz: 20,
-  depth: 1.8,
-  segments: 80
+  cx: -160,
+  cz: -760,
+  rx: 42,
+  rz: 32,
+  depth: 1.6,
+  segments: 72
 };
 
 export const LAKES = [LAKE_WATER, LAKE_WATER2];

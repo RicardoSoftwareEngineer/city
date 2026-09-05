@@ -87,7 +87,7 @@ export function pavedInset(x, z) {
 }
 
 // ── Physics ────────────────────────────────────────────────────────────────
-export const GROUND_BODY_HALF   = 560;   // Physics + terrain half-extent (Witcher vista)
+export const GROUND_BODY_HALF   = 1770;  // √10 × 560 ≈ area×10; streamable countryside fence
 export const GROUND_BODY_DEPTH  = 5;     // Physics ground half-height (box)
 export const GROUND_BODY_Y      = -(GROUND_BODY_DEPTH + ASPHALT_SURFACE_Y * -1); // Top surface = ASPHALT_SURFACE_Y
 

@@ -1,8 +1,8 @@
 /**
- * Flat ribbon BufferGeometry for an S-river.
- * Built in local XY (like PlaneGeometry / CircleGeometry) so Water.js /
- * Reflector get local normal +Z; callers set mesh.rotation.x = -PI/2 and
- * mesh.position.y = waterY. Local (x,y,0) maps to world (x, waterY, y).
+ * Sloping ribbon BufferGeometry for a watershed river.
+ * Built in local XYZ so after mesh.rotation.x = -PI/2:
+ *   local (x, y, z) → world (x, -z, y)
+ * We encode water height as local Z = -waterY and leave mesh.position.y = 0.
  */
 
 import * as THREE from 'three';
@@ -11,6 +11,7 @@ import {
   RIVER_CROSS,
   RIVER_HALF_WIDTH
 } from './rivers.js';
+import { riverWaterYAt } from '../terrain/heightField.js';
 
 /**
  * @param {{ id: string, halfWidth?: number }} river
@@ -25,13 +26,12 @@ export function buildRiverRibbonGeometry(river) {
     return new THREE.BufferGeometry();
   }
 
-  const cols = cross + 1; // vertices across
+  const cols = cross + 1;
   const vertCount = nAlong * cols;
   const positions = new Float32Array(vertCount * 3);
   const normals = new Float32Array(vertCount * 3);
   const uvs = new Float32Array(vertCount * 2);
 
-  // Arc-length for U
   const arc = new Float32Array(nAlong);
   arc[0] = 0;
   for (let i = 1; i < nAlong; i++) {
@@ -43,7 +43,6 @@ export function buildRiverRibbonGeometry(river) {
 
   for (let i = 0; i < nAlong; i++) {
     const p = line[i];
-    // Tangent in XZ
     let tx;
     let tz;
     if (i === 0) {
@@ -59,21 +58,22 @@ export function buildRiverRibbonGeometry(river) {
     const tLen = Math.hypot(tx, tz) || 1;
     tx /= tLen;
     tz /= tLen;
-    // Left normal in XZ (perpendicular)
     const lx = -tz;
     const lz = tx;
 
+    const tNorm = p.tNorm ?? arc[i] / totalLen;
+    const waterY = riverWaterYAt(river, tNorm);
+
     const u = arc[i] / totalLen;
     for (let c = 0; c < cols; c++) {
-      const v = c / cross; // 0..1 across
-      const lat = (v * 2 - 1) * halfW; // -halfW .. +halfW
+      const v = c / cross;
+      const lat = (v * 2 - 1) * halfW;
       const wx = p.x + lx * lat;
       const wz = p.z + lz * lat;
       const vi = i * cols + c;
-      // Local XY: X=worldX, Y=worldZ, Z=0 → after rot.x=-PI/2 → world XZ
       positions[vi * 3] = wx;
       positions[vi * 3 + 1] = wz;
-      positions[vi * 3 + 2] = 0;
+      positions[vi * 3 + 2] = -waterY;
       normals[vi * 3] = 0;
       normals[vi * 3 + 1] = 0;
       normals[vi * 3 + 2] = 1;
@@ -99,15 +99,11 @@ export function buildRiverRibbonGeometry(river) {
   geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(indices);
+  geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
 }
 
-/**
- * Average tangent of the river as a Vector2 (xz → xy for Water2 flowDirection).
- * @param {{ id: string }} river
- * @returns {THREE.Vector2}
- */
 export function approxFlowDirection(river) {
   const line = riverPolyline(river);
   let sx = 0;

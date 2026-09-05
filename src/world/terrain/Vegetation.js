@@ -22,13 +22,20 @@ import {
   acceptRock
 } from './scatter.js';
 import { registerTreeLods } from './treeLod.js';
+import { WORLD_LINEAR_SCALE } from './biomes.js';
+import { GROUND_BODY_HALF } from '../RoadDimensions.js';
 
 export const VEG_PRIORITY = 4;
 export const VEG_DENSE_PRIORITY = 5;
-/** Field extent for most layers. */
-const FIELD_HALF = 160;
+/** Field extent scaled with the √10 world (still denser near city). */
+// Cap below full fence so register-time pose grids stay stream-friendly.
+const FIELD_HALF = Math.min(380, Math.round(160 * WORLD_LINEAR_SCALE * 0.75));
 /** Slightly smaller for denser carpet so scatter stays cheap. */
-const DENSE_HALF = 130;
+const DENSE_HALF = Math.min(300, Math.round(130 * WORLD_LINEAR_SCALE * 0.75));
+const HORIZON_MIN = Math.round(360 * WORLD_LINEAR_SCALE);
+const HORIZON_MAX = Math.min(GROUND_BODY_HALF - 40, Math.round(520 * WORLD_LINEAR_SCALE));
+const RIDGE_MIN = Math.round(200 * WORLD_LINEAR_SCALE);
+const RIDGE_MAX = Math.round(340 * WORLD_LINEAR_SCALE);
 
 function windPrepare(strength, gust) {
   return (root) => applyWindToObject(root, { strength, gust });
@@ -257,15 +264,15 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
 
   // --- Passo 14 tree LODs (MegaKit near / simpler far) ---
   const trees = scatterTreeGroves({
-    groveCount: 8,
-    treesPerGrove: [5, 10],
+    groveCount: 18,
+    treesPerGrove: [5, 12],
     halfExtent: FIELD_HALF - 20,
     pathEndTrees: 4
   });
   registerTreeLods(stream, parentGroup, ox, oz, trees);
 
   // --- Passo 15 / vista: silhouette on far rising ridges (no shadows) ---
-  const horizon = scatterHorizonPines({ count: 22, minR: 360, maxR: 520 });
+  const horizon = scatterHorizonPines({ count: 36, minR: HORIZON_MIN, maxR: HORIZON_MAX });
   addVeg(
     stream,
     kitUrl('giantPine1'),
@@ -275,7 +282,7 @@ export function registerVegetation(stream, parentGroup, ox, oz) {
   );
 
   // Sparse mid-ridge pines so the rise reads from a low camera.
-  const ridgePines = scatterHorizonPines({ count: 16, minR: 200, maxR: 340, seedSalt: 311 });
+  const ridgePines = scatterHorizonPines({ count: 28, minR: RIDGE_MIN, maxR: RIDGE_MAX, seedSalt: 311 });
   addVeg(
     stream,
     kitUrl('giantPine1'),

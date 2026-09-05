@@ -37,7 +37,8 @@ export function createWaterRiver(river, opts) {
 
   // Geometry is local XY; rotate to XZ so Water mirror normal (+Z local) → +Y world.
   water.rotation.x = -Math.PI / 2;
-  water.position.set(0, opts.waterY, 0);
+  // Water height is encoded per-vertex in the ribbon (sloping watershed).
+  water.position.set(0, 0, 0);
   water.castShadow = false;
   water.receiveShadow = false;
   water.name = 'river_Water.js';

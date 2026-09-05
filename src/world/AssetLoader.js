@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadMark, beginLoad } from '../engine/loadLog.js';
 import { yieldToMain } from './yield.js';
+import { cachedFetch } from '../engine/assetDiskCache.js';
 
 const gltfLoader = new GLTFLoader();
 const inflight = new Map();
@@ -93,35 +94,45 @@ function finishGltf(url, gltf, keepVertexColors, useLambert) {
 }
 
 function loadGltfPayload(url, keepVertexColors, useLambert) {
-  if (!useLambert) {
-    return new Promise((resolve) => {
-      beginLoad('gltf:parse', url);
-      gltfLoader.load(
-        url,
-        (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, false)),
-        undefined,
-        () => resolve(null)
-      );
-    });
-  }
-
   const dir = url.slice(0, url.lastIndexOf('/') + 1);
-  return fetch(url)
-    .then((r) => r.json())
-    .then(async (json) => {
-      stripGltfTextures(json);
+
+  // Disk cache first (Cache API). Same parse path either way — loader unchanged.
+  return cachedFetch(url)
+    .then(async (res) => {
+      if (!res.ok) return null;
+      if (useLambert) {
+        const json = await res.json();
+        stripGltfTextures(json);
+        await yieldToMain();
+        beginLoad('gltf:parse', url);
+        return new Promise((resolve) => {
+          gltfLoader.parse(
+            json,
+            dir,
+            (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, true)),
+            () => resolve(null)
+          );
+        });
+      }
+      const buf = await res.arrayBuffer();
       await yieldToMain();
       beginLoad('gltf:parse', url);
       return new Promise((resolve) => {
         gltfLoader.parse(
-          json,
+          buf,
           dir,
-          (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, true)),
+          (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, false)),
           () => resolve(null)
         );
       });
     })
     .catch(() => null);
+}
+
+/** Drop in-memory parse promises so a disk-cache clear can re-fetch this session. */
+export function clearGltfMemoryDedupe() {
+  inflight.clear();
+  issued.clear();
 }
 
 export function loadGltf(url, options = {}) {

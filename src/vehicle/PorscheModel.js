@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { cachedFetch } from '../engine/assetDiskCache.js';
 import { beginLoad, loadMark } from '../engine/loadLog.js';
 import {
   PORSCHE_TARGET_LENGTH,
@@ -95,17 +96,26 @@ export class PorscheModel {
    * Safe to call after GameLoop is already running (placeholder stays until then).
    */
   async load() {
+    const url = '/models/porsche/porsche.glb';
     const loader = new GLTFLoader();
-
+    const dir = url.slice(0, url.lastIndexOf('/') + 1);
+    const res = await cachedFetch(url);
+    if (!res.ok) throw new Error(`porsche fetch ${res.status}`);
+    const buf = await res.arrayBuffer();
     return new Promise((resolve, reject) => {
-      loader.load('/models/porsche/porsche.glb', (gltf) => {
-        beginLoad('gltf:parse', 'porsche.glb');
-        const t0 = performance.now();
-        const root = gltf.scene || gltf.scenes[0];
-        this.setupModel(root);
-        loadMark('gltf:parse', 'porsche.glb', performance.now() - t0);
-        resolve();
-      }, undefined, reject);
+      beginLoad('gltf:parse', 'porsche.glb');
+      loader.parse(
+        buf,
+        dir,
+        (gltf) => {
+          const t0 = performance.now();
+          const root = gltf.scene || gltf.scenes[0];
+          this.setupModel(root);
+          loadMark('gltf:parse', 'porsche.glb', performance.now() - t0);
+          resolve();
+        },
+        reject
+      );
     });
   }
 

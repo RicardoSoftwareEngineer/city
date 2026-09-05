@@ -9,8 +9,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./src/style.css" />
 </head>
-<body>
+<body class="boot-idle">
   <canvas id="game-canvas"></canvas>
+
+  <div id="boot-gate" role="dialog" aria-label="Início">
+    <button type="button" id="start-load-btn">Começar a carregar</button>
+    <p id="boot-gate-hint">Só chão phys + carro mínimo. A cidade sobe quando você clicar.</p>
+  </div>
 
   <button type="button" id="radius-rings-btn" aria-pressed="false">Anéis do raio</button>
   <button type="button" id="clear-asset-cache-btn" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button>

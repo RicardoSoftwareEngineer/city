@@ -245,60 +245,79 @@ async function startGame() {
   }
 
 
+  // Idle playable shell: phys pin + placeholder only. No city stream until click.
   setInteractive(true);
-  setLoadPhase('play');
-  loadGovernor.streaming = true;
+  setLoadPhase('idle');
+  loadGovernor.streaming = false;
   memoryGuardian.setFocus(originX, originZ);
   memoryGuardian.tick();
 
-  // Let at least one frame present before more sync registration work.
-  await yieldToMain();
+  const startBtn = document.getElementById('start-load-btn');
+  const bootGate = document.getElementById('boot-gate');
 
-  // Corner markers — local canvas work; never blocked boot (~ms, but off critical path).
-  void new Intersection().build(cityGroup);
+  function beginCityLoad() {
+    if (document.body.dataset.loading === '1') return;
+    document.body.dataset.loading = '1';
+    document.body.classList.remove('boot-idle');
+    if (bootGate) bootGate.hidden = true;
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Carregando…';
+    }
 
-  // Register stream jobs (sync CPU, no glTF parse). createCityStream also
-  // re-asserts setTerrainPhysics for registerTerrain.
-  const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
+    setLoadPhase('play');
+    loadGovernor.streaming = true;
+    memoryGuardian.setFocus(originX, originZ);
+    memoryGuardian.tick();
 
-  // Porsche glTF + compile only its meshes under Valve — do NOT pauseDraw the
-  // whole scene for a full-scene compile before the player can drive.
-  porscheModel.load()
-    .then(async () => {
-      await throughValve(() =>
-        renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
-      );
-    })
-    .catch((error) => {
-      console.error('Porsche load failed:', error);
-    });
+    // Corner markers — off critical path.
+    void new Intersection().build(cityGroup);
 
-  // Preferred early asphalt visuals — async under Guardian, not a hard sync gate.
-  beginLoadPhase('spawn', 'r10 p0');
-  stream.pumpTo(STREAM_STEP, 0)
-    .then(() => {
-      endLoadPhase('spawn');
-      setLoadPhase('play');
-      setInteractive(true);
-      beginLoadPhase('terrain', 'mesh…');
-      // Visual terrain inside Guardian radius (phys already pinned under the car).
-      return stream.pumpTerrainTo(STREAM_STEP);
-    })
-    .then(async () => {
-      endLoadPhase('terrain');
-      finishAllLoadPhases();
-      setLoadPhase('play');
-      setInteractive(true);
-      await waitUntilSmooth();
-      await renderer.resumeShadows();
-      // Residency loop — never finishes; Guardian owns all visual residency.
-      return stream.continueAfter(STREAM_STEP);
-    })
-    .catch((error) => {
-      console.error('City stream failed:', error);
-    });
+    const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
 
-  console.log('🏙️ City started successfully!');
+    porscheModel.load()
+      .then(async () => {
+        await throughValve(() =>
+          renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
+        );
+      })
+      .catch((error) => {
+        console.error('Porsche load failed:', error);
+      });
+
+    beginLoadPhase('spawn', 'r10 p0');
+    stream.pumpTo(STREAM_STEP, 0)
+      .then(() => {
+        endLoadPhase('spawn');
+        setLoadPhase('play');
+        setInteractive(true);
+        beginLoadPhase('terrain', 'mesh…');
+        return stream.pumpTerrainTo(STREAM_STEP);
+      })
+      .then(async () => {
+        endLoadPhase('terrain');
+        finishAllLoadPhases();
+        setLoadPhase('play');
+        setInteractive(true);
+        await waitUntilSmooth();
+        await renderer.resumeShadows();
+        return stream.continueAfter(STREAM_STEP);
+      })
+      .catch((error) => {
+        console.error('City stream failed:', error);
+      });
+
+    console.log('🏙️ City load started by user');
+  }
+
+  if (startBtn) {
+    startBtn.addEventListener('click', beginCityLoad);
+  } else {
+    // Fallback if markup missing — do not leave the world empty forever.
+    beginCityLoad();
+  }
+
+  console.log('🏙️ Boot idle — waiting for Começar a carregar');
 }
 
 /**

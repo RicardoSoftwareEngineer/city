@@ -15,7 +15,7 @@ import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PorscheModel } from './vehicle/PorscheModel.js';
 import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
-import { createCityStream, registerHeavyWorld, STREAM_STEP } from './world/registerCity.js';
+import { createCityStream, registerNearCampo, registerHeavyWorld, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel, getSessionStats } from './engine/loadLog.js';
 import { createQualityAdapter } from './engine/qualityAdapter.js';
@@ -294,25 +294,34 @@ async function startGame() {
     // Corner markers — off critical path.
     void new Intersection().build(cityGroup);
 
-    // Light jobs only — veg/avenue/lakes scatter would freeze the tab here.
+    // Light jobs only — far veg/avenue/lakes wait for registerHeavyWorld.
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
     await yieldToMain();
 
-    // Terrain mesh runs as a continuous background loop (never waits on street pumps).
-    // Spawn streets overlap via Promise concurrency; Valve still serializes GPU commits.
+    // Progressive campo boot:
+    // 1) terrain mesh bg (orchard elevation + biome tint on verts)
+    // 2) near veg registration (sliced) overlapping spawn streets
+    // 3) nature bg pump ignores soft-cap so first greens are not starved
+    // 4) far veg + carpet after first street ring
     beginLoadPhase('spawn', 'r10 p0');
     beginLoadPhase('terrain', 'bg…');
+    beginLoadPhase('nature', 'near…');
     stream.startTerrainBackground();
+    const nearCampo = registerNearCampo(stream, cityGroup, originX, originZ).then(() => {
+      stream.startNatureBackground();
+    });
     const spawnStreets = stream.pumpTo(STREAM_STEP, 0).then(() => {
       endLoadPhase('spawn');
     });
 
-    spawnStreets
+    Promise.all([spawnStreets, nearCampo])
       .then(async () => {
         setLoadPhase('play');
         setInteractive(true);
+        beginLoadPhase('nature', 'far…');
         await registerHeavyWorld(stream, cityGroup, originX, originZ, renderer.scene);
         await yieldToMain();
+        stream.startNatureBackground();
         stream.startCarpetBackground();
         // Porsche after first ring — not competing with createCityStream on click.
         porscheModel.load()
@@ -324,8 +333,8 @@ async function startGame() {
           .catch((error) => {
             console.error('Porsche load failed:', error);
           });
-        // Keep terrain + carpet phases alive — they end themselves when idle.
-        finishAllLoadPhases(['terrain', 'carpet']);
+        // Keep terrain + nature + carpet phases alive — they end themselves when idle.
+        finishAllLoadPhases(['terrain', 'nature', 'carpet']);
         setLoadPhase('play');
         setInteractive(true);
         await waitUntilSmooth();
@@ -336,7 +345,7 @@ async function startGame() {
         console.error('City stream failed:', error);
       });
 
-    console.log('🏙️ City load started by user (staged)');
+    console.log('🏙️ City load started by user (progressive campo)');
   }
 
   if (startBtn) {

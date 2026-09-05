@@ -5,6 +5,9 @@
  * avenue grade still carve in heightAt().
  *
  * World extent scaled by √10 (~3.16× linear, ~10× area) vs legacy ±560 m.
+ *
+ * Orchard = elevation only. Biome tint / veg / regions live in biomes.js —
+ * keep BOTH layers; they complement (do not remove either).
  */
 
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';

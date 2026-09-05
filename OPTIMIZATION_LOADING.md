@@ -1,3 +1,5 @@
+> **2026-09-05:** Progressive campo boot — near veg (±110 m) registers with sliced `scatterGridAsync` overlapping spawn streets; far/dense annulus fills later. Nature bg pump uses `wantsNatureLoad` (heap-only, like terrain #94). Keep White Orchard elevation + biomes √10 tint/veg together. Sync field scatter was ~28s freeze.
+
 > **2026-09-05:** Fast boot — GameLoop starts before Porsche glTF / Intersection / full-scene compile. Phys pin (`ensureGroundAround`) + placeholder chassis + boot city ground plane first; Porsche load+compile and street stream run async under Valve/Guardian.
 
 > **2026-09-05:** Phys pin — MemoryGuardian never disposes `phys` inside PHYS_PIN_RADIUS (~20 m); HUD ground timer uses real elapsed ms (not `built*8`); spawn streets demoted to async — only phys under the car is hard sync.

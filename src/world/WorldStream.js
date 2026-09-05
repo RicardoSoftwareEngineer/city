@@ -49,11 +49,16 @@ function zoneAwareOptions(options, poses) {
 function registerGrowerResident(id, kind, poses, job) {
   if (!job?.grower || typeof job.grower.dispose !== 'function') return;
   const c = posesCentroid(poses);
+  // Huge campo pose lists must NOT ride on the resident — Guardian tick would
+  // O(n) every frame and nearest-pose residency never evicts (soft-cap starve).
+  const keepPoses = Array.isArray(poses) && poses.length > 0 && poses.length <= 48
+    ? poses
+    : null;
   memoryGuardian.retain(id, {
     kind,
     x: c.x,
     z: c.z,
-    poses,
+    poses: keepPoses,
     dispose: () => {
       try { job.grower?.dispose?.(); } catch {}
       job.grower = null;
@@ -77,12 +82,14 @@ export class WorldStream {
 
   addUrl(url, poses, options = {}, priority = 0) {
     if (!url || !poses?.length) return;
+    // Unique uid — near+far veg share URLs; retain id must not collide/dispose.
     this.urlJobs.push({
       url,
       poses,
       options,
       priority,
-      grower: null
+      grower: null,
+      uid: `u${this.urlJobs.length}`
     });
   }
 
@@ -159,6 +166,7 @@ export class WorldStream {
         (job) =>
           job.priority === priority &&
           !job.grower &&
+          !job.loading &&
           minPoseDist(job.poses, this.ox, this.oz) <= radius &&
           minPoseDist(job.poses, focus.x, focus.z) <= memoryGuardian.radius
       );
@@ -189,30 +197,36 @@ export class WorldStream {
       }
 
       for (const job of toLoad) {
-        const template = await measureRingItem(job.url, () =>
-          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
-        );
-        if (template && typeof job.options.prepare === 'function') {
-          await throughValve(async () => { job.options.prepare(template); });
-        }
-        const tGrow = performance.now();
-        job.grower = template
-          ? createGrowingInstancedGltf(
-            this.parent,
-            template,
-            job.poses,
-            this.ox,
-            this.oz,
-            zoneAwareOptions(job.options, job.poses)
-          )
-          : { reveal() { return 0; } };
-        if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
-        if (template && this.renderer && job.grower.warmup) {
-          await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
-            throughValve(() => job.grower.warmup(this.renderer))
+        if (job.grower || job.loading) continue;
+        job.loading = true;
+        try {
+          const template = await measureRingItem(job.url, () =>
+            throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
           );
+          if (template && typeof job.options.prepare === 'function') {
+            await throughValve(async () => { job.options.prepare(template); });
+          }
+          const tGrow = performance.now();
+          job.grower = template
+            ? createGrowingInstancedGltf(
+              this.parent,
+              template,
+              job.poses,
+              this.ox,
+              this.oz,
+              zoneAwareOptions(job.options, job.poses)
+            )
+            : { reveal() { return 0; } };
+          if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
+          if (template && this.renderer && job.grower.warmup) {
+            await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
+              throughValve(() => job.grower.warmup(this.renderer))
+            );
+          }
+          registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+        } finally {
+          job.loading = false;
         }
-        registerGrowerResident(`url:${job.url}`, 'world', job.poses, job);
         await yieldAfterWork();
       }
 
@@ -500,6 +514,108 @@ export class WorldStream {
     void loop().catch((err) => console.error('terrain background failed:', err));
   }
 
+  /**
+   * Continuous base-vegetation slices (prio 4). Soft-cap must not block —
+   * uses wantsNatureLoad (heap-only), same lesson as terrain #94.
+   */
+  startNatureBackground() {
+    if (this._natureBg) return;
+    this._natureBg = true;
+    const loop = async () => {
+      for (;;) {
+        await this.pumpNatureSlice({ maxLoads: 1, maxRevealPasses: 2 });
+        await yieldToMain();
+      }
+    };
+    void loop().catch((err) => console.error('nature background failed:', err));
+  }
+
+  /**
+   * One background slice of base veg (prio 4). Independent of street soft-cap.
+   */
+  async pumpNatureSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
+    const priority = STREAM_PRIORITY_CORE;
+    const radius = memoryGuardian.radius;
+    const focus = memoryGuardian.focus;
+    if (!memoryGuardian.wantsNatureLoad) return 0;
+
+    const pendingLoad = this.urlJobs.filter(
+      (job) =>
+        job.priority === priority &&
+        !job.grower &&
+        !job.loading &&
+        minPoseDist(job.poses, this.ox, this.oz) <= radius &&
+        minPoseDist(job.poses, focus.x, focus.z) <= radius
+    );
+
+    tickLoadPhase('nature', `bg r${Math.round(radius)}`);
+    setStreamLabel(`nature bg r${Math.round(radius)}`);
+    let work = 0;
+    const budget = createBudget();
+
+    for (const job of pendingLoad.slice(0, maxLoads)) {
+      if (job.grower || job.loading) continue;
+      job.loading = true;
+      try {
+        const template = await measureRingItem(job.url, () =>
+          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
+        );
+        if (template && typeof job.options.prepare === 'function') {
+          await throughValve(async () => { job.options.prepare(template); });
+        }
+        job.grower = template
+          ? createGrowingInstancedGltf(
+            this.parent,
+            template,
+            job.poses,
+            this.ox,
+            this.oz,
+            zoneAwareOptions(job.options, job.poses)
+          )
+          : { reveal() { return 0; } };
+        if (template && this.renderer && job.grower.warmup) {
+          await measureRingItem('warmup nature', () =>
+            throughValve(() => job.grower.warmup(this.renderer))
+          );
+        }
+        registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+        work += 1;
+      } finally {
+        job.loading = false;
+      }
+      await yieldAfterWork();
+    }
+
+    if (this.renderer) this.renderer.pauseDraw();
+    let passes = 0;
+    for (const job of this.urlJobs) {
+      if (passes >= maxRevealPasses) break;
+      if (!job.grower || job.priority !== priority) continue;
+      let added = 0;
+      const maxAdd = Math.min(loadGovernor.chunk, 8);
+      if (job.grower.reveal(radius, maxAdd) > 0) {
+        added += 1;
+        await budget.tick();
+      }
+      if (added) {
+        passes += 1;
+        work += added;
+        if (this.renderer) {
+          await measureRingItem('compile nature', () =>
+            throughValve(() => this.renderer.compileSubtree(this.parent))
+          );
+          this.renderer.resumeDraw();
+          await yieldToMain();
+          this.renderer.pauseDraw();
+        } else {
+          await yieldToMain();
+        }
+      }
+    }
+    if (this.renderer) this.renderer.resumeDraw();
+    return work;
+  }
+
   /** Continuous dense-carpet slices (prio 5), independent of ring expansion. */
   startCarpetBackground() {
     if (this._carpetBg) return;
@@ -532,6 +648,7 @@ export class WorldStream {
       (job) =>
         job.priority === priority &&
         !job.grower &&
+        !job.loading &&
         minPoseDist(job.poses, this.ox, this.oz) <= radius &&
         minPoseDist(job.poses, focus.x, focus.z) <= radius
     );
@@ -542,35 +659,41 @@ export class WorldStream {
     const budget = createBudget();
 
     for (const job of pendingLoad.slice(0, maxLoads)) {
-      const template = await measureRingItem(job.url, () =>
-        throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
-      );
-      if (template && typeof job.options.prepare === 'function') {
-        await throughValve(async () => { job.options.prepare(template); });
-      }
-      // Dense grass: first InstancedMesh capacity 1–4 (not x19/x24) — grow later with yields.
-      const carpetOpts = {
-        ...zoneAwareOptions(job.options, job.poses),
-        firstBatchSize: 2,
-        maxBatchSize: 4
-      };
-      job.grower = template
-        ? createGrowingInstancedGltf(
-          this.parent,
-          template,
-          job.poses,
-          this.ox,
-          this.oz,
-          carpetOpts
-        )
-        : { reveal() { return 0; } };
-      if (template && this.renderer && job.grower.warmup) {
-        await measureRingItem('warmup carpet', () =>
-          throughValve(() => job.grower.warmup(this.renderer))
+      if (job.grower || job.loading) continue;
+      job.loading = true;
+      try {
+        const template = await measureRingItem(job.url, () =>
+          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
         );
+        if (template && typeof job.options.prepare === 'function') {
+          await throughValve(async () => { job.options.prepare(template); });
+        }
+        // Dense grass: first InstancedMesh capacity 1–4 (not x19/x24) — grow later with yields.
+        const carpetOpts = {
+          ...zoneAwareOptions(job.options, job.poses),
+          firstBatchSize: 2,
+          maxBatchSize: 4
+        };
+        job.grower = template
+          ? createGrowingInstancedGltf(
+            this.parent,
+            template,
+            job.poses,
+            this.ox,
+            this.oz,
+            carpetOpts
+          )
+          : { reveal() { return 0; } };
+        if (template && this.renderer && job.grower.warmup) {
+          await measureRingItem('warmup carpet', () =>
+            throughValve(() => job.grower.warmup(this.renderer))
+          );
+        }
+        registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+        work += 1;
+      } finally {
+        job.loading = false;
       }
-      registerGrowerResident(`url:${job.url}`, 'world', job.poses, job);
-      work += 1;
       await yieldAfterWork();
     }
 
@@ -612,8 +735,9 @@ export class WorldStream {
    */
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
-    // Terrain + carpet already run on their own loops; this only expands core rings.
+    // Terrain + nature + carpet already run on their own loops; this only expands core rings.
     this.startTerrainBackground();
+    this.startNatureBackground();
     this.startCarpetBackground();
     await this.pumpTo(Math.min(radius, memoryGuardian.radius), core);
     let r = Math.min(radius, memoryGuardian.radius);

@@ -232,14 +232,16 @@ export class CityGrid {
     let tileIndex = 0;
 
     const addWalk = (x, z, rot) => {
+      // Stripe is an alternate sidewalk glTF, not an overlay — never push every tile
+      // into stripePoses (was ~672 InstancedMesh batches at stream batch=4 → 5–10s MAP hitches).
       const kind = tileIndex++ % 11;
       const pose = { x, z, rot };
       if (kind === 3) broken1Poses.push(pose);
       else if (kind === 7) broken2Poses.push(pose);
       else if (kind === 5) insetLPoses.push(pose);
       else if (kind === 9) insetRPoses.push(pose);
+      else if (kind === 1 || kind === 6) stripePoses.push(pose);
       else walkPoses.push(pose);
-      stripePoses.push(pose);
     };
 
     const addTrees = (pairs) => {

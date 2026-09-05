@@ -94,12 +94,15 @@ export const loadGovernor = {
   },
 
   get instanceBatch() {
+    // Prefer fewer, larger InstancedMeshes. Reveal rate is throttled by `chunk`
+    // while streaming — capping batch at 4 used to spawn ~168 Stripe meshes and
+    // tag multi-second Travamentos as `instancer … x4`.
     let n = 32;
-    if (this.level < 0.7) n = 4;
-    else if (this.level < 1.5) n = 8;
-    else if (this.level < 2.4) n = 16;
-    else if (this.level < 3.3) n = 24;
-    return this.streaming ? Math.min(n, 4) : n;
+    if (this.level < 0.7) n = 8;
+    else if (this.level < 1.5) n = 16;
+    else if (this.level < 2.4) n = 24;
+    else if (this.level < 3.3) n = 28;
+    return n;
   },
 
   /** Yield every N merged geometries */

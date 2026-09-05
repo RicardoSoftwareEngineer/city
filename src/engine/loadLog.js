@@ -154,6 +154,9 @@ export function lastOpHasTag() {
 
 export function noteHitch(frameMs) {
   if (frameMs >= TAB_AWAY_MS) return;
+  // Valve HOLD / WorldStream pauseDraw skip WebGL; wall-clock gaps between rAFs
+  // while paused are not playable freezes — do not pollute Travamentos.
+  if (lastDraw.tag === 'paused' || govSnap.holding) return;
 
   const now = performance.now();
   const workAgo = now - lastWork.at;

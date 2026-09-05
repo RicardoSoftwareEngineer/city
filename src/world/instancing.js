@@ -220,8 +220,10 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
         onReveal?.(pose, i);
       }
       revealed = cap;
+      // Only the batches touched this reveal need matrix/bounds updates.
+      const firstBatch = Math.floor(before / step);
       const lastBatch = Math.floor((revealed - 1) / step);
-      for (let b = 0; b <= lastBatch; b++) {
+      for (let b = firstBatch; b <= lastBatch; b++) {
         const batch = batches[b];
         if (!batch) continue;
         const start = b * step;

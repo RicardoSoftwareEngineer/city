@@ -715,3 +715,59 @@ kbd {
 }
 .persona-decisions li { margin-bottom: 0.08rem; }
 .persona-decisions .persona-empty { color: #64748b; list-style: none; margin-left: -1rem; }
+
+
+/* Boot gate: only phys + placeholder until user starts loading */
+#boot-gate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(8, 12, 20, 0.35);
+  pointer-events: none;
+}
+body.boot-idle #boot-gate {
+  display: flex;
+  pointer-events: auto;
+}
+body.boot-idle #resource-hud,
+body.boot-idle #perf-hud,
+body.boot-idle #persona-hud,
+body.boot-idle [data-min-id],
+body.boot-idle #radius-rings-btn,
+body.boot-idle #clear-asset-cache-btn,
+body.boot-idle #terrain-debug-btn,
+body.boot-idle .hud-min-toggle {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+/* Keep speedometer + controls visible so it feels like a game already */
+#start-load-btn {
+  pointer-events: auto;
+  padding: 1rem 2rem;
+  font: 700 1.15rem/1 "Outfit", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  background: #38bdf8;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+#start-load-btn:hover { background: #7dd3fc; }
+#start-load-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+#boot-gate-hint {
+  margin: 0;
+  max-width: 22rem;
+  text-align: center;
+  font: 500 0.8rem/1.4 "Segoe UI", system-ui, sans-serif;
+  color: #e2e8f0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}

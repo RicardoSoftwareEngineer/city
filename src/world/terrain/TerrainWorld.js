@@ -10,7 +10,8 @@
 
 import * as THREE from 'three';
 import { chebyshev } from '../instancing.js';
-import { beginLoad } from '../../engine/loadLog.js';
+import { beginLoad, loadMark } from '../../engine/loadLog.js';
+import { createSlice, throughValve } from '../yield.js';
 import { surfaceY } from './paths.js';
 import { terrainLambert, writeSplatColor } from './splatMaterial.js';
 import {
@@ -24,12 +25,16 @@ import {
 export { TERRAIN_TILE, TERRAIN_TILE_FAR, TERRAIN_NEAR_HALF };
 export const TERRAIN_PRIORITY = 4;
 
-function buildTileMesh(x0, z0, size, segs) {
+/** Vert batches between valve ticks — keeps terrain mesh off the 4s hitch path. */
+const VERT_BATCH = 48;
+
+async function buildTileMesh(x0, z0, size, segs) {
   const geo = new THREE.PlaneGeometry(size, size, segs, segs);
   geo.rotateX(-Math.PI / 2);
 
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
+  const slice = createSlice(3);
 
   for (let i = 0; i < pos.count; i++) {
     const lx = pos.getX(i);
@@ -38,7 +43,9 @@ function buildTileMesh(x0, z0, size, segs) {
     const wz = z0 + size * 0.5 + lz;
     pos.setY(i, surfaceY(wx, wz));
     writeSplatColor(colors, i, wx, wz);
+    if ((i + 1) % VERT_BATCH === 0) await slice.tick();
   }
+  await slice.tick(true);
   pos.needsUpdate = true;
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
@@ -68,8 +75,14 @@ export function registerTerrain(stream, parentGroup, ox, oz, physicsWorld) {
       kind: 'terrain',
       run: async () => {
         const tag = t.far ? 'far' : 'near';
-        beginLoad('terrain', `mesh ${tag} ${t.x0},${t.z0}`);
-        group.add(buildTileMesh(t.x0, t.z0, t.size, t.segs));
+        const label = `mesh ${tag} ${t.x0},${t.z0}`;
+        await throughValve(async () => {
+          beginLoad('terrain', label);
+          const t0 = performance.now();
+          const mesh = await buildTileMesh(t.x0, t.z0, t.size, t.segs);
+          group.add(mesh);
+          loadMark('terrain', label, performance.now() - t0);
+        });
       }
     });
   }

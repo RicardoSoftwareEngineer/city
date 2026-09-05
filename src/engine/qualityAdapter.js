@@ -50,6 +50,13 @@ export function createQualityAdapter(renderer) {
     },
     /** Call once per frame after loadGovernor.noteFrame. */
     tick() {
+      // Freeze ladder while the stream valve owns FPS — toggling pixelRatio/shadows
+      // mid-ring caused multi-second draws (quality apply no-shadow) under heavy scenes.
+      if (loadGovernor.streaming) {
+        lowStreak = 0;
+        highStreak = 0;
+        return;
+      }
       if (loadGovernor.instantFps < TARGET_FPS - 5) {
         lowStreak++;
         highStreak = 0;

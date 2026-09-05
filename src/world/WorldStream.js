@@ -10,7 +10,7 @@ import {
   createGrowingInstancedGltf,
   minPoseDist
 } from './instancing.js';
-import { createBudget, waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
+import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
 import { phaseIdForPriority, tickLoadPhase } from '../engine/loadOrderLog.js';
@@ -123,10 +123,11 @@ export class WorldStream {
       }
 
       for (const job of toLoad) {
-        await waitIfSlow();
-        const template = await measureRingItem(job.url, () => loadGltf(job.url, job.options));
+        const template = await measureRingItem(job.url, () =>
+          throughValve(() => loadGltf(job.url, job.options))
+        );
         if (template && typeof job.options.prepare === 'function') {
-          job.options.prepare(template);
+          await throughValve(async () => { job.options.prepare(template); });
         }
         const tGrow = performance.now();
         job.grower = template
@@ -142,7 +143,7 @@ export class WorldStream {
         if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
         if (template && this.renderer && job.grower.warmup) {
           await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
-            job.grower.warmup(this.renderer)
+            throughValve(() => job.grower.warmup(this.renderer))
           );
         }
         await yieldAfterWork();
@@ -151,19 +152,22 @@ export class WorldStream {
       for (const job of this.templateJobs) {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
-        await waitIfSlow();
-        measureRingItemSync('template instancer', () => {
-          job.grower = createGrowingInstancedGltf(
-            this.parent,
-            job.template,
-            job.poses,
-            this.ox,
-            this.oz,
-            job.options
-          );
+        await throughValve(async () => {
+          measureRingItemSync('template instancer', () => {
+            job.grower = createGrowingInstancedGltf(
+              this.parent,
+              job.template,
+              job.poses,
+              this.ox,
+              this.oz,
+              job.options
+            );
+          });
         });
         if (this.renderer && job.grower.warmup) {
-          await measureRingItem('warmup template', () => job.grower.warmup(this.renderer));
+          await measureRingItem('warmup template', () =>
+            throughValve(() => job.grower.warmup(this.renderer))
+          );
         }
         await yieldAfterWork();
       }
@@ -178,7 +182,7 @@ export class WorldStream {
         }
         if (added && this.renderer) {
           await measureRingItem(`compile urls r${radius} p${priority}`, () =>
-            this.renderer.compileSubtree(this.parent)
+            throughValve(() => this.renderer.compileSubtree(this.parent))
           );
           this.renderer.resumeDraw();
           await yieldToMain();
@@ -194,7 +198,7 @@ export class WorldStream {
         }
         if (added && this.renderer) {
           await measureRingItem(`compile templates r${radius} p${priority}`, () =>
-            this.renderer.compileSubtree(this.parent)
+            throughValve(() => this.renderer.compileSubtree(this.parent))
           );
           this.renderer.resumeDraw();
           await yieldToMain();
@@ -211,8 +215,9 @@ export class WorldStream {
           task.dist <= radius
       );
       for (const task of tasks) {
-        await waitIfSlow();
-        await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () => task.run());
+        await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () =>
+          throughValve(() => task.run())
+        );
         task.done = true;
         await yieldAfterWork();
       }
@@ -231,27 +236,31 @@ export class WorldStream {
 
       if (!b.grower) {
         if (b.heavy) await waitUntilSmooth();
-        const template = await measureRingItem(b.url || b.name || 'building', () => b.load());
+        const template = await measureRingItem(b.url || b.name || 'building', () =>
+          throughValve(() => b.load())
+        );
         await yieldAfterWork();
         if (!template) continue;
         if (b.heavy) await waitUntilSmooth();
         b.template = template;
-        measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
-          b.grower = createGrowingInstancedGltf(
-            this.parent,
-            template,
-            b.sorted,
-            this.ox,
-            this.oz,
-            {
-              ...castOpts(),
-              onReveal: (p) => b.onReveal?.(p, template)
-            }
-          );
+        await throughValve(async () => {
+          measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
+            b.grower = createGrowingInstancedGltf(
+              this.parent,
+              template,
+              b.sorted,
+              this.ox,
+              this.oz,
+              {
+                ...castOpts(),
+                onReveal: (p) => b.onReveal?.(p, template)
+              }
+            );
+          });
         });
         if (this.renderer && b.grower.warmup) {
           await measureRingItem(`warmup ${b.name || b.url || 'building'}`, () =>
-            b.grower.warmup(this.renderer)
+            throughValve(() => b.grower.warmup(this.renderer))
           );
         }
         await yieldToMain();
@@ -273,7 +282,7 @@ export class WorldStream {
       }
       if (added && this.renderer) {
         await measureRingItem(`compile building r${radius}`, () =>
-          this.renderer.compileSubtree(this.parent)
+          throughValve(() => this.renderer.compileSubtree(this.parent))
         );
         this.renderer.resumeDraw();
         await yieldToMain();
@@ -306,7 +315,9 @@ export class WorldStream {
     const flushCompile = async (label) => {
       if (!sinceCompile || !this.renderer) return;
       this.renderer.pauseDraw();
-      await measureRingItem(label, () => this.renderer.compileSubtree(this.parent));
+      await measureRingItem(label, () =>
+        throughValve(() => this.renderer.compileSubtree(this.parent))
+      );
       this.renderer.resumeDraw();
       await yieldToMain();
       sinceCompile = 0;
@@ -320,7 +331,6 @@ export class WorldStream {
 
       const batch = pending.filter((task) => !task.done && task.dist <= r);
       for (const task of batch) {
-        await waitIfSlow();
         await measureRingItem(
           `terrain mesh d${Math.round(task.dist)}`,
           () => task.run()

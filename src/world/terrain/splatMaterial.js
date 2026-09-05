@@ -49,7 +49,7 @@ function smoothstep(edge0, edge1, x) {
 /**
  * Write RGB for world (x,z) into colors[i*3..].
  */
-export function writeSplatColor(colors, i, x, z) {
+export function writeSplatColor(colors, i, x, z, slopeOverride = null) {
   biomeGrassRgb(x, z, rgb);
   grassTmp.setRGB(rgb[0], rgb[1], rgb[2]);
   biomeRockRgb(x, z, rgb);
@@ -64,7 +64,7 @@ export function writeSplatColor(colors, i, x, z) {
   mixColor.copy(grassTmp).lerp(dirtColor, dirt);
 
   if (dirt < 0.85) {
-    const slope = slopeAt(x, z);
+    const slope = slopeOverride != null ? slopeOverride : slopeAt(x, z);
     const rockAmt = smoothstep(ROCK_SLOPE, 0.95, slope) * (1 - dirt);
     if (rockAmt > 0) mixColor.lerp(rockTmp, rockAmt);
   }

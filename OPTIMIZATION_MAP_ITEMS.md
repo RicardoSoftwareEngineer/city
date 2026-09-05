@@ -1,5 +1,7 @@
 # Map-item optimization (what is in the scene)
 
+> **2026-09-05:** Texturas do Downtown / banco / prédios / Porsche estão de volta (sem `useLambert` / strip). Otimização de material fica para um passo posterior.
+
 Audience: another coding agent. This file is the **what** of city geometry: how streets, props, bank, and buildings become GPU objects.
 
 Companion: `OPTIMIZATION_LOADING.md` (rings, FPS governor, yield, when shadows turn on).

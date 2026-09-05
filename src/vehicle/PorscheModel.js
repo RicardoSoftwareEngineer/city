@@ -91,23 +91,14 @@ export class PorscheModel {
       rearRight:  this.createWheelPivot(root, pick(rearPair, true),   false, true)
     };
 
-    // Drop tiny badges. Remaining Standard+normal (Object_48, 1955 verts,
-    // roughness_fine_001_DIFF) compiled in ~3.6s — Lambert + map, no PCF.
-    const lambertByKey = new Map();
+    // Keep Source materials + maps (textures first; optimize later).
+    // Still drop tiny badges/emblems that only add noise.
     const drop = [];
     root.traverse((child) => {
       if (!child.isMesh) return;
       child.castShadow = true;
       child.receiveShadow = false;
-      const geometry = child.geometry;
-      if (geometry) {
-        for (const name of ['uv1', 'uv2', 'uv3', 'uv4']) {
-          if (geometry.attributes[name]) geometry.deleteAttribute(name);
-        }
-        if (geometry.attributes.tangent) geometry.deleteAttribute('tangent');
-        if (geometry.attributes.color) geometry.deleteAttribute('color');
-      }
-      const verts = geometry?.attributes.position?.count ?? 0;
+      const verts = child.geometry?.attributes.position?.count ?? 0;
       const matName = child.material?.name || '';
       if (
         (verts > 0 && verts <= 24) ||
@@ -115,17 +106,6 @@ export class PorscheModel {
         /emblem/i.test(matName)
       ) {
         drop.push(child);
-        return;
-      }
-      const src = child.material;
-      if (src && !src.isMeshLambertMaterial && !src.isMeshBasicMaterial) {
-        const map = src.map || null;
-        const hex = src.color ? src.color.getHex() : 0xffffff;
-        const key = `${map?.uuid || 'nomap'}|${hex}`;
-        if (!lambertByKey.has(key)) {
-          lambertByKey.set(key, new THREE.MeshLambertMaterial({ map, color: hex }));
-        }
-        child.material = lambertByKey.get(key);
       }
     });
     for (const mesh of drop) mesh.removeFromParent();

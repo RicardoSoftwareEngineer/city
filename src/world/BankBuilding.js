@@ -41,24 +41,6 @@ const ASSET_PATHS = {
 };
 
 const UPPER_FLOORS = [8, 11, 14, 17, 20, 23];
-const bankLambertByHex = new Map();
-
-function bankLambert(material) {
-  const hex = material?.color ? material.color.getHex() : 0xc4b8a8;
-  if (!bankLambertByHex.has(hex)) {
-    bankLambertByHex.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
-  }
-  return bankLambertByHex.get(hex);
-}
-
-function useBankLambert(root) {
-  root.traverse((child) => {
-    if (!child.isMesh) return;
-    const list = Array.isArray(child.material) ? child.material : [child.material];
-    const next = list.map((m) => bankLambert(m));
-    child.material = Array.isArray(child.material) ? next : next[0];
-  });
-}
 
 const CAST_KEYS = new Set([
   'plainWall', 'corner',
@@ -165,7 +147,6 @@ export class BankBuilding {
       const template = await loadGltf(ASSET_PATHS[key], CAST_KEYS.has(key) ? castOpts() : noCastOpts());
       await yieldAfterWork();
       if (!template) continue;
-      useBankLambert(template);
       await addInstancedGltfAsync(
         bankGroup,
         template,

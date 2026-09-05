@@ -126,6 +126,16 @@ export const memoryGuardian = {
     return !this.isTableFull;
   },
 
+  /**
+   * Terrain mesh pump may advance even when the resident soft-cap is full.
+   * Soft-cap alone used to return 0 from pumpTerrainSlice forever (streets/url
+   * growers filled the table first) so Terreno HUD stayed red and countryside
+   * never appeared. Only real heap pressure blocks terrain.
+   */
+  get wantsTerrainLoad() {
+    return heapPressure() < HEAP_SHRINK_ABOVE;
+  },
+
   setFocus(x, z) {
     focusX = x;
     focusZ = z;

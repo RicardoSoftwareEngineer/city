@@ -397,7 +397,7 @@ export class WorldStream {
           chebyshev(a.x, a.z, focus.x, focus.z) - chebyshev(b.x, b.z, focus.x, focus.z)
       );
 
-    if (!pending.length || !memoryGuardian.wantsLoad) return 0;
+    if (!pending.length || !memoryGuardian.wantsTerrainLoad) return 0;
 
     const COMPILE_EVERY = 8;
     let sinceCompile = 0;
@@ -418,7 +418,7 @@ export class WorldStream {
     tickLoadPhase('terrain', `r${Math.round(memoryGuardian.radius)}`);
 
     for (const task of pending) {
-      if (built >= maxTiles || !memoryGuardian.wantsLoad) break;
+      if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
       if (!memoryGuardian.allowsAt(task.x, task.z)) continue;
 
       const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
@@ -443,14 +443,21 @@ export class WorldStream {
     return built;
   }
 
-  /** Fill allowed terrain until the guardian table is full or nothing left in-circle. */
+  /** Fill allowed terrain until heap pressure or nothing left in-circle. */
   async pumpTerrainTo(step = STREAM_STEP) {
     for (let i = 0; i < 64; i++) {
       const n = await this.pumpTerrainSlice(12);
       if (n === 0) break;
-      if (!memoryGuardian.wantsLoad) break;
+      if (!memoryGuardian.wantsTerrainLoad) break;
       await yieldToMain();
     }
+  }
+
+  /** True once at least one in-circle terrain tile has been built (carpet may start). */
+  hasNearTerrainProgress() {
+    return this.tasks.some(
+      (t) => t.kind === 'terrain' && t.done && t.x != null && memoryGuardian.allowsAt(t.x, t.z)
+    );
   }
 
   /**
@@ -465,14 +472,15 @@ export class WorldStream {
         tickLoadPhase('terrain', `bg r${Math.round(memoryGuardian.radius)}`);
         const n = await this.pumpTerrainSlice(16);
         if (n === 0) {
-          const pending = this.tasks.some(
+          // In-radius pending only — outside allowsAt are blocked by radius, not soft-cap.
+          const pendingInRadius = this.tasks.some(
             (t) =>
               t.kind === 'terrain' &&
               !t.done &&
               t.x != null &&
               memoryGuardian.allowsAt(t.x, t.z)
           );
-          if (!pending) endLoadPhase('terrain');
+          if (!pendingInRadius) endLoadPhase('terrain');
           await yieldToMain();
         }
       }
@@ -485,6 +493,10 @@ export class WorldStream {
     if (this._carpetBg) return;
     this._carpetBg = true;
     const loop = async () => {
+      // Do not fight the main thread with Grass instancers while near terrain builds.
+      while (!this.hasNearTerrainProgress()) {
+        await yieldToMain();
+      }
       for (;;) {
         await this.pumpCarpetSlice({ maxLoads: 1, maxRevealPasses: 3 });
         await yieldToMain();
@@ -524,6 +536,12 @@ export class WorldStream {
       if (template && typeof job.options.prepare === 'function') {
         await throughValve(async () => { job.options.prepare(template); });
       }
+      // Dense grass: first InstancedMesh capacity 1–4 (not x19/x24) — grow later with yields.
+      const carpetOpts = {
+        ...zoneAwareOptions(job.options, job.poses),
+        firstBatchSize: 2,
+        maxBatchSize: 4
+      };
       job.grower = template
         ? createGrowingInstancedGltf(
           this.parent,
@@ -531,7 +549,7 @@ export class WorldStream {
           job.poses,
           this.ox,
           this.oz,
-          zoneAwareOptions(job.options, job.poses)
+          carpetOpts
         )
         : { reveal() { return 0; } };
       if (template && this.renderer && job.grower.warmup) {
@@ -550,7 +568,9 @@ export class WorldStream {
       if (passes >= maxRevealPasses) break;
       if (!job.grower || job.priority !== priority) continue;
       let added = 0;
-      while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+      // One batch worth per pass — never dump many ensureBatch allocations in one MAP.
+      const maxAdd = Math.min(loadGovernor.chunk, 4);
+      if (job.grower.reveal(radius, maxAdd) > 0) {
         added += 1;
         await budget.tick();
       }
@@ -564,6 +584,8 @@ export class WorldStream {
           this.renderer.resumeDraw();
           await yieldToMain();
           this.renderer.pauseDraw();
+        } else {
+          await yieldToMain();
         }
       }
     }

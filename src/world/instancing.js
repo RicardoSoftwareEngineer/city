@@ -147,20 +147,47 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
     return { reveal() { return 0; }, maxDist: 0, dispose() {} };
   }
 
-  const { onReveal, ...specOpts } = options;
+  const { onReveal, firstBatchSize, maxBatchSize, ...specOpts } = options;
   const sorted = poses.slice().sort(
     (a, b) => chebyshev(a.x, a.z, ox, oz) - chebyshev(b.x, b.z, ox, oz)
   );
   const specs = collectSpecs(template, specOpts);
   const batches = [];
-  const step = batchSize();
+  // Optional caps (carpet): keep first InstancedMesh tiny, later batches modest.
+  const govStep = batchSize();
+  const step = Math.max(1, Math.min(govStep, maxBatchSize ?? govStep));
+  const firstCap = firstBatchSize != null
+    ? Math.max(1, Math.min(step, firstBatchSize))
+    : step;
+
+  /** Variable-size batches: batch0 may be smaller than `step`; later use `step`. */
+  function batchCapacity(batchIndex) {
+    if (batchIndex === 0) return Math.min(firstCap, sorted.length);
+    const start = firstCap + (batchIndex - 1) * step;
+    return Math.min(step, sorted.length - start);
+  }
+
+  function batchStart(batchIndex) {
+    if (batchIndex <= 0) return 0;
+    return firstCap + (batchIndex - 1) * step;
+  }
+
+  function batchIndexFor(i) {
+    if (i < firstCap) return 0;
+    return 1 + Math.floor((i - firstCap) / step);
+  }
+
+  function slotFor(i) {
+    if (i < firstCap) return i;
+    return (i - firstCap) % step;
+  }
 
   function ensureBatch(batchIndex) {
     if (batches[batchIndex]) return batches[batchIndex];
-    const start = batchIndex * step;
-    const capacity = Math.min(step, sorted.length - start);
+    const capacity = batchCapacity(batchIndex);
+    if (capacity <= 0) return null;
     const meshes = specs.map((spec) => makeBatchMesh(parent, spec, capacity));
-    batches[batchIndex] = { meshes, capacity };
+    batches[batchIndex] = { meshes, capacity, start: batchStart(batchIndex) };
     return batches[batchIndex];
   }
 
@@ -187,6 +214,7 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
     async warmup(renderer) {
       if (!renderer || !specs.length) return;
       const batch = ensureBatch(0);
+      if (!batch) return;
       for (let s = 0; s < specs.length; s++) {
         const mesh = batch.meshes[s];
         writePose(mesh, specs[s], { x: ox, y: -2000, z: oz, scale: 0.001 }, 0);
@@ -204,14 +232,15 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
     reveal(radius, maxAdd = Infinity) {
       let n = revealed;
       while (n < sorted.length && chebyshev(sorted[n].x, sorted[n].z, ox, oz) <= radius) n++;
-      const batchEnd = (Math.floor(revealed / step) + 1) * step;
+      const bIdx = batchIndexFor(revealed);
+      const batchEnd = batchStart(bIdx) + batchCapacity(bIdx);
       const cap = Math.min(n, revealed + maxAdd, batchEnd);
       if (cap <= revealed) return 0;
 
       const before = revealed;
       for (let i = revealed; i < cap; i++) {
-        const batchIndex = Math.floor(i / step);
-        const slot = i % step;
+        const batchIndex = batchIndexFor(i);
+        const slot = slotFor(i);
         const batch = ensureBatch(batchIndex);
         const pose = sorted[i];
         for (let s = 0; s < specs.length; s++) {
@@ -221,13 +250,12 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
       }
       revealed = cap;
       // Only the batches touched this reveal need matrix/bounds updates.
-      const firstBatch = Math.floor(before / step);
-      const lastBatch = Math.floor((revealed - 1) / step);
+      const firstBatch = batchIndexFor(before);
+      const lastBatch = batchIndexFor(revealed - 1);
       for (let b = firstBatch; b <= lastBatch; b++) {
         const batch = batches[b];
         if (!batch) continue;
-        const start = b * step;
-        const filled = Math.min(revealed - start, batch.capacity);
+        const filled = Math.min(revealed - batch.start, batch.capacity);
         for (const mesh of batch.meshes) {
           mesh.count = Math.max(0, filled);
           mesh.instanceMatrix.needsUpdate = true;

@@ -6,6 +6,7 @@ import { chebyshev } from './instancing.js';
 import { STREAM_STEP, WorldStream } from './WorldStream.js';
 import { castOpts } from './shadowPolicy.js';
 import { registerTerrain } from './terrain/TerrainWorld.js';
+import { ensureWhiteOrchardHeightmap } from './terrain/whiteOrchardHeight.js';
 import { registerVegetation } from './terrain/Vegetation.js';
 import { registerLakes } from './water/registerLakes.js';
 import { registerCountryAvenue } from './terrain/countryAvenue.js';
@@ -27,6 +28,9 @@ export { STREAM_STEP };
 export async function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
   const stream = new WorldStream(parentGroup, ox, oz, renderer);
   const grid = new CityGrid();
+
+  // Kick White Orchard decode while streets register — registerTerrain still awaits ready.
+  void ensureWhiteOrchardHeightmap();
 
   await yieldToMain();
   const gridJobs = grid.collectJobs();

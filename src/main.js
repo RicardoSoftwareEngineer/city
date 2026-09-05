@@ -15,7 +15,7 @@ import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PorscheModel } from './vehicle/PorscheModel.js';
 import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
-import { createCityStream, STREAM_STEP } from './world/registerCity.js';
+import { createCityStream, registerHeavyWorld, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel, getSessionStats } from './engine/loadLog.js';
 import { createQualityAdapter } from './engine/qualityAdapter.js';
@@ -291,26 +291,29 @@ async function startGame() {
     // Corner markers — off critical path.
     void new Intersection().build(cityGroup);
 
+    // Light jobs only — veg/avenue/lakes scatter would freeze the tab here.
+    const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
     await yieldToMain();
-    const stream = createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
-    await yieldToMain();
-
-    porscheModel.load()
-      .then(async () => {
-        await throughValve(() =>
-          renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
-        );
-      })
-      .catch((error) => {
-        console.error('Porsche load failed:', error);
-      });
 
     beginLoadPhase('spawn', 'r10 p0');
+    // One pipeline: streets → heavy register → terrain → residency. No parallel Porsche yet.
     stream.pumpTo(STREAM_STEP, 0)
-      .then(() => {
+      .then(async () => {
         endLoadPhase('spawn');
         setLoadPhase('play');
         setInteractive(true);
+        await registerHeavyWorld(stream, cityGroup, originX, originZ, renderer.scene);
+        await yieldToMain();
+        // Porsche after first ring — not competing with createCityStream on click.
+        porscheModel.load()
+          .then(async () => {
+            await throughValve(() =>
+              renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
+            );
+          })
+          .catch((error) => {
+            console.error('Porsche load failed:', error);
+          });
         beginLoadPhase('terrain', 'mesh…');
         return stream.pumpTerrainTo(STREAM_STEP);
       })
@@ -327,7 +330,7 @@ async function startGame() {
         console.error('City stream failed:', error);
       });
 
-    console.log('🏙️ City load started by user');
+    console.log('🏙️ City load started by user (staged)');
   }
 
   if (startBtn) {

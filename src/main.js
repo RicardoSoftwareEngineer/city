@@ -40,6 +40,8 @@ import { surfaceY } from './world/terrain/paths.js';
 import { initTerrainDebug } from './world/terrain/terrainDebug.js';
 import { initRadiusDebug } from './engine/radiusDebug.js';
 import { initPersonaHud } from './engine/personaHud.js';
+import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCache.js';
+import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 
 async function startGame() {
   setLoadPhase('boot');
@@ -223,6 +225,25 @@ async function startGame() {
   // First paint ASAP — sky + boot ground + placeholder; phys already pinned.
   // Heavy work (Porsche glTF, Intersection, full stream, GPU compile) runs after.
   gameLoop.start();
+
+  const clearCacheBtn = document.getElementById('clear-asset-cache-btn');
+  if (clearCacheBtn) {
+    clearCacheBtn.addEventListener('click', async () => {
+      const n = await assetDiskCacheCount();
+      const ok = window.confirm(
+        `Limpar cache de assets no disco? (${n} arquivo(s))\n` +
+          'MemoryGuardian / cena ao vivo não são apagados. Recarrega depois.'
+      );
+      if (!ok) return;
+      await clearAssetDiskCache();
+      clearGltfMemoryDedupe();
+      clearCacheBtn.textContent = 'Cache limpo';
+      setTimeout(() => {
+        clearCacheBtn.textContent = 'Limpar cache';
+      }, 2000);
+    });
+  }
+
 
   setInteractive(true);
   setLoadPhase('play');

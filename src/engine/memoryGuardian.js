@@ -54,8 +54,9 @@ function heapPressure() {
 }
 
 function softCapFor(radius) {
-  // Tiny circles should not keep a 280-resident "table" — scale with radius.
-  return Math.max(48, Math.round(RESIDENT_SOFT_CAP * Math.max(0.15, radius / MAX_RADIUS)));
+  // Scale with radius, but keep a useful floor. Floor 48 at r40 filled the table
+  // with terrain alone, flipped full→shrink, and starved the stream.
+  return Math.max(120, Math.round(RESIDENT_SOFT_CAP * Math.max(0.35, radius / MAX_RADIUS)));
 }
 
 function chebyshev(ax, az, bx, bz) {
@@ -117,9 +118,12 @@ export const memoryGuardian = {
   get isTableFull() {
     return lastPressure >= HEAP_SHRINK_ABOVE || residents.size >= lastSoftCap;
   },
-  /** Loader may advance the ring. */
+  /**
+   * Loader may advance residency. Valve HOLD already gates GPU via throughValve —
+   * coupling wantsLoad to holding starved terrain/carpet every hitch.
+   */
   get wantsLoad() {
-    return !this.isTableFull && !loadGovernor.holding;
+    return !this.isTableFull;
   },
 
   setFocus(x, z) {
@@ -152,7 +156,7 @@ export const memoryGuardian = {
    * Register a disposable resident. `dispose` must free GPU/CPU and be idempotent.
    * Re-registering the same id replaces the previous entry (after disposing it).
    */
-  retain(id, { kind = 'misc', x, z, dispose }) {
+  retain(id, { kind = 'misc', x = 0, z = 0, poses = null, dispose }) {
     if (!id || typeof dispose !== 'function') return;
     const prev = residents.get(id);
     if (prev) {
@@ -162,7 +166,14 @@ export const memoryGuardian = {
         /* ignore */
       }
     }
-    residents.set(id, { id, kind, x, z, dispose });
+    residents.set(id, {
+      id,
+      kind,
+      x,
+      z,
+      poses: Array.isArray(poses) && poses.length ? poses : null,
+      dispose
+    });
   },
 
   release(id) {
@@ -177,12 +188,25 @@ export const memoryGuardian = {
     return true;
   },
 
+  /** Distance for residency: nearest pose if present, else anchor (x,z). */
+  _residentDist(row) {
+    if (row.poses?.length) {
+      let min = Infinity;
+      for (const p of row.poses) {
+        const d = chebyshev(p.x, p.z, focusX, focusZ);
+        if (d < min) min = d;
+      }
+      return min;
+    }
+    return chebyshev(row.x, row.z, focusX, focusZ);
+  },
+
   /** Drop everyone outside the current radius (farthest first if still over cap). */
   evictOutside() {
     let n = 0;
     const outside = [];
     for (const row of residents.values()) {
-      const d = chebyshev(row.x, row.z, focusX, focusZ);
+      const d = this._residentDist(row);
       // Pin is stronger than radius shrink: phys near the car stays until the car leaves.
       if (row.kind === 'phys' && d <= PHYS_PIN_RADIUS + 0.01) continue;
       if (d > radius + 0.01) outside.push({ row, d });
@@ -221,29 +245,37 @@ export const memoryGuardian = {
 
     const fpsBad = ema < FPS_SHRINK_EMA || inst < TARGET_FPS - 20;
     const fpsCritical = ema < FPS_CRITICAL_EMA || inst < FPS_CRITICAL_INSTANT;
-    const drawBad = lastDrawMs >= DRAW_SHRINK_MS;
-    const drawCritical = lastDrawMs >= DRAW_CRITICAL_MS;
+    const drawLive = draw?.tag && draw.tag !== 'paused';
+    const drawBad = drawLive && lastDrawMs >= DRAW_SHRINK_MS;
+    const drawCritical = drawLive && lastDrawMs >= DRAW_CRITICAL_MS;
     const heapBad = lastPressure >= HEAP_SHRINK_ABOVE;
 
-    const wantShrink = fpsBad || drawBad || heapBad || full;
+    // Soft-cap full must NOT shrink radius (evict→empty→starve). Full only gates wantsLoad.
+    const wantShrink = fpsBad || drawBad || heapBad;
     const wantExpand =
       !wantShrink &&
       lastPressure <= HEAP_EXPAND_BELOW &&
       !full &&
       loadGovernor.isSmooth &&
-      lastDrawMs < DRAW_EXPAND_BELOW_MS;
+      (!drawLive || lastDrawMs < DRAW_EXPAND_BELOW_MS);
 
     if (wantShrink) {
       goodSince = 0;
       if (!badSince) badSince = now;
       const held = now - badSince;
-      const need =
-        fpsCritical || drawCritical
+      const streaming = loadGovernor.streaming;
+      const need = streaming
+        ? SHRINK_MS * 2
+        : fpsCritical || drawCritical
           ? SHRINK_MS_CRITICAL
-          : full || heapBad
+          : heapBad
             ? SHRINK_MS_FULL
             : SHRINK_MS;
-      const step = fpsCritical || drawCritical ? STEP_FAST : STEP;
+      const step = streaming
+        ? STEP
+        : fpsCritical || drawCritical
+          ? STEP_FAST
+          : STEP;
       if (held >= need && radius > MIN_RADIUS) {
         radius = Math.max(MIN_RADIUS, radius - step);
         badSince = now;
@@ -256,9 +288,7 @@ export const memoryGuardian = {
               ? 'fps'
               : drawBad
                 ? 'draw'
-                : heapBad
-                  ? 'heap'
-                  : 'full';
+                : 'heap';
         lastAdaptReason = `shrink ${why}`;
       } else if (wantShrink) {
         lastAdaptReason = fpsCritical
@@ -269,9 +299,7 @@ export const memoryGuardian = {
               ? 'hold fps'
               : drawBad
                 ? 'hold draw'
-                : heapBad
-                  ? 'hold heap'
-                  : 'hold full';
+                : 'hold heap';
       }
     } else if (wantExpand) {
       badSince = 0;

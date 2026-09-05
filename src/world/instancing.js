@@ -144,7 +144,7 @@ export function minPoseDist(poses, ox, oz) {
  */
 export function createGrowingInstancedGltf(parent, template, poses, ox, oz, options = {}) {
   if (!template || poses.length === 0) {
-    return { reveal() { return 0; }, maxDist: 0 };
+    return { reveal() { return 0; }, maxDist: 0, dispose() {} };
   }
 
   const { onReveal, ...specOpts } = options;
@@ -169,6 +169,17 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
 
   return {
     maxDist,
+    dispose() {
+      for (const batch of batches) {
+        if (!batch) continue;
+        for (const mesh of batch.meshes) {
+          parent.remove(mesh);
+          // Do not dispose geometry/material — shared with the live template.
+        }
+      }
+      batches.length = 0;
+      revealed = 0;
+    },
     /**
      * Allocate batch 0 and compile its InstancedMesh programs before any reveal.
      * Later rings fill the same meshes; further batches reuse material._gpuInstancedProgramWarmed.

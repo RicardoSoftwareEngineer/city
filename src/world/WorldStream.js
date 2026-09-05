@@ -20,6 +20,24 @@ import { castOpts } from './shadowPolicy.js';
 
 export const STREAM_STEP = 10;
 
+function posesCentroid(poses) {
+  let sx = 0, sz = 0;
+  const n = poses.length || 1;
+  for (const p of poses) { sx += p.x; sz += p.z; }
+  return { x: sx / n, z: sz / n };
+}
+function registerGrowerResident(id, kind, poses, job) {
+  if (!job?.grower || typeof job.grower.dispose !== 'function') return;
+  const c = posesCentroid(poses);
+  memoryGuardian.retain(id, {
+    kind, x: c.x, z: c.z,
+    dispose: () => {
+      try { job.grower?.dispose?.(); } catch {}
+      job.grower = null;
+    }
+  });
+}
+
 export class WorldStream {
   constructor(parent, ox, oz, renderer = null) {
     this.parent = parent;
@@ -95,6 +113,7 @@ export class WorldStream {
     radius = capped;
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
     const budget = createBudget();
+    const focus = memoryGuardian.focus;
     beginRing(radius);
 
     for (const priority of priorities) {
@@ -104,13 +123,15 @@ export class WorldStream {
         (job) =>
           job.priority === priority &&
           !job.grower &&
-          minPoseDist(job.poses, this.ox, this.oz) <= radius
+          minPoseDist(job.poses, this.ox, this.oz) <= radius &&
+          minPoseDist(job.poses, focus.x, focus.z) <= memoryGuardian.radius
       );
       const pendingTpl = this.templateJobs.some(
         (job) =>
           job.priority === priority &&
           !job.grower &&
-          minPoseDist(job.poses, this.ox, this.oz) <= radius
+          minPoseDist(job.poses, this.ox, this.oz) <= radius &&
+          minPoseDist(job.poses, focus.x, focus.z) <= memoryGuardian.radius
       );
       const pendingTasks = this.tasks.some(
         (task) =>
@@ -155,12 +176,14 @@ export class WorldStream {
             throughValve(() => job.grower.warmup(this.renderer))
           );
         }
+        registerGrowerResident(`url:${job.url}`, 'world', job.poses, job);
         await yieldAfterWork();
       }
 
       for (const job of this.templateJobs) {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
+        if (minPoseDist(job.poses, focus.x, focus.z) > memoryGuardian.radius) continue;
         await throughValve(async () => {
           measureRingItemSync('template instancer', () => {
             job.grower = createGrowingInstancedGltf(
@@ -176,6 +199,15 @@ export class WorldStream {
         if (this.renderer && job.grower.warmup) {
           await measureRingItem('warmup template', () =>
             throughValve(() => job.grower.warmup(this.renderer))
+          );
+        }
+        {
+          const c = posesCentroid(job.poses);
+          registerGrowerResident(
+            `tpl:p${priority}:${Math.round(c.x)}:${Math.round(c.z)}`,
+            'world',
+            job.poses,
+            job
           );
         }
         await yieldAfterWork();
@@ -242,6 +274,7 @@ export class WorldStream {
     for (const b of this.buildings) {
       if (!b.sorted.length) continue;
       if (chebyshev(b.sorted[0].x, b.sorted[0].z, this.ox, this.oz) > radius) continue;
+      if (!memoryGuardian.allowsAt(b.sorted[0].x, b.sorted[0].z)) continue;
 
       if (!b.grower) {
         if (b.heavy) await waitUntilSmooth();
@@ -272,6 +305,7 @@ export class WorldStream {
             throughValve(() => b.grower.warmup(this.renderer))
           );
         }
+        registerGrowerResident(`bld:${b.name || b.url || 'building'}`, 'building', b.sorted, b);
         await yieldToMain();
       }
 

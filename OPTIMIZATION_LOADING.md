@@ -1,3 +1,5 @@
+> **2026-09-05:** MemoryGuardian owns world/building growers (urlJobs, templateJobs, buildings) — retain/dispose with focus filter; bank/lakes still one-shot tasks.
+
 > **2026-09-05:** Fix Guardian thrash — never evict *inside* the circle for soft-cap (load→dispose→reload spun Chrome to STATUS_BREAKPOINT); residency loop always `yieldToMain`; terrain boot slice-capped.
 
 > **2026-09-05:** **MemoryGuardian** owns residency radius (80–400 m, hysteresis) around the car. Terrain meshes + phys tiles `retain`/`dispose`; stream `pumpTo` / terrain slices stop when the table is full (`wantsLoad`); `continueAfter` is a forever residency loop. Shrink radius → `evictOutside`.

@@ -10,6 +10,10 @@
  * Timing is wall-clock based so a 3 FPS soak still ratchets within a few
  * seconds (frame-count hysteresis would stall). Soft-cap never dispose-
  * thrash inside the circle (STATUS_BREAKPOINT lesson from PR #72).
+ *
+ * Phys pin: `kind === 'phys'` residents within PHYS_PIN_RADIUS of the car are
+ * immortal until the car leaves — stronger than soft-cap / radius shrink, so
+ * the Heightfield under the wheels never disappears when Guardian tightens.
  */
 
 import { getLastDraw } from './loadLog.js';
@@ -18,6 +22,8 @@ import { noteDecision } from './personaLog.js';
 
 export const MIN_RADIUS = 10;
 export const MAX_RADIUS = 600;
+/** Immortal phys zone under the car (Chebyshev). Matches ensureGroundAround. */
+export const PHYS_PIN_RADIUS = 20;
 const STEP = 10;
 /** Big step when FPS/draw are critical so idle 3 FPS recovers quickly. */
 const STEP_FAST = 40;
@@ -86,6 +92,9 @@ export const memoryGuardian = {
   get maxRadius() {
     return MAX_RADIUS;
   },
+  get pinRadius() {
+    return PHYS_PIN_RADIUS;
+  },
   get focus() {
     return { x: focusX, z: focusZ };
   },
@@ -121,6 +130,11 @@ export const memoryGuardian = {
   /** True if a world point may stay loaded / be loaded. */
   allowsAt(x, z) {
     return chebyshev(x, z, focusX, focusZ) <= radius + 0.01;
+  },
+
+  /** Phys Heightfield under/near the car — never evicted while inside this zone. */
+  isPhysPinned(x, z) {
+    return chebyshev(x, z, focusX, focusZ) <= PHYS_PIN_RADIUS + 0.01;
   },
 
   /** Pose inside inner 10% ring (full quality intent). */
@@ -169,6 +183,8 @@ export const memoryGuardian = {
     const outside = [];
     for (const row of residents.values()) {
       const d = chebyshev(row.x, row.z, focusX, focusZ);
+      // Pin is stronger than radius shrink: phys near the car stays until the car leaves.
+      if (row.kind === 'phys' && d <= PHYS_PIN_RADIUS + 0.01) continue;
       if (d > radius + 0.01) outside.push({ row, d });
     }
     outside.sort((a, b) => b.d - a.d);
@@ -184,6 +200,7 @@ export const memoryGuardian = {
     // Soft-cap does NOT dispose inside the circle — that caused load→evict→reload thrash
     // and Chrome STATUS_BREAKPOINT. Over-cap only flips isTableFull / wantsLoad; tick
     // shrinks radius under pressure, then the next evictOutside drops true outsiders.
+    // Phys pin (above) is stronger still: never thrash-dispose colliders under the car.
     lastEvictCount = n;
     return n;
   },
@@ -297,6 +314,7 @@ export const memoryGuardian = {
       radius,
       minRadius: MIN_RADIUS,
       maxRadius: MAX_RADIUS,
+      pinRadius: PHYS_PIN_RADIUS,
       innerRadius: this.innerRadius,
       focusX,
       focusZ,

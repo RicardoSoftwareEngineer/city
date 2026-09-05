@@ -238,10 +238,13 @@ Ribbon geometry is a flat XY mesh (`riverGeometry.js`) rotated `-PI/2` like the 
 `surfaceY` as the visual mesh so physics and picture never disagree.
 
 Colliders are NOT tied to the visual stream. `ensureGroundAround(x, z)` runs
-each frame with the car pose and builds any missing tile (CPU only, capped at
-2 per frame); the boot pre-builds the spawn ring. Driving past the streamed
-radius therefore can never drop the car through the world, and
-`rescueIfBelowGround` lifts it back if it ever ends up under the surface.
+each frame with the car pose and builds any missing tile inside
+`PHYS_PIN_RADIUS` (CPU only, capped at 2 per frame); boot pre-fills that pin
+zone. MemoryGuardian treats those `phys` residents as immortal while the car is
+near — radius shrink / soft-cap must not drop the Heightfield under the wheels.
+Driving past the streamed *visual* radius therefore can never drop the car
+through the world, and `rescueIfBelowGround` lifts it back if it ever ends up
+under the surface.
 
 **Aligned grid (fall-through fix).** Tiles used to be dropped when their CENTER
 landed inside the city, which left the part of those tiles that stuck OUT of

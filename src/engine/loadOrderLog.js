@@ -2,8 +2,11 @@
  * Live load-order phases for the left HUD (terrain-first pipeline).
  *
  * mode:
- *   sync  — must exist before a hard dependency (boot paint / phys under car)
- *   async — streamed with waitIfSlow / yield (FPS-first)
+ *   sync  — hard dependency before play is safe (phys Heightfield under the car)
+ *   async — streamed under MemoryGuardian pressure (visuals; FPS-first)
+ *
+ * With phys pinned under the car, virtually nothing else is mandatory. Spawn
+ * streets are preferred early asphalt visuals, not a hard sync gate.
  */
 
 const phases = [
@@ -18,7 +21,7 @@ const phases = [
   },
   {
     id: 'spawn',
-    mode: 'sync',
+    mode: 'async',
     label: 'Ruas do spawn',
     status: 'pending',
     ms: 0,
@@ -147,16 +150,17 @@ export function phaseIdForPriority(priority) {
 }
 
 /**
- * Note sync ground work under the car. Does not steal the async active phase:
- * accumulates time on `ground` while tiles are actually built.
+ * Note sync ground work under the car. Does not steal the async active phase.
+ * `elapsedMs` must be real wall time spent building (not a fake per-tile attribution).
+ * After endGroundPhysPhase(), further builds are silent so the HUD stays honest.
  */
-export function noteGroundPhys(built, detail = '') {
+export function noteGroundPhys(built, detail = '', elapsedMs = 0) {
   if (!built) return;
   const p = row('ground');
   if (!p) return;
+  if (p.status === 'done') return;
   if (p.status === 'pending') p.status = 'running';
-  // Attribute a small slice so the HUD shows activity; real cost is in the frame.
-  p.ms += built * 8;
+  if (elapsedMs > 0) p.ms += elapsedMs;
   if (detail) p.detail = detail;
   bump();
 }

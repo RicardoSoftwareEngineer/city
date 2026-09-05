@@ -8,7 +8,8 @@
  *     and south edges of the city, is where the car used to fall through.
  *  2. Colliders are decoupled from the visual stream: ensureGroundAround()
  *     builds the Heightfield under the car on demand (cheap CPU, no GPU), so
- *     driving past the streamed ring is safe.
+ *     driving past the streamed ring is safe. MemoryGuardian pins those phys
+ *     tiles inside PHYS_PIN_RADIUS — they are never disposed while the car is near.
  *
  * Fine 40 m tiles inside the near rect, coarse 160 m tiles out to the √10 fence.
  */
@@ -16,7 +17,7 @@
 import * as CANNON from 'cannon-es';
 import { CITY_PAVED_MIN, CITY_PAVED_MAX } from '../RoadDimensions.js';
 import { loadGovernor } from '../../engine/LoadGovernor.js';
-import { memoryGuardian } from '../../engine/memoryGuardian.js';
+import { memoryGuardian, PHYS_PIN_RADIUS } from '../../engine/memoryGuardian.js';
 import { surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
@@ -170,8 +171,10 @@ export function hasTile(tile) {
  * Guarantee ground under and just around a world position.
  * Called every frame with the car pose — builds at most `maxBuilds` tiles per
  * call so a fast car never outruns its collider without stalling a frame.
+ * Default radius matches MemoryGuardian PHYS_PIN_RADIUS so colliders under the
+ * car stay inside the immortal pin zone (no build→evict thrash when R shrinks).
  */
-export function ensureGroundAround(x, z, radius = 60, maxBuilds = 2) {
+export function ensureGroundAround(x, z, radius = PHYS_PIN_RADIUS, maxBuilds = 2) {
   if (!physics) return 0;
   // B1: under FPS pressure, at most one heightfield per frame.
   if (loadGovernor.needsRest || loadGovernor.holding) maxBuilds = Math.min(maxBuilds, 1);

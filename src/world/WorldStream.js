@@ -371,10 +371,11 @@ export class WorldStream {
 
   /** Fill allowed terrain until the guardian table is full or nothing left in-circle. */
   async pumpTerrainTo(step = STREAM_STEP) {
-    for (;;) {
+    for (let i = 0; i < 64; i++) {
       const n = await this.pumpTerrainSlice(12);
       if (n === 0) break;
       if (!memoryGuardian.wantsLoad) break;
+      await yieldToMain();
     }
   }
 
@@ -391,25 +392,23 @@ export class WorldStream {
     for (;;) {
       await this.pumpTerrainSlice(8);
 
-      if (!memoryGuardian.wantsLoad) {
-        await yieldToMain();
-        continue;
-      }
-
-      const cap = memoryGuardian.radius;
-      if (r + STREAM_STEP <= cap + 0.01) {
-        r = Math.min(r + STREAM_STEP, cap);
-        await this.pumpTo(r, 5);
-      } else if (r < cap) {
-        r = cap;
-        await this.pumpTo(r, 5);
-      } else {
-        if (!dumped) {
+      if (memoryGuardian.wantsLoad) {
+        const cap = memoryGuardian.radius;
+        if (r + STREAM_STEP <= cap + 0.01) {
+          r = Math.min(r + STREAM_STEP, cap);
+          await this.pumpTo(r, 5);
+        } else if (r < cap) {
+          r = cap;
+          await this.pumpTo(r, 5);
+        } else if (!dumped) {
           dumpLoadLog();
           dumped = true;
         }
-        await yieldToMain();
       }
+
+      // Always yield — empty pumpTo can be sync and used to spin the tab to death
+      // (Chrome STATUS_BREAKPOINT / Aw Snap).
+      await yieldToMain();
     }
   }
 }

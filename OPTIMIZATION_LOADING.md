@@ -1,3 +1,5 @@
+> **2026-09-05:** Fix Guardian thrash — never evict *inside* the circle for soft-cap (load→dispose→reload spun Chrome to STATUS_BREAKPOINT); residency loop always `yieldToMain`; terrain boot slice-capped.
+
 > **2026-09-05:** **MemoryGuardian** owns residency radius (80–400 m, hysteresis) around the car. Terrain meshes + phys tiles `retain`/`dispose`; stream `pumpTo` / terrain slices stop when the table is full (`wantsLoad`); `continueAfter` is a forever residency loop. Shrink radius → `evictOutside`.
 
 > **2026-09-05:** `holdForTargetFps` now **pauseDraw** while HOLD — gate wait no longer re-renders 4–16M tris each recovery frame (was showing as 3s `fps-gate` Travamentos).

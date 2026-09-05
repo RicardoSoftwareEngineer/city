@@ -31,7 +31,7 @@ const phases = [
   {
     id: 'terrain',
     mode: 'async',
-    label: 'Terreno (mesh)',
+    label: 'Terreno (mesh, fundo)',
     status: 'pending',
     ms: 0,
     detail: '',
@@ -210,8 +210,10 @@ export function endLoadPhase(id) {
   bump();
 }
 
-export function finishAllLoadPhases() {
+export function finishAllLoadPhases(except = []) {
+  const skip = new Set(except);
   for (const p of phases) {
+    if (skip.has(p.id)) continue;
     if (p.status === 'running') endLoadPhase(p.id);
     else if (p.id === 'ground' && p.status !== 'pending') endGroundPhysPhase();
   }

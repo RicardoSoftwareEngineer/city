@@ -580,6 +580,30 @@ kbd {
 .res-fill.res-ok { background: #34d399; }
 .res-fill.res-warm { background: #fbbf24; }
 .res-fill.res-hot { background: #f87171; }
+.res-trends {
+  display: flex;
+  gap: 0.28rem;
+  margin-top: 0.1rem;
+  font-size: 0.55rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.res-trend {
+  color: #334155;
+  opacity: 0.55;
+  transition: color 0.15s, opacity 0.15s, transform 0.15s;
+}
+.res-trend.is-on[data-t="accel"] { color: #4ade80; opacity: 1; transform: translateY(-0.5px); }
+.res-trend.is-on[data-t="hold"] { color: #38bdf8; opacity: 1; }
+.res-trend.is-on[data-t="brake"] { color: #fbbf24; opacity: 1; transform: translateY(0.5px); }
+.res-trend.is-on[data-t="stop"] { color: #f87171; opacity: 1; }
+.res-legend {
+  margin-top: 0.4rem;
+  font-size: 0.52rem;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
 .res-note {
   margin-top: 0.45rem;
   font-size: 0.55rem;

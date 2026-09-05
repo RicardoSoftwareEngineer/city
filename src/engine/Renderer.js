@@ -8,11 +8,13 @@
 import * as THREE from 'three';
 import { beginLoad, loadMark, snapshotDraw, setLoadPhase } from './loadLog.js';
 import { createBudget, waitIfSlow, yieldToMain } from '../world/yield.js';
+import { noteDecision } from './personaLog.js';
 
 export class Renderer {
   constructor(canvasElement) {
     this.canvas = canvasElement;
     this._pauseDraw = false;
+    this._lastPauseNote = 0;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -153,11 +155,27 @@ export class Renderer {
   }
 
   pauseDraw() {
+    const was = this._pauseDraw;
     this._pauseDraw = true;
+    if (!was) {
+      const now = performance.now();
+      if (now - this._lastPauseNote > 500) {
+        noteDecision('Renderer', 'pauseDraw');
+        this._lastPauseNote = now;
+      }
+    }
   }
 
   resumeDraw() {
+    const was = this._pauseDraw;
     this._pauseDraw = false;
+    if (was) {
+      const now = performance.now();
+      if (now - this._lastPauseNote > 500) {
+        noteDecision('Renderer', 'resumeDraw');
+        this._lastPauseNote = now;
+      }
+    }
   }
 
   /**

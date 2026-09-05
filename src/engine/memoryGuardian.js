@@ -7,6 +7,7 @@
  */
 
 import { loadGovernor } from './LoadGovernor.js';
+import { noteDecision } from './personaLog.js';
 
 const MIN_RADIUS = 80;
 const MAX_RADIUS = 400;
@@ -38,10 +39,16 @@ let expandStreak = 0;
 let shrinkStreak = 0;
 let lastEvictCount = 0;
 let lastPressure = 0.5;
+let lastTableFull = false;
+let lastRadiusNoted = radius;
 
 export const memoryGuardian = {
   get radius() {
     return radius;
+  },
+  /** Inner 10% of residency radius — full quality intent. */
+  get innerRadius() {
+    return radius * 0.1;
   },
   get minRadius() {
     return MIN_RADIUS;
@@ -51,6 +58,9 @@ export const memoryGuardian = {
   },
   get focus() {
     return { x: focusX, z: focusZ };
+  },
+  get softCap() {
+    return RESIDENT_SOFT_CAP;
   },
   get residentCount() {
     return residents.size;
@@ -78,6 +88,17 @@ export const memoryGuardian = {
   /** True if a world point may stay loaded / be loaded. */
   allowsAt(x, z) {
     return chebyshev(x, z, focusX, focusZ) <= radius + 0.01;
+  },
+
+  /** Pose inside inner 10% ring (full quality intent). */
+  isInnerZone(x, z) {
+    return chebyshev(x, z, focusX, focusZ) <= this.innerRadius + 0.01;
+  },
+
+  /** Pose between 0.1R and R (low quality intent). */
+  isOuterZone(x, z) {
+    const d = chebyshev(x, z, focusX, focusZ);
+    return d > this.innerRadius + 0.01 && d <= radius + 0.01;
   },
 
   /**
@@ -163,7 +184,21 @@ export const memoryGuardian = {
       shrinkStreak = 0;
     }
 
+    if (radius < lastRadiusNoted) {
+      noteDecision('Guardian', `shrink →${Math.round(radius)}`);
+      lastRadiusNoted = radius;
+    } else if (radius > lastRadiusNoted) {
+      noteDecision('Guardian', `expand →${Math.round(radius)}`);
+      lastRadiusNoted = radius;
+    }
+
     const evicted = this.evictOutside();
+    if (evicted > 0) noteDecision('Guardian', `evict ${evicted}`);
+
+    const fullNow = this.isTableFull;
+    if (fullNow && !lastTableFull) noteDecision('Guardian', 'tableFull');
+    lastTableFull = fullNow;
+
     return { radius, evicted, pressure: lastPressure };
   },
 
@@ -171,6 +206,7 @@ export const memoryGuardian = {
   snapshot() {
     return {
       radius,
+      innerRadius: this.innerRadius,
       focusX,
       focusZ,
       residents: residents.size,

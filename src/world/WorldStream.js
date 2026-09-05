@@ -328,6 +328,7 @@ export class WorldStream {
             );
           });
         });
+        if (!b.grower) continue;
         if (this.renderer && b.grower.warmup) {
           await measureRingItem(`warmup ${b.name || b.url || 'building'}`, () =>
             throughValve(() => b.grower.warmup(this.renderer))
@@ -336,6 +337,9 @@ export class WorldStream {
         registerGrowerResident(`bld:${b.name || b.url || 'building'}`, 'building', b.sorted, b);
         await yieldToMain();
       }
+
+      // Guardian may have disposed the grower (soft-cap / evict) between load and reveal.
+      if (!b.grower) continue;
 
       // Same as urlJobs: pause so makeBatchMesh cannot compile-via-draw
       // (instancer Small_2 x4 +3prog ~3s). Compile new instancers, then one draw.
@@ -347,7 +351,7 @@ export class WorldStream {
           added += 1;
         }
       }
-      while (b.grower.reveal(radius, loadGovernor.chunk) > 0) {
+      while (b.grower && b.grower.reveal(radius, loadGovernor.chunk) > 0) {
         added += 1;
         await budget.tick();
       }

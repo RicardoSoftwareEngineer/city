@@ -1,6 +1,8 @@
 /**
  * Temporary quality ladder — only while FPS is under target.
  * Restores full quality as soon as FPS recovers. Never strips textures.
+ * setPixelRatio / shadow toggles can cost the *next* draw (tagged after: quality apply …),
+ * especially under system RAM pressure — see Travamentos heap/draw fields.
  */
 
 import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
@@ -24,7 +26,7 @@ export function createQualityAdapter(renderer) {
   function apply(next) {
     if (next === level) return;
     const t0 = performance.now();
-    beginLoad('quality', LEVELS[next].label);
+    beginLoad('quality', `apply ${LEVELS[next].label}`);
     level = next;
     const cfg = LEVELS[level];
     const pr = cfg.pixelRatio == null ? basePr : Math.min(basePr, cfg.pixelRatio);
@@ -36,7 +38,7 @@ export function createQualityAdapter(renderer) {
       renderer.renderer.shadowMap.enabled = true;
       shadowWanted = false;
     }
-    loadMark('quality', cfg.label, performance.now() - t0);
+    loadMark('quality', `apply ${cfg.label}`, performance.now() - t0);
   }
 
   return {

@@ -104,10 +104,18 @@ async function startGame() {
         const draw = h.drawMs > 0 ? ` · draw${h.drawMs}` : '';
         const fps = h.fps ? ` · ${h.fps}fps` : '';
         const q = h.quality && h.quality !== 'full' ? ` · q:${h.quality}` : '';
-        const label = h.work && h.work !== 'none' ? h.work : h.cause;
-        // Prefer the filename tail so Prop_Sign_JadeGarden_Side_L ≠ JadeGarden.
-        const work = label.length > 36 ? `…${label.slice(-34)}` : label;
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}</li>`;
+        const heap = h.heapMb > 0 ? ` · heap${h.heapMb}MB` : '';
+        const tris = h.tris > 0 ? ` · ${(h.tris / 1000).toFixed(0)}ktri` : '';
+        // Prefer cause when it is "after: …" — work alone hid that quality apply ≠ slow draw.
+        let label = h.work && h.work !== 'none' ? h.work : h.cause;
+        if (h.cause && String(h.cause).startsWith('after:') && h.cause !== h.work) {
+          label = h.cause;
+        }
+        const work = label.length > 40 ? `…${label.slice(-38)}` : label;
+        const recent = h.recent
+          ? ` · <span class="hitch-recent" title="${h.recent}">…${h.recent.split(' ← ').pop()}</span>`
+          : '';
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }

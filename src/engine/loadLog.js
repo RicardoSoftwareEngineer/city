@@ -42,6 +42,12 @@ const sessionStats = {
 const TAB_AWAY_MS = 45000;
 const RECENT_CAP = 8;
 
+function heapMb() {
+  const m = typeof performance !== 'undefined' ? performance.memory : null;
+  if (!m || !m.usedJSHeapSize) return 0;
+  return Math.round(m.usedJSHeapSize / (1024 * 1024));
+}
+
 function shortName(label) {
   if (!label) return '?';
   const slash = Math.max(label.lastIndexOf('/'), label.lastIndexOf('\\'));
@@ -174,11 +180,13 @@ export function noteHitch(frameMs) {
   if (lastDraw.baking) hint += ' · shadow-bake';
 
   const md = classifyMd(`${cause} ${lastWork.name}`);
+  const heap = heapMb();
   const row = {
     frameMs: Math.round(frameMs),
     fps: Math.round(1000 / Math.max(frameMs, 1)),
     cause,
     work: lastWork.name,
+    hint,
     md,
     phase,
     stream: streamLabel || '',
@@ -196,6 +204,7 @@ export function noteHitch(frameMs) {
     interactive,
     holding: Boolean(govSnap.holding),
     quality: govSnap.quality || 'full',
+    heapMb: heap,
     recent: recentWork.slice(-4).join(' ← ')
   };
   hitchEntries.push(row);
@@ -213,7 +222,7 @@ export function noteHitch(frameMs) {
     `draw:${row.drawMs}ms ago:${row.agoMs}ms ${row.calls}calls ${(row.tris / 1000).toFixed(0)}ktri ${row.programs}prog` +
     `${row.programDelta ? ` +${row.programDelta}prog` : ''}  ` +
     `shd:${row.shadows ? (row.baking ? 'bake' : 'on') : 'off'}  carga:${row.carga} batch:${row.batch} ` +
-    `hold:${row.holding ? 1 : 0} q:${row.quality} streaming:${row.streaming ? 1 : 0}  | ${hint}` +
+    `hold:${row.holding ? 1 : 0} q:${row.quality} streaming:${row.streaming ? 1 : 0}${row.heapMb ? ` heap:${row.heapMb}MB` : ''}  | ${hint}` +
     (row.recent ? `  recent:${row.recent}` : '')
   );
 }

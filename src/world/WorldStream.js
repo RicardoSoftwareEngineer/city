@@ -50,7 +50,10 @@ function registerGrowerResident(id, kind, poses, job) {
   if (!job?.grower || typeof job.grower.dispose !== 'function') return;
   const c = posesCentroid(poses);
   memoryGuardian.retain(id, {
-    kind, x: c.x, z: c.z,
+    kind,
+    x: c.x,
+    z: c.z,
+    poses,
     dispose: () => {
       try { job.grower?.dispose?.(); } catch {}
       job.grower = null;

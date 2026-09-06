@@ -49,3 +49,7 @@ Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 - Per-frame quality adapt / HOLD for apartments.
 - Unique furniture per unit (one shared template is enough).
 - Loading interiors for every window at once.
+
+## Marker
+
+- After **Apts 3**, a **🏠** billboard sits above the active facade so the player can confirm which building received the interiors.

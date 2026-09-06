@@ -299,7 +299,9 @@ async function startGame() {
       aptsBtn.textContent = 'Apts…';
       apartmentDirector.unload(facadeId);
       await apartmentDirector.loadCount(facadeId, 3);
+      apartmentDirector.markFacadeHouse(facadeId);
       aptsBtn.textContent = labelApts();
+      aptsBtn.title = `Apartamentos em: ${facadeId}`;
       aptsBtn.disabled = false;
     });
   }

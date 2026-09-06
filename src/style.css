@@ -344,6 +344,17 @@ kbd {
   font-size: 0.62rem;
   color: #94a3b8;
 }
+.lo-remain-optional-head {
+  margin-top: 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: lowercase;
+}
+.lo-row.lo-optional {
+  color: #94a3b8;
+  opacity: 0.85;
+}
 .load-order-list {
   list-style: none;
   margin: 0.35rem 0 0;

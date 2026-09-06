@@ -50,12 +50,15 @@ function renderRemain(snap) {
   const statusEl = document.getElementById('load-remain-status');
   const listEl = document.getElementById('load-remain-list');
   const totalEl = document.getElementById('load-remain-total');
+  const optHead = document.getElementById('load-remain-optional-head');
+  const optList = document.getElementById('load-remain-optional');
   if (!statusEl && !listEl && !totalEl) return;
 
   const total = snap.total | 0;
   const done = snap.done | 0;
   const denom = done + total;
   const progress = denom > 0 ? `${done}/${denom}` : `${done}/—`;
+  const optional = (snap.optional || []).filter((it) => it.count > 0);
 
   if (statusEl) {
     if (snap.focusReady) {
@@ -85,6 +88,29 @@ function renderRemain(snap) {
           return (
             `<li class="lo-row lo-running">` +
             `<span class="lo-glyph">◉</span>` +
+            `<span class="lo-label">${escapeHtml(`${i + 1} · ${it.label}`)}</span>` +
+            `<span class="lo-ms">${it.count}</span>` +
+            `</li>`
+          );
+        })
+        .join('');
+    }
+  }
+
+  if (optHead) {
+    optHead.hidden = optional.length === 0;
+  }
+  if (optList) {
+    if (!optional.length) {
+      optList.innerHTML = '';
+      optList.hidden = true;
+    } else {
+      optList.hidden = false;
+      optList.innerHTML = optional
+        .map((it, i) => {
+          return (
+            `<li class="lo-row lo-optional">` +
+            `<span class="lo-glyph">○</span>` +
             `<span class="lo-label">${escapeHtml(`${i + 1} · ${it.label}`)}</span>` +
             `<span class="lo-ms">${it.count}</span>` +
             `</li>`

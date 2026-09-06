@@ -2,7 +2,8 @@
  * Streams the city in Chebyshev rings of 10 m around the car.
  * Terrain meshes run on a continuous background loop (never gated by street pumps).
  * Then streets → props → bank → buildings → countryside veg (prio ≤4).
- * Dense carpet (prio 5) is background-only — never blocks radius expansion.
+ * Dense carpet (prio 5) is background-only — never blocks radius expansion
+ * or Foco pronto (optional HUD line only).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -31,6 +32,8 @@ export const STREAM_STEP = 10;
 export const STREAM_PRIORITY_CORE = 4;
 /** Dense grass carpet — background slices only. */
 export const STREAM_PRIORITY_CARPET = 5;
+/** Carpet pump / phase completion disk (m). Never chase full residency R. */
+export const CARPET_REVEAL_RADIUS = 80;
 
 const PRIO_LABEL = {
   0: 'ruas',
@@ -218,11 +221,17 @@ export class WorldStream {
     return { urlLoads, tplLoads, tasks, poses, buildings, total: urlLoads + tplLoads + tasks + poses + buildings };
   }
 
-  /** Build numbered remaining list for HUD (current focus residency / vista). */
+  /**
+   * Build numbered remaining list for HUD (current focus residency / vista).
+   * Core = terrain vista + streets + furniture + bank + buildings + nature prio≤4.
+   * Dense carpet (prio 5) is optional background — never blocks Foco pronto.
+   */
   computeFocusRemain() {
     const focus = memoryGuardian.focus;
     const radius = effectiveLoadRadius();
+    const carpetR = Math.min(CARPET_REVEAL_RADIUS, radius);
     const items = [];
+    const optional = [];
     let total = 0;
     let done = 0;
 
@@ -241,8 +250,13 @@ export class WorldStream {
     }
 
     const urlByLabel = new Map();
+    let carpetUrlLoads = 0;
     for (const job of this.urlJobs) {
       if (job.grower) continue;
+      if (job.priority === STREAM_PRIORITY_CARPET) {
+        if (minPoseDist(job.poses, focus.x, focus.z) <= carpetR) carpetUrlLoads += 1;
+        continue;
+      }
       if (minPoseDist(job.poses, focus.x, focus.z) > radius) continue;
       const label = `glTF ${jobLabel(job)}`;
       urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
@@ -257,6 +271,9 @@ export class WorldStream {
       items.push({ label, count });
       total += count;
     }
+    if (carpetUrlLoads) {
+      optional.push({ label: 'glTF carpet (fundo)', count: carpetUrlLoads });
+    }
 
     const poseByPrio = new Map();
     const bumpPose = (priority, n) => {
@@ -264,8 +281,13 @@ export class WorldStream {
       const label = `poses ${PRIO_LABEL[priority] || `p${priority}`}`;
       poseByPrio.set(label, (poseByPrio.get(label) || 0) + n);
     };
+    let carpetPoses = 0;
     for (const job of this.urlJobs) {
       if (!job.grower) continue;
+      if (job.priority === STREAM_PRIORITY_CARPET) {
+        carpetPoses += job.grower.unrevealedNear?.(focus.x, focus.z, carpetR) || 0;
+        continue;
+      }
       const n = job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
       bumpPose(job.priority, n);
     }
@@ -277,6 +299,9 @@ export class WorldStream {
     for (const [label, count] of poseByPrio) {
       items.push({ label, count });
       total += count;
+    }
+    if (carpetPoses) {
+      optional.push({ label: 'poses carpet', count: carpetPoses });
     }
 
     let bld = 0;
@@ -305,8 +330,9 @@ export class WorldStream {
       total += taskPend;
     }
 
-    // Rough done counter: revealed poses + finished terrain in scope.
+    // Rough done counter: revealed core poses + finished terrain in scope.
     for (const job of this.urlJobs) {
+      if (job.priority === STREAM_PRIORITY_CARPET) continue;
       if (job.grower?.revealed) done += job.grower.revealed;
     }
     for (const job of this.templateJobs) {
@@ -316,7 +342,7 @@ export class WorldStream {
       if (b.grower?.revealed) done += b.grower.revealed;
     }
 
-    return { total, done, items };
+    return { total, done, items, optional };
   }
 
   publishRemain() {
@@ -331,6 +357,9 @@ export class WorldStream {
         noteDecision('Carregador', 'wantsLoad false');
         this._lastWantsNote = now;
       }
+      // Soft-cap / valve hold must still close phases whose in-radius work is 0.
+      this.endIdleCorePhases(Math.min(radius, effectiveLoadRadius()), maxPriority);
+      this.publishRemain();
       return;
     }
     if (now - this._lastPumpNote > 2000) {
@@ -581,6 +610,21 @@ export class WorldStream {
   }
 
   /**
+   * End async core phases that have nothing left inside the current radius.
+   * Safe while wantsLoad is false — avoids streets/furniture/… timers running for hours.
+   */
+  endIdleCorePhases(radius, maxPriority = STREAM_PRIORITY_CORE) {
+    const focus = memoryGuardian.focus;
+    const priorities = [0, 1, 2, 3, 4].filter((p) => p <= maxPriority);
+    for (const priority of priorities) {
+      const phaseId = phaseIdForPriority(priority);
+      if (!phaseId) continue;
+      const left = this.countPriorityPending(priority, radius, focus);
+      if (left.total === 0) endLoadPhase(phaseId);
+    }
+  }
+
+  /**
    * Build terrain tiles inside the fence-scale vista ring (heap-gated).
    * Uses allowsTerrainAt — not adaptive residency R — so far campo can fill
    * while Guardian is stuck ~180 m for streets.
@@ -728,7 +772,6 @@ export class WorldStream {
     const priority = STREAM_PRIORITY_CORE;
     const radius = effectiveLoadRadius();
     const focus = memoryGuardian.focus;
-    if (!memoryGuardian.wantsNatureLoad) return 0;
 
     const pendingLoad = this.urlJobs.filter(
       (job) =>
@@ -747,6 +790,8 @@ export class WorldStream {
       this.publishRemain();
       return 0;
     }
+    // Heap gate after empty-check so a full table cannot leave nature "running" forever.
+    if (!memoryGuardian.wantsNatureLoad) return 0;
 
     ensureLoadPhase('nature', `bg r${Math.round(radius)}`);
     setStreamLabel(`nature bg r${Math.round(radius)}`);
@@ -840,9 +885,9 @@ export class WorldStream {
    */
   async pumpCarpetSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
     const priority = STREAM_PRIORITY_CARPET;
-    const radius = effectiveLoadRadius();
+    // Small near-city disk only — never keep carpet phase running for full residency R.
+    const radius = Math.min(CARPET_REVEAL_RADIUS, effectiveLoadRadius());
     const focus = memoryGuardian.focus;
-    if (!memoryGuardian.wantsLoad) return 0;
 
     const pendingLoad = this.urlJobs.filter(
       (job) =>
@@ -852,15 +897,19 @@ export class WorldStream {
         minPoseDist(job.poses, this.ox, this.oz) <= radius &&
         minPoseDist(job.poses, focus.x, focus.z) <= radius
     );
+    // Match grower.reveal(radius) (origin-sorted prefix) so the phase can finish.
     const pendingReveal = this.urlJobs.reduce((n, job) => {
       if (job.priority !== priority || !job.grower) return n;
-      return n + (job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0);
+      return n + (job.grower.pendingRevealCount?.(radius) || 0);
     }, 0);
     if (!pendingLoad.length && pendingReveal === 0) {
       endLoadPhase('carpet');
       this.publishRemain();
       return 0;
     }
+    // Soft-cap must not leave carpet "running" when the small disk is already empty
+    // (handled above). When work remains, wait for wantsLoad like other world growers.
+    if (!memoryGuardian.wantsLoad) return 0;
 
     ensureLoadPhase('carpet', `bg r${Math.round(radius)}`);
     setStreamLabel(`carpet bg r${Math.round(radius)}`);
@@ -934,7 +983,19 @@ export class WorldStream {
       }
     }
     if (this.renderer) this.renderer.resumeDraw();
-    if (!pendingLoad.length && work === 0) endLoadPhase('carpet');
+    const stillReveal = this.urlJobs.reduce((n, job) => {
+      if (job.priority !== priority || !job.grower) return n;
+      return n + (job.grower.pendingRevealCount?.(radius) || 0);
+    }, 0);
+    const stillLoad = this.urlJobs.some(
+      (job) =>
+        job.priority === priority &&
+        !job.grower &&
+        !job.loading &&
+        minPoseDist(job.poses, this.ox, this.oz) <= radius &&
+        minPoseDist(job.poses, focus.x, focus.z) <= radius
+    );
+    if (!stillLoad && stillReveal === 0) endLoadPhase('carpet');
     this.publishRemain();
     return work;
   }

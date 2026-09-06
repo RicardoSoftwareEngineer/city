@@ -191,6 +191,9 @@ export function beginLoadPhase(id, detail = '') {
 export function tickLoadPhase(id, detail) {
   const p = row(id);
   if (!p) return;
+  // Never re-open a phase that already finished — pump/reveal may keep
+  // touching growers forever (mayReveal). New work must call ensureLoadPhase.
+  if (p.status === 'done') return;
   if (p.status !== 'running') beginLoadPhase(id, detail);
   else if (detail && detail !== p.detail) {
     p.detail = detail;
@@ -199,6 +202,20 @@ export function tickLoadPhase(id, detail) {
   } else {
     activeId = id;
   }
+}
+
+/**
+ * Start or resume a phase when there is real pending work.
+ * Unlike tickLoadPhase, this may re-open a done phase (radius grew / new jobs).
+ */
+export function ensureLoadPhase(id, detail = '') {
+  const p = row(id);
+  if (!p) return;
+  if (p.status === 'done' || p.status === 'pending') {
+    beginLoadPhase(id, detail);
+    return;
+  }
+  tickLoadPhase(id, detail);
 }
 
 export function endLoadPhase(id) {

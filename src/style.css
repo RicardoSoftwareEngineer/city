@@ -311,14 +311,38 @@ kbd {
 #load-order-async-hud {
   top: 14.5rem;
 }
-#load-order-sync-hud {
+#load-remain-hud {
   top: 28.5rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+#load-order-sync-hud {
+  top: 43rem;
 }
 #load-order-async-label {
   color: #34d399;
 }
+#load-remain-label {
+  color: #fbbf24;
+}
 #load-order-sync-label {
   color: #38bdf8;
+}
+.lo-remain-status {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.lo-remain-ready {
+  color: #4ade80;
+}
+.lo-remain-busy {
+  color: #fbbf24;
+}
+.lo-remain-total {
+  margin-top: 0.15rem;
+  font-size: 0.62rem;
+  color: #94a3b8;
 }
 .load-order-list {
   list-style: none;

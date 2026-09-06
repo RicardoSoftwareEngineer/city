@@ -1,9 +1,10 @@
 /**
- * Left HUD: sync + async load-order lists.
+ * Left HUD: sync + async load-order lists + numbered remaining queue.
  * Sync is phys-under-car only; spawn streets and the rest are async.
  */
 
 import { getLoadOrderRevision, getLoadOrderSnapshot } from './loadOrderLog.js';
+import { getFocusRemainRevision, getFocusRemainSnapshot } from './focusRemain.js';
 
 function fmtMs(ms) {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
@@ -45,22 +46,77 @@ function renderRows(phases) {
     .join('');
 }
 
+function renderRemain(snap) {
+  const statusEl = document.getElementById('load-remain-status');
+  const listEl = document.getElementById('load-remain-list');
+  const totalEl = document.getElementById('load-remain-total');
+  if (!statusEl && !listEl && !totalEl) return;
+
+  const total = snap.total | 0;
+  const done = snap.done | 0;
+  const denom = done + total;
+  const progress = denom > 0 ? `${done}/${denom}` : `${done}/—`;
+
+  if (statusEl) {
+    if (snap.focusReady) {
+      statusEl.textContent = 'Foco pronto';
+      statusEl.className = 'lo-remain-status lo-remain-ready';
+    } else if (total > 0) {
+      statusEl.textContent = `Faltam ${total} itens`;
+      statusEl.className = 'lo-remain-status lo-remain-busy';
+    } else {
+      statusEl.textContent = 'Foco completo';
+      statusEl.className = 'lo-remain-status lo-remain-ready';
+    }
+  }
+
+  if (totalEl) {
+    const r = Math.round(snap.radius || 0);
+    const freeze = snap.frozen ? ' · raio fixo' : '';
+    totalEl.textContent = `Restante ${total} · feito/total ${progress} · r${r}m${freeze}`;
+  }
+
+  if (listEl) {
+    if (!snap.items?.length) {
+      listEl.innerHTML = '<li class="lo-row lo-done"><span class="lo-glyph">✓</span><span class="lo-label">Nada pendente neste foco</span></li>';
+    } else {
+      listEl.innerHTML = snap.items
+        .map((it, i) => {
+          return (
+            `<li class="lo-row lo-running">` +
+            `<span class="lo-glyph">◉</span>` +
+            `<span class="lo-label">${escapeHtml(`${i + 1} · ${it.label}`)}</span>` +
+            `<span class="lo-ms">${it.count}</span>` +
+            `</li>`
+          );
+        })
+        .join('');
+    }
+  }
+}
+
 export function initLoadOrderHud() {
   const asyncList = document.getElementById('load-order-async-list');
   const syncList = document.getElementById('load-order-sync-list');
   if (!asyncList && !syncList) return () => {};
 
   let shownRev = -1;
+  let shownRemainRev = -1;
 
   function paint() {
     const rev = getLoadOrderRevision();
+    const remainRev = getFocusRemainRevision();
     const snap = getLoadOrderSnapshot();
     const hasRunning = snap.phases.some((p) => p.status === 'running');
-    if (rev === shownRev && !hasRunning) return;
-    shownRev = rev;
-
-    if (asyncList) asyncList.innerHTML = renderRows(snap.async);
-    if (syncList) syncList.innerHTML = renderRows(snap.sync);
+    if (rev !== shownRev || hasRunning) {
+      shownRev = rev;
+      if (asyncList) asyncList.innerHTML = renderRows(snap.async);
+      if (syncList) syncList.innerHTML = renderRows(snap.sync);
+    }
+    if (remainRev !== shownRemainRev) {
+      shownRemainRev = remainRev;
+      renderRemain(getFocusRemainSnapshot());
+    }
   }
 
   return paint;

@@ -27,6 +27,7 @@ import { beginLoadPhase, endLoadPhase, endGroundPhysPhase, finishAllLoadPhases, 
 import { bindValveDraw, waitUntilSmooth, yieldToMain, throughValve } from './world/yield.js';
 import { memoryGuardian, PHYS_PIN_RADIUS } from './engine/memoryGuardian.js';
 import { createFocusGrid } from './engine/focusGrid.js';
+import { setFocusCellKey, armFocusRemain } from './engine/focusRemain.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import {
   isInsideCity,
@@ -173,6 +174,7 @@ async function startGame() {
     // tiles inside PHYS_PIN_RADIUS even when visuals have been evicted.
     const car = vehicleController.chassisBody.position;
     const focus = focusGrid.update(car.x, car.z);
+    setFocusCellKey(focus.key);
     memoryGuardian.setFocus(focus.x, focus.z);
     memoryGuardian.tick();
     {
@@ -263,6 +265,7 @@ async function startGame() {
   loadGovernor.streaming = false;
   {
     const focus = focusGrid.update(originX, originZ);
+    setFocusCellKey(focus.key);
     memoryGuardian.setFocus(focus.x, focus.z);
   }
   memoryGuardian.tick();
@@ -284,6 +287,7 @@ async function startGame() {
     loadGovernor.streaming = true;
     {
       const focus = focusGrid.update(originX, originZ);
+      setFocusCellKey(focus.key);
       memoryGuardian.setFocus(focus.x, focus.z);
     }
     memoryGuardian.tick();
@@ -335,6 +339,7 @@ async function startGame() {
           });
         // Keep terrain + nature + carpet phases alive — they end themselves when idle.
         finishAllLoadPhases(['terrain', 'nature', 'carpet']);
+        armFocusRemain();
         setLoadPhase('play');
         setInteractive(true);
         await waitUntilSmooth();

@@ -11,7 +11,7 @@ import { loadGltf } from '../AssetLoader.js';
 import { BUILDING_SPECS, buildingUrl } from './specs.js';
 import { mergeBuilding } from './merge.js';
 import { extractWindowSlots } from '../apartments/slots.js';
-import { applyWindowGlass } from '../apartments/glass.js';
+import { applyWindowGlass, stripKitInteriorShell } from '../apartments/glass.js';
 import { waitUntilSmooth } from '../yield.js';
 
 let slots = BUILDING_SPECS.map(() => null);
@@ -25,6 +25,7 @@ export async function getBuildingTemplate(index) {
       const prepared = prepareSourceBuilding(root, spec);
       const apartmentSlots = extractWindowSlots(prepared);
       applyWindowGlass(prepared);
+      stripKitInteriorShell(prepared);
       if (spec.name.startsWith('Large')) await waitUntilSmooth();
       const merged = await mergeBuilding(prepared, spec.file);
       merged.userData.apartmentSlots = apartmentSlots;

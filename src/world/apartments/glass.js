@@ -19,9 +19,9 @@ export function getWindowGlassMaterial() {
       name: 'MI_WindowGlass',
       color: 0xc5ddf0,
       metalness: 0.05,
-      roughness: 0.12,
+      roughness: 0.08,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.14,
       depthWrite: false,
       side: THREE.DoubleSide
     });

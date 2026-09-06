@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { createApartmentRoom, createCurtain, createRevealPlane } from './roomTemplate.js';
+import { createApartmentRoom, createCurtain } from './roomTemplate.js';
 
 /** Spec 05 — only N apartments live at once. */
 export const MAX_LOADED = 3;
@@ -15,7 +15,6 @@ const MID_Y_MAX = 20;
 /** Curtain sits outside glass along local −Z (toward street). */
 const CURTAIN_OUT_Z = -0.14;
 /** Reveal plane flush with window from outside (still −Z of glass). */
-const REVEAL_OUT_Z = -0.04;
 
 const _dummy = new THREE.Object3D();
 const _slotMat = new THREE.Matrix4();
@@ -473,18 +472,12 @@ export class ApartmentDirector {
   async _finishLoad(unit) {
     if (unit.state !== 'loading') return;
 
-    // Bright reveal plane flush with window from outside (survives InstancedMesh glass sorting).
-    const reveal = createRevealPlane(unit.slot.width, unit.slot.height);
-    reveal.position.z = REVEAL_OUT_Z;
-    unit.group.add(reveal);
-    unit.reveal = reveal;
-
-    const room = createApartmentRoom();
-    // Sit room so floor is near window sill and opening aligns with glass.
+    // Phase 1: no opaque reveal plane — transparent glass + real 3D room behind.
+    const room = await createApartmentRoom();
     const h = unit.slot.height;
-    room.position.set(0, -h * 0.45, 0.06);
-    const sx = Math.max(0.55, unit.slot.width / 3.0);
-    const sy = Math.max(0.55, unit.slot.height / 2.4);
+    room.position.set(0, -h * 0.42, 0.12);
+    const sx = Math.max(0.65, unit.slot.width / 2.8);
+    const sy = Math.max(0.65, unit.slot.height / 2.35);
     room.scale.set(sx, sy, Math.max(sx, sy));
     room.traverse((obj) => {
       if (obj.isMesh) {
@@ -494,6 +487,7 @@ export class ApartmentDirector {
     });
     unit.group.add(room);
     unit.room = room;
+    unit.reveal = null;
 
     if (this.renderer?.compileSubtree) {
       try {

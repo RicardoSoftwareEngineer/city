@@ -10,7 +10,7 @@
 
 ## Glass + kit shell
 
-- `applyWindowGlass` replaces `MI_FakeInterior*` / `MI_Glass` with shared transparent glass (opacity ~0.14).
+- `applyWindowGlass` replaces `MI_FakeInterior*` / `MI_Glass` with shared transparent glass (opacity ~**0.09**, Physical, no env-map requirement). Slightly clearer than early phase-1 (0.14) so lit rooms read through outdoor glare.
 - `stripKitInteriorShell` removes meshes whose materials are `MI_InteriorWall` / `MI_InteriorFloor` **before** `mergeBuilding`, so clear glass shows our room — not the dark MegaKit shell.
 - On merge, transparent materials get `castShadow: false`.
 
@@ -20,6 +20,7 @@
 - Stored on the merged template as `userData.apartmentSlots` (local space of the prepared template).
 - Curtains + room are **scene overlays** (not InstancedMesh). Curtains sit **outside** glass (local −Z). **No opaque reveal plane** — glass stays transparent; the 3D room is visible through it. Auto-load applies `liveTarget` on mark.
 - **Interior quality (phased):** phase 1 = clear glass + `Brick_InteriorWall` + Standard procedural furniture. Later phases add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
+- **Phase-1 visibility bar:** from the street you must instantly see “tem quarto” — bright/emissive walls + fill lights strong enough under ACES outdoor exposure, and a **large near-glass silhouette** (sofa / plant) pushed toward the −Z opening. Furniture buried deep in the room is not enough.
 
 ## Command API (`ApartmentDirector`)
 
@@ -35,7 +36,7 @@ Exposed as `window.__cityApartments` (`liveTarget` default 3).
 | `load(facadeId, slotIds)` | Load one or more apartments on that facade |
 | `loadCount(facadeId, n)` | Load `n` best idle slots (mid-height street-facing, largest first) |
 | `unload(facadeId?, slotIds?)` | Remove interiors + curtains |
-| `update(dt)` | Animate curtain open |
+| `update(dt)` | Animate curtain open (scale only; shared mat) |
 | `pickFacadeNear(x, z)` | Nearest registered facade to planar point |
 
 ## HUD (`#apts-budget`)
@@ -48,13 +49,19 @@ Exposed as `window.__cityApartments` (`liveTarget` default 3).
 
 ## Curtain states (per apartment)
 
-`idle` → `loading` (curtain **closed**) → `ready` (interior in scene, optional `compileAsync`) → `open` (curtain animates open).
+`idle` → `loading` (curtain **closed**) → `ready` (interior in scene, optional `compileAsync`, **curtain snap-hidden**) → `open`.
 
 Budget cut: `open`/`ready` → **`curtain-only`** (room disposed carefully; shared template kept; curtain reset closed + visible). Raising the budget again reloads the room and re-opens.
 
-Curtain opens **only** after the interior is added and warmed. No FPS adapt.
+Curtain hides **as soon as** the interior is added and warmed (snap hide — no closed plane left over the glass). No FPS adapt.
 
-**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains open and rooms show through glass as each unit becomes `ready`. Shared room materials skip re-compile after the first warm. Stream/world compiles still pause as before. No FPS HOLD / adaptive pause for apartments.
+**Shared curtain:** one `MeshStandardMaterial` + one unit `PlaneGeometry`, scaled per slot. Compile warms **once**; do not create per-unit curtain materials (that caused ~11s `apartment-curtain` hitch spam × N). Never mutate shared `material.opacity` — open/close via `scale` + `visible` only. Do not dispose shared curtain geo/mat on unit teardown.
+
+**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and rooms show through glass as each unit becomes `ready`. Shared room **and curtain** materials skip re-compile after the first warm. Stream/world compiles still pause as before. No FPS HOLD / adaptive pause for apartments.
+
+## Orientation
+
+- Room opening faces local **−Z**; `slotLocalMatrix` builds +Z = inward (−outward normal). Curtain at local −Z (outside glass). If a facade’s slots face the wrong way, rooms sit inside the mass — fix normals once at slot extract / matrix, don’t special-case per building.
 
 ## Out of scope
 

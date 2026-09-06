@@ -52,4 +52,4 @@ Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 
 ## Marker
 
-- After **Apts 3**, a **screen-space house** (constant on-screen size) sits at **Y=120** with a cyan pole from the roof — visible from high free-fly.
+- First **Large** facade auto-gets a giant house billboard (~80 m) + yellow beacon at **Y=160** + cyan pole, plus a yellow HTML banner `↓ CASA APTS`. **Apts 3** moves the marker to the chosen facade.

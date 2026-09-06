@@ -301,8 +301,8 @@ async function startGame() {
       apartmentDirector.unload(facadeId);
       await apartmentDirector.loadCount(facadeId, 3);
       apartmentDirector.markFacadeHouse(facadeId);
-      aptsBtn.textContent = labelApts();
-      aptsBtn.title = `Apartamentos em: ${facadeId}`;
+      aptsBtn.textContent = `Apts ✓ ${apartmentDirector.loadedCount()}`;
+      aptsBtn.title = `Apartamentos em: ${facadeId} — olhe a faixa amarela no topo e o cubo amarelo no céu`;
       aptsBtn.disabled = false;
     });
   }

@@ -20,7 +20,8 @@ import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loa
 import {
   effectiveLoadRadius,
   publishFocusRemain,
-  armFocusRemain
+  armFocusRemain,
+  setNearTerrainReady
 } from '../engine/focusRemain.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
@@ -70,6 +71,18 @@ function zoneAwareOptions(options, poses) {
     return { ...options, castShadow: false };
   }
   return options || {};
+}
+
+
+/** Never reveal until capacity-1 + compileAsync warmup completed for the template. */
+async function ensureGrowerWarmed(grower, renderer, label = 'warmup') {
+  if (!grower || grower.warmed) return;
+  if (typeof grower.warmup !== 'function') return;
+  if (renderer) {
+    await measureRingItem(label, () => throughValve(() => grower.warmup(renderer)));
+  } else {
+    await grower.warmup(null);
+  }
 }
 
 function registerGrowerResident(id, kind, poses, job) {
@@ -346,6 +359,7 @@ export class WorldStream {
   }
 
   publishRemain() {
+    setNearTerrainReady(this.hasNearTerrainProgress());
     return publishFocusRemain(this.computeFocusRemain());
   }
 
@@ -435,7 +449,7 @@ export class WorldStream {
               this.oz,
               zoneAwareOptions(job.options, job.poses)
             )
-            : { reveal() { return 0; } };
+            : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
           if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
           if (template && this.renderer && job.grower.warmup) {
             await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
@@ -485,6 +499,7 @@ export class WorldStream {
       if (this.renderer) this.renderer.pauseDraw();
       for (const job of this.urlJobs) {
         if (!job.grower || job.priority !== priority) continue;
+        await ensureGrowerWarmed(job.grower, this.renderer, `warmup ${job.url?.split('/').pop() || 'url'}`);
         let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
           added += 1;
@@ -501,6 +516,7 @@ export class WorldStream {
       }
       for (const job of this.templateJobs) {
         if (!job.grower || job.priority !== priority) continue;
+        await ensureGrowerWarmed(job.grower, this.renderer, 'warmup template');
         let added = 0;
         while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
           added += 1;
@@ -592,6 +608,7 @@ export class WorldStream {
 
       // Same as urlJobs: pause so makeBatchMesh cannot compile-via-draw
       // (instancer Small_2 x4 +3prog ~3s). Compile new instancers, then one draw.
+      await ensureGrowerWarmed(b.grower, this.renderer, `warmup ${b.name || b.url || 'building'}`);
       if (this.renderer) this.renderer.pauseDraw();
       let added = 0;
       if (!b.primed) {
@@ -827,7 +844,7 @@ export class WorldStream {
             this.oz,
             zoneAwareOptions(job.options, job.poses)
           )
-          : { reveal() { return 0; } };
+          : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
         if (template && this.renderer && job.grower.warmup) {
           await measureRingItem('warmup nature', () =>
             throughValve(() => job.grower.warmup(this.renderer))
@@ -846,6 +863,7 @@ export class WorldStream {
     for (const job of this.urlJobs) {
       if (passes >= maxRevealPasses) break;
       if (!job.grower || job.priority !== priority) continue;
+      await ensureGrowerWarmed(job.grower, this.renderer, 'warmup nature');
       let added = 0;
       const maxAdd = Math.min(loadGovernor.chunk, 8);
       if (job.grower.reveal(radius, maxAdd) > 0) {
@@ -951,7 +969,7 @@ export class WorldStream {
             this.oz,
             carpetOpts
           )
-          : { reveal() { return 0; } };
+          : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
         if (template && this.renderer && job.grower.warmup) {
           await measureRingItem('warmup carpet', () =>
             throughValve(() => job.grower.warmup(this.renderer))
@@ -970,6 +988,7 @@ export class WorldStream {
     for (const job of this.urlJobs) {
       if (passes >= maxRevealPasses) break;
       if (!job.grower || job.priority !== priority) continue;
+      await ensureGrowerWarmed(job.grower, this.renderer, 'warmup carpet');
       let added = 0;
       // One batch worth per pass — never dump many ensureBatch allocations in one MAP.
       const maxAdd = Math.min(loadGovernor.chunk, 4);

@@ -223,6 +223,7 @@ export function noteHitch(frameMs) {
     heapMb: heap,
     recent: recentWork.slice(-4).join(' ← ')
   };
+  row.bug = row.frameMs > 1000; // spec: hitch >1000ms = bug
   hitchEntries.push(row);
   hitchRevision++;
   sessionStats.hitchCount += 1;
@@ -230,6 +231,10 @@ export function noteHitch(frameMs) {
     sessionStats.worstFrameMs = row.frameMs;
     sessionStats.worstFrameAt = performance.now();
     sessionStats.worstCause = row.cause;
+  }
+
+  if (row.bug) {
+    console.error(`[hitch-bug] ${row.frameMs}ms >1000 — treat as bug (spec 03-performance)`, row.cause, row.work);
   }
 
   console.warn(

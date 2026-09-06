@@ -60,16 +60,36 @@ function renderRemain(snap) {
   const progress = denom > 0 ? `${done}/${denom}` : `${done}/—`;
   const optional = (snap.optional || []).filter((it) => it.count > 0);
 
+  const stageEl = document.getElementById('play-stage-status');
+  if (stageEl) {
+    if (snap.stage === 'foco-completo' || snap.focusReady) {
+      stageEl.textContent = 'Foco completo';
+      stageEl.className = 'play-stage play-stage-full';
+    } else if (snap.playableMin || snap.stage === 'minimo-jogavel') {
+      stageEl.textContent = 'Mínimo jogável';
+      stageEl.className = 'play-stage play-stage-min';
+    } else if (snap.stage === 'idle') {
+      stageEl.textContent = 'Pronto para Começar';
+      stageEl.className = 'play-stage play-stage-idle';
+    } else {
+      stageEl.textContent = 'Carregando…';
+      stageEl.className = 'play-stage play-stage-busy';
+    }
+  }
+
   if (statusEl) {
-    if (snap.focusReady) {
-      statusEl.textContent = 'Foco pronto';
+    if (snap.focusReady || snap.stage === 'foco-completo') {
+      statusEl.textContent = 'Foco completo';
       statusEl.className = 'lo-remain-status lo-remain-ready';
+    } else if (snap.playableMin) {
+      statusEl.textContent = total > 0 ? `Mínimo jogável · faltam ${total}` : 'Mínimo jogável';
+      statusEl.className = 'lo-remain-status lo-remain-min';
     } else if (total > 0) {
       statusEl.textContent = `Faltam ${total} itens`;
       statusEl.className = 'lo-remain-status lo-remain-busy';
     } else {
-      statusEl.textContent = 'Foco completo';
-      statusEl.className = 'lo-remain-status lo-remain-ready';
+      statusEl.textContent = 'Aguardando foco…';
+      statusEl.className = 'lo-remain-status lo-remain-busy';
     }
   }
 

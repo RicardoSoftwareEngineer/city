@@ -150,6 +150,8 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
       unrevealedNear() { return 0; },
       get revealed() { return 0; },
       get total() { return 0; },
+      get warmed() { return true; },
+      async warmup() {},
       maxDist: 0,
       dispose() {}
     };
@@ -200,6 +202,7 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
   }
 
   let revealed = 0;
+  let warmed = false;
   const maxDist = chebyshev(sorted[sorted.length - 1].x, sorted[sorted.length - 1].z, ox, oz);
 
   return {
@@ -214,15 +217,35 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
       }
       batches.length = 0;
       revealed = 0;
+      warmed = false;
     },
     /**
      * Allocate batch 0 and compile its InstancedMesh programs before any reveal.
      * Later rings fill the same meshes; further batches reuse material._gpuInstancedProgramWarmed.
      */
+    get warmed() {
+      return warmed;
+    },
+    /**
+     * Allocate capacity-1 batch 0 and compileAsync before any reveal.
+     * Mandatory — reveal() returns 0 until this completes.
+     */
     async warmup(renderer) {
-      if (!renderer || !specs.length) return;
+      if (warmed) return;
+      if (!specs.length) {
+        warmed = true;
+        return;
+      }
+      if (!renderer) {
+        // No GPU path (tests) — still mark so reveal is not deadlocked.
+        warmed = true;
+        return;
+      }
       const batch = ensureBatch(0);
-      if (!batch) return;
+      if (!batch) {
+        warmed = true;
+        return;
+      }
       for (let s = 0; s < specs.length; s++) {
         const mesh = batch.meshes[s];
         writePose(mesh, specs[s], { x: ox, y: -2000, z: oz, scale: 0.001 }, 0);
@@ -236,6 +259,7 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
         mesh.visible = true;
         mesh.instanceMatrix.needsUpdate = true;
       }
+      warmed = true;
     },
     get revealed() {
       return revealed;
@@ -261,6 +285,7 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
       return n;
     },
     reveal(radius, maxAdd = Infinity) {
+      if (!warmed) return 0;
       let n = revealed;
       while (n < sorted.length && chebyshev(sorted[n].x, sorted[n].z, ox, oz) <= radius) n++;
       const bIdx = batchIndexFor(revealed);

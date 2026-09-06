@@ -37,7 +37,7 @@ export const PRESETS = {
     softCap: 280,
     instanceBatch: 32,
     chunk: 16,
-    budgetMs: 8,
+    budgetMs: 5,  // hard stream ms/frame (spec 4–6)
     mergeStride: 14,
     yieldEvery: 2,
     pixelRatioCap: 2,
@@ -52,7 +52,7 @@ export const PRESETS = {
     softCap: 140,
     instanceBatch: 12,
     chunk: 4,
-    budgetMs: 4,
+    budgetMs: 2.5,  // hard stream ms/frame (spec 2–3)
     mergeStride: 4,
     yieldEvery: 1,
     pixelRatioCap: 1,

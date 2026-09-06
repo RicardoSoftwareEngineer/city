@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { loadGovernor } from './LoadGovernor.js';
+import { resetStreamFrameBudget } from '../world/yield.js';
 
 export class GameLoop {
   constructor(onTick) {
@@ -24,6 +25,7 @@ export class GameLoop {
     requestAnimationFrame(this.animate);
 
     const rawDelta = this.clock.getDelta();
+    resetStreamFrameBudget();
     loadGovernor.noteFrame(rawDelta);
     const delta = Math.min(rawDelta, 0.1);
     const elapsed = this.clock.getElapsedTime();

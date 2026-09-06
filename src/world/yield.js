@@ -1,7 +1,7 @@
 /**
  * Cooperative yields for streaming — NO FPS HOLD / pauseDraw valve.
- * throughValve is pass-through with a light yield after heavy units.
- * hitch HUD still observes frame times elsewhere; this module does not control load.
+ * Hard per-frame stream CPU budget (preset budgetMs). throughValve / createBudget
+ * spend against a shared frame budget and yield when spent.
  */
 
 import { loadGovernor } from '../engine/LoadGovernor.js';
@@ -26,10 +26,44 @@ function leaveDrawPause() {
   if (drawPauseDepth === 0) drawHooks.resume?.();
 }
 
+/** Shared stream CPU budget for the current display frame. */
+let frameBudgetMark = performance.now();
+let frameBudgetSpent = 0;
+
+/** Reset at the start of a display frame (GameLoop) or after a yield. */
+export function resetStreamFrameBudget() {
+  frameBudgetMark = performance.now();
+  frameBudgetSpent = 0;
+}
+
+export function noteStreamSpend(ms) {
+  if (!(ms > 0)) return;
+  frameBudgetSpent += ms;
+}
+
+export function streamBudgetRemaining() {
+  return Math.max(0, loadGovernor.budgetMs - frameBudgetSpent);
+}
+
+export function isStreamBudgetSpent() {
+  return frameBudgetSpent >= loadGovernor.budgetMs;
+}
+
+/** Attribute wall time since last mark into the shared spend, then yield if over. */
+export async function respectStreamBudget() {
+  const wall = performance.now() - frameBudgetMark;
+  if (wall > frameBudgetSpent) frameBudgetSpent = wall;
+  if (!isStreamBudgetSpent()) return;
+  await yieldToMain();
+}
+
 export function yieldToMain() {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
-      requestAnimationFrame(resolve);
+      requestAnimationFrame(() => {
+        resetStreamFrameBudget();
+        resolve();
+      });
     });
   });
 }
@@ -38,6 +72,8 @@ export async function yieldAfterWork() {
   loadGovernor._skip = (loadGovernor._skip || 0) + 1;
   if (loadGovernor._skip % Math.max(1, loadGovernor.yieldEvery) === 0) {
     await yieldToMain();
+  } else {
+    await respectStreamBudget();
   }
 }
 
@@ -59,13 +95,11 @@ export async function waitUntilSmooth(_minFps, _maxFrames) {
   /* intentionally empty */
 }
 
+/** Shared frame-budget helper — pumps yield when the preset ms are spent. */
 export function createBudget() {
-  let start = performance.now();
   return {
     async tick() {
-      if (performance.now() - start < loadGovernor.budgetMs) return;
-      await yieldToMain();
-      start = performance.now();
+      await respectStreamBudget();
     }
   };
 }
@@ -86,18 +120,16 @@ export function isValveHoldDeferred() {
 }
 
 /**
- * Stream admission — pass-through. After a heavy unit, light-yield only.
- * Never pauseDraw / wait for FPS recovery.
+ * Stream admission — respect hard frame budget; never HOLD for FPS.
  */
 export async function throughValve(fn) {
+  await respectStreamBudget();
   const t0 = performance.now();
   try {
     return await fn();
   } finally {
-    const ms = performance.now() - t0;
-    if (ms >= Math.max(6, loadGovernor.budgetMs)) {
-      await yieldToMain();
-    }
+    noteStreamSpend(performance.now() - t0);
+    await respectStreamBudget();
   }
 }
 
@@ -109,7 +141,8 @@ export function createSlice(budgetMs = 3) {
   return {
     async tick(force = false) {
       const spent = performance.now() - start;
-      if (!force && spent < budgetMs) return;
+      noteStreamSpend(spent);
+      if (!force && spent < budgetMs && !isStreamBudgetSpent()) return;
       await yieldToMain();
       start = performance.now();
     }

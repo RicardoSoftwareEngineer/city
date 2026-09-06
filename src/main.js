@@ -19,6 +19,7 @@ import { createCityStream, registerNearCampo, registerHeavyWorld, STREAM_STEP } 
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel, getSessionStats } from './engine/loadLog.js';
 import { createQualityAdapter } from './engine/qualityAdapter.js';
+import { bindQualityPresetUi, getActivePreset } from './engine/qualityPresets.js';
 import { initRingLoadHud } from './engine/ringLoadHud.js';
 import { initLoadOrderHud } from './engine/loadOrderHud.js';
 import { initMinimizableHud } from './engine/minimizableHud.js';
@@ -53,7 +54,7 @@ async function startGame() {
   // ── Engine ──────────────────────────────────────────────────────────
   const canvas = document.getElementById('game-canvas');
   const renderer = new Renderer(canvas);
-  // Valve HOLD must freeze draw — otherwise wait-frames still cost 3s+ with huge scenes.
+  // Draw pause hooks for compileSubtree — stream Valve no longer HOLDs for FPS.
   bindValveDraw({
     pause: () => renderer.pauseDraw(),
     resume: () => renderer.resumeDraw()
@@ -128,6 +129,15 @@ async function startGame() {
   const paintLoadOrder = initLoadOrderHud();
   const paintResources = initResourceHud({ getRenderer: () => renderer });
   const quality = createQualityAdapter(renderer);
+  loadGovernor.quality = quality.label;
+  bindQualityPresetUi((id) => {
+    loadGovernor.quality = quality.label;
+    memoryGuardian.tick();
+    // Shadows: Ultra may need a bake; Simples turns them off in applyQualityPreset.
+    if (getActivePreset().shadows && !renderer.renderer.shadowMap.enabled) {
+      void renderer.resumeShadows();
+    }
+  });
   // Persona panels must exist in the DOM before minimizableHud binds them.
   const paintPersona = initPersonaHud({ getQuality: () => quality });
   initMinimizableHud();
@@ -143,7 +153,7 @@ async function startGame() {
         const hold = h.holding ? ' · HOLD' : '';
         const draw = h.drawMs > 0 ? ` · draw${h.drawMs}` : '';
         const fps = h.fps ? ` · ${h.fps}fps` : '';
-        const q = h.quality && h.quality !== 'full' ? ` · q:${h.quality}` : '';
+        const q = h.quality ? ` · q:${h.quality}` : '';
         const heap = h.heapMb > 0 ? ` · heap${h.heapMb}MB` : '';
         const tris = h.tris > 0 ? ` · ${(h.tris / 1000).toFixed(0)}ktri` : '';
         // Prefer cause when it is "after: …" — work alone hid that quality apply ≠ slow draw.
@@ -210,7 +220,6 @@ async function startGame() {
       const phase = getLoadPhase();
       loadPhaseEl.textContent = stream && phase === 'play' ? `${phase} · ${stream}` : (stream || phase);
     }
-    quality.tick();
     loadGovernor.quality = quality.label;
 
     if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
@@ -221,9 +230,7 @@ async function startGame() {
     if (fpsSacredStats) {
       const s = getSessionStats();
       const hold = loadGovernor.holding ? ' · <span class="hold-on">HOLD</span>' : '';
-      const q = quality.level > 0
-        ? ` · <span class="q-temp">q:${quality.label}</span>`
-        : '';
+      const q = ` · <span class="q-temp">q:${quality.label}</span>`;
       fpsSacredStats.innerHTML =
         `gate ${Math.round(s.gateMs)}ms×${s.gateEnters}` +
         ` · compile ${s.compileCount}/${Math.round(s.compileMs)}ms` +
@@ -343,7 +350,9 @@ async function startGame() {
         setLoadPhase('play');
         setInteractive(true);
         await waitUntilSmooth();
-        await renderer.resumeShadows();
+        if (getActivePreset().shadows) {
+          await renderer.resumeShadows();
+        }
         return stream.continueAfter(STREAM_STEP);
       })
       .catch((error) => {

@@ -20,8 +20,7 @@ import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loa
 import {
   effectiveLoadRadius,
   publishFocusRemain,
-  armFocusRemain,
-  isLoadRadiusFrozen
+  armFocusRemain
 } from '../engine/focusRemain.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
@@ -354,11 +353,10 @@ export class WorldStream {
 
     const now = performance.now();
     const loadR = effectiveLoadRadius();
-    // Soft-cap full + parked freeze: still drain the last in-frozen-disk street
-    // glTFs so Fila do foco can reach 0 (stuck ~15 with wantsLoad false is bad UX).
+    // Soft-cap full: still drain in-radius remaining so Fila do foco can reach 0.
     let forceFocusDrain = false;
-    if (!memoryGuardian.wantsLoad && isLoadRadiusFrozen()) {
-      forceFocusDrain = this.computeFocusRemain().total > 0;
+    if (!memoryGuardian.wantsLoad && this.computeFocusRemain().total > 0) {
+      forceFocusDrain = true;
     }
     if (!memoryGuardian.wantsLoad && !forceFocusDrain) {
       if (now - this._lastWantsNote > 2000) {
@@ -1015,8 +1013,7 @@ export class WorldStream {
   /**
    * Long-running residency loop: core rings (prio ≤4) + terrain expand with Guardian.
    * Dense carpet is sliced each turn and never gates ring growth.
-   * Never pumps above effectiveLoadRadius(); when park-frozen, stops expanding rings
-   * and drains the frozen disk (soft-cap exception) until Foco remaining hits 0.
+   * Never pumps above effectiveLoadRadius() (fixed Ultra/Simples preset radius).
    */
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
@@ -1033,11 +1030,10 @@ export class WorldStream {
       this.publishRemain();
       const remain = this.computeFocusRemain();
       const cap = effectiveLoadRadius();
-      const frozen = isLoadRadiusFrozen();
-      // Clamp ring cursor to freeze / Guardian cap — never chase past effectiveLoadRadius.
+      // Clamp ring cursor to fixed preset / Guardian cap.
       if (r > cap) r = cap;
 
-      // Parked / stable focus with nothing left in residency — close phases, do not expand.
+      // Nothing left in residency — close phases, do not expand.
       if (remain.total === 0) {
         this.endIdleCorePhases(cap, core);
         if (!dumped) {
@@ -1048,10 +1044,9 @@ export class WorldStream {
         continue;
       }
 
-      // Frozen: never expand rings past the lock; keep pumping the frozen disk to drain.
-      // Unfrozen: expand toward cap while wantsLoad; still end idle phases under soft-cap.
-      if (frozen || memoryGuardian.wantsLoad) {
-        if (!frozen && r + STREAM_STEP <= cap + 0.01) {
+      // Expand toward fixed cap while wantsLoad; end idle phases under soft-cap.
+      if (memoryGuardian.wantsLoad) {
+        if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);
         } else if (r < cap) {
           r = cap;

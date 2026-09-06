@@ -1,36 +1,24 @@
 /**
  * MemoryGuardian — owns residency radius + budget + eviction.
  *
- * Loader fills streets/veg inside `radius` around the focus (car).
- * Terrain meshes may fill to `TERRAIN_VISTA_RADIUS` (fence) while heap allows.
- * Adapts from real runtime signals (sustained FPS, hitchy instant FPS,
- * JS heap pressure, last draw ms) — not a fake GPU tier. When performance
- * is bad, radius shrinks (hard floor ~10 m) and outsiders are disposed.
- * When healthy, radius grows toward max with hysteresis.
- *
- * Timing is wall-clock based so a 3 FPS soak still ratchets within a few
- * seconds (frame-count hysteresis would stall). Soft-cap never dispose-
- * thrash inside the circle (STATUS_BREAKPOINT lesson from PR #72).
- *
- * Residency floor: when focus park-freezes the load radius, world/building
- * growers inside that disk must not be disposed just because adaptive R
- * shrinks with FPS (Fila do foco 15↔329 thrash). Floor is set by focusRemain.
+ * Radius is FIXED from the active quality preset (Ultra / Simples).
+ * No live shrink/expand from FPS / draw ms. Terrain meshes may still fill
+ * to TERRAIN_VISTA_RADIUS (fence) while heap allows. Soft-cap / heap gates
+ * stay simple and may be preset-fixed.
  *
  * Phys pin: `kind === 'phys'` residents within PHYS_PIN_RADIUS of the car are
- * immortal until the car leaves — stronger than soft-cap / radius shrink, so
- * the Heightfield under the wheels never disappears when Guardian tightens.
+ * immortal until the car leaves — so the Heightfield under the wheels never
+ * disappears.
  */
 
 import { getLastDraw } from './loadLog.js';
-import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
+import { loadGovernor } from './LoadGovernor.js';
 import { noteDecision } from './personaLog.js';
+import { getActivePreset, onPresetChange } from './qualityPresets.js';
 import { GROUND_BODY_HALF } from '../world/RoadDimensions.js';
 
 export const MIN_RADIUS = 10;
-/**
- * Adaptive residency for streets / buildings / veg. Terrain vista uses
- * TERRAIN_VISTA_RADIUS so far campo can stay loaded when this shrinks (~180).
- */
+/** Absolute ceiling — Ultra uses this; Simples uses a smaller fixed value. */
 export const MAX_RADIUS = 900;
 /**
  * Low-cost countryside mesh may fill out to the √10 fence (heap-gated via
@@ -40,28 +28,8 @@ export const MAX_RADIUS = 900;
 export const TERRAIN_VISTA_RADIUS = GROUND_BODY_HALF;
 /** Immortal phys zone under the car (Chebyshev). Matches ensureGroundAround. */
 export const PHYS_PIN_RADIUS = 20;
-const STEP = 10;
-/** Big step when FPS/draw are critical so idle 3 FPS recovers quickly. */
-const STEP_FAST = 40;
-/** Heap used/limit — expand only below LOW, shrink above HIGH. */
-const HEAP_EXPAND_BELOW = 0.55;
+/** Heap used/limit — block terrain/nature above. */
 const HEAP_SHRINK_ABOVE = 0.72;
-/** Soft cap on registered residents before we treat the "table" as full. */
-const RESIDENT_SOFT_CAP = 280;
-/** Wall-clock (ms) of sustained bad signals before each shrink step. */
-const SHRINK_MS = 1800;
-const SHRINK_MS_FULL = 1000;
-const SHRINK_MS_CRITICAL = 700;
-/** Wall-clock (ms) of healthy signals before each expand step. */
-const EXPAND_MS = 3200;
-/** Sustained / instant FPS below these → shrink. */
-const FPS_SHRINK_EMA = TARGET_FPS - 12; // ~48
-const FPS_CRITICAL_EMA = 22;
-const FPS_CRITICAL_INSTANT = 15;
-/** Draw ms (renderer.render wait on main thread) → shrink. */
-const DRAW_SHRINK_MS = 22;
-const DRAW_CRITICAL_MS = 40;
-const DRAW_EXPAND_BELOW_MS = 14;
 
 function heapPressure() {
   const m = typeof performance !== 'undefined' ? performance.memory : null;
@@ -69,15 +37,16 @@ function heapPressure() {
   return m.usedJSHeapSize / m.jsHeapSizeLimit;
 }
 
-function softCapFor(radius) {
-  // Scale with radius, but keep a useful floor. Floor 48 at r40 filled the table
-  // with terrain alone, flipped full→shrink, and starved the stream.
-  // Floor 200: near streets + near veg + terrain tiles coexist (campo boot).
-  return Math.max(200, Math.round(RESIDENT_SOFT_CAP * Math.max(0.35, radius / MAX_RADIUS)));
-}
-
 function chebyshev(ax, az, bx, bz) {
   return Math.max(Math.abs(ax - bx), Math.abs(az - bz));
+}
+
+function presetRadius() {
+  return getActivePreset().radius;
+}
+
+function presetSoftCap() {
+  return getActivePreset().softCap;
 }
 
 /** @type {Map<string, { id: string, kind: string, x: number, z: number, dispose: () => void }>} */
@@ -85,18 +54,35 @@ const residents = new Map();
 
 let focusX = 0;
 let focusZ = 0;
-let radius = 120;
-let badSince = 0;
-let goodSince = 0;
+let radius = presetRadius();
 let lastEvictCount = 0;
 let lastPressure = 0.5;
 let lastTableFull = false;
 let lastRadiusNoted = radius;
 let lastAdaptReason = 'boot';
 let lastDrawMs = 0;
-let lastSoftCap = softCapFor(radius);
-/** Never thrash-dispose world/building inside this Chebyshev disk (park freeze). */
+let lastSoftCap = presetSoftCap();
+/** Legacy park-freeze floor — unused with fixed preset radius (API kept). */
 let residencyFloor = null;
+
+function applyPresetRadius(why) {
+  const next = presetRadius();
+  lastSoftCap = presetSoftCap();
+  if (next === radius) {
+    lastAdaptReason = `steady ${getActivePreset().label}`;
+    return;
+  }
+  radius = next;
+  lastAdaptReason = why || `preset ${getActivePreset().label}`;
+  if (radius !== lastRadiusNoted) {
+    noteDecision('Guardian', `${lastAdaptReason} →${Math.round(radius)}m`);
+    lastRadiusNoted = radius;
+  }
+}
+
+onPresetChange(() => {
+  applyPresetRadius(`preset ${getActivePreset().label}`);
+});
 
 export const memoryGuardian = {
   get radius() {
@@ -115,12 +101,11 @@ export const memoryGuardian = {
   get pinRadius() {
     return PHYS_PIN_RADIUS;
   },
-  /** Park-freeze floor — world/building keep this disk even when adaptive R shrinks. */
+  /** Unused with fixed radius — kept for HUD/API compat. */
   get residencyFloor() {
     return residencyFloor;
   },
   /**
-   * Set by focusRemain when the load radius freezes / clears.
    * @param {number|null} r
    */
   setResidencyFloor(r) {
@@ -159,8 +144,7 @@ export const memoryGuardian = {
     return lastPressure >= HEAP_SHRINK_ABOVE || this._softCapCount() >= lastSoftCap;
   },
   /**
-   * Loader may advance residency. Valve HOLD already gates GPU via throughValve —
-   * coupling wantsLoad to holding starved terrain/carpet every hitch.
+   * Loader may advance residency. No Valve HOLD coupling.
    */
   get wantsLoad() {
     return !this.isTableFull;
@@ -168,17 +152,14 @@ export const memoryGuardian = {
 
   /**
    * Terrain mesh pump may advance even when the resident soft-cap is full.
-   * Soft-cap alone used to return 0 from pumpTerrainSlice forever (streets/url
-   * growers filled the table first) so Terreno HUD stayed red and countryside
-   * never appeared. Only real heap pressure blocks terrain.
+   * Only real heap pressure blocks terrain.
    */
   get wantsTerrainLoad() {
     return heapPressure() < HEAP_SHRINK_ABOVE;
   },
 
   /**
-   * Base vegetation (prio 4) — soft-cap must not kill first near greens while
-   * street/url growers fill the table (same lesson as terrain #94).
+   * Base vegetation (prio 4) — heap-only gate (same lesson as terrain).
    */
   get wantsNatureLoad() {
     return heapPressure() < HEAP_SHRINK_ABOVE;
@@ -189,7 +170,7 @@ export const memoryGuardian = {
     focusZ = z;
   },
 
-  /** Effective residency disk for streets / veg / buildings (adaptive R ∪ park floor). */
+  /** Effective residency disk for streets / veg / buildings (fixed preset R). */
   _worldKeepRadius() {
     return residencyFloor != null ? Math.max(radius, residencyFloor) : radius;
   },
@@ -201,10 +182,7 @@ export const memoryGuardian = {
 
   /**
    * Terrain mesh residency — whole √10 countryside to the fence, independent
-   * of adaptive R and of focus drift. Chebyshev-from-focus would drop the
-   * opposite horizon when the car explores; origin-centered extent keeps the
-   * city in the middle of a filled campo. Heap still gates via wantsTerrainLoad.
-   * +320 m slack covers the coarse far-tile half-extent past GROUND_BODY_HALF.
+   * of preset R and of focus drift. Heap still gates via wantsTerrainLoad.
    */
   allowsTerrainAt(x, z) {
     return Math.max(Math.abs(x), Math.abs(z)) <= TERRAIN_VISTA_RADIUS + 320;
@@ -279,21 +257,18 @@ export const memoryGuardian = {
     return chebyshev(row.x, row.z, focusX, focusZ);
   },
 
-  /** Drop everyone outside the current radius (farthest first if still over cap). */
+  /** Drop everyone outside the current fixed radius (farthest first). */
   evictOutside() {
     let n = 0;
     const outside = [];
     for (const row of residents.values()) {
       const d = this._residentDist(row);
-      // Pin is stronger than radius shrink: phys near the car stays until the car leaves.
       if (row.kind === 'phys' && d <= PHYS_PIN_RADIUS + 0.01) continue;
-      // Terrain vista is origin-centered (city middle) — never shrink→island void.
       if (row.kind === 'terrain') {
         const dOrigin = Math.max(Math.abs(row.x), Math.abs(row.z));
         if (dOrigin > TERRAIN_VISTA_RADIUS + 320) outside.push({ row, d: dOrigin });
         continue;
       }
-      // Streets / furniture / buildings / nature: never dispose inside park-frozen disk.
       const keepR =
         row.kind === 'world' || row.kind === 'building'
           ? this._worldKeepRadius()
@@ -310,110 +285,27 @@ export const memoryGuardian = {
         /* ignore */
       }
     }
-    // Soft-cap does NOT dispose inside the circle — that caused load→evict→reload thrash
-    // and Chrome STATUS_BREAKPOINT. Over-cap only flips isTableFull / wantsLoad; tick
-    // shrinks radius under pressure, then the next evictOutside drops true outsiders.
-    // Phys pin (above) is stronger still: never thrash-dispose colliders under the car.
-    // Park residency floor: world/building inside frozen R survive Guardian shrink.
     lastEvictCount = n;
     return n;
   },
 
   /**
    * Call once per frame after focus is set.
-   * Adjusts radius with wall-clock hysteresis; returns { radius, evicted, pressure }.
+   * Keeps radius locked to the active preset; heap/soft-cap + eviction only.
    */
   tick() {
-    const now = performance.now();
+    applyPresetRadius(null);
     lastPressure = heapPressure();
-    lastSoftCap = softCapFor(radius);
-    const full = this._softCapCount() >= lastSoftCap;
+    lastSoftCap = presetSoftCap();
     const draw = getLastDraw();
     lastDrawMs = draw?.ms || 0;
-    const ema = loadGovernor.fps;
-    const inst = loadGovernor.instantFps;
 
-    const fpsBad = ema < FPS_SHRINK_EMA || inst < TARGET_FPS - 20;
-    const fpsCritical = ema < FPS_CRITICAL_EMA || inst < FPS_CRITICAL_INSTANT;
-    const drawLive = draw?.tag && draw.tag !== 'paused';
-    const drawBad = drawLive && lastDrawMs >= DRAW_SHRINK_MS;
-    const drawCritical = drawLive && lastDrawMs >= DRAW_CRITICAL_MS;
-    const heapBad = lastPressure >= HEAP_SHRINK_ABOVE;
-
-    // Soft-cap full must NOT shrink radius (evict→empty→starve). Full only gates wantsLoad.
-    const wantShrink = fpsBad || drawBad || heapBad;
-    const wantExpand =
-      !wantShrink &&
-      lastPressure <= HEAP_EXPAND_BELOW &&
-      !full &&
-      loadGovernor.isSmooth &&
-      (!drawLive || lastDrawMs < DRAW_EXPAND_BELOW_MS);
-
-    if (wantShrink) {
-      goodSince = 0;
-      if (!badSince) badSince = now;
-      const held = now - badSince;
-      const streaming = loadGovernor.streaming;
-      const need = streaming
-        ? SHRINK_MS * 2
-        : fpsCritical || drawCritical
-          ? SHRINK_MS_CRITICAL
-          : heapBad
-            ? SHRINK_MS_FULL
-            : SHRINK_MS;
-      const step = streaming
-        ? STEP
-        : fpsCritical || drawCritical
-          ? STEP_FAST
-          : STEP;
-      if (held >= need && radius > MIN_RADIUS) {
-        radius = Math.max(MIN_RADIUS, radius - step);
-        badSince = now;
-        lastSoftCap = softCapFor(radius);
-        const why = fpsCritical
-          ? 'fps!'
-          : drawCritical
-            ? 'draw!'
-            : fpsBad
-              ? 'fps'
-              : drawBad
-                ? 'draw'
-                : 'heap';
-        lastAdaptReason = `shrink ${why}`;
-      } else if (wantShrink) {
-        lastAdaptReason = fpsCritical
-          ? 'hold fps!'
-          : drawCritical
-            ? 'hold draw!'
-            : fpsBad
-              ? 'hold fps'
-              : drawBad
-                ? 'hold draw'
-                : 'hold heap';
-      }
-    } else if (wantExpand) {
-      badSince = 0;
-      if (!goodSince) goodSince = now;
-      if (now - goodSince >= EXPAND_MS && radius < MAX_RADIUS) {
-        radius = Math.min(MAX_RADIUS, radius + STEP);
-        goodSince = now;
-        lastSoftCap = softCapFor(radius);
-        lastAdaptReason = 'expand';
-      } else {
-        lastAdaptReason = 'hold expand';
-      }
+    if (lastPressure >= HEAP_SHRINK_ABOVE) {
+      lastAdaptReason = 'hold heap';
+    } else if (this._softCapCount() >= lastSoftCap) {
+      lastAdaptReason = 'table full';
     } else {
-      badSince = 0;
-      goodSince = 0;
-      lastAdaptReason = 'steady';
-    }
-
-    if (radius < lastRadiusNoted) {
-      noteDecision('Guardian', `${lastAdaptReason} →${Math.round(radius)}m`);
-      lastRadiusNoted = radius;
-    } else if (radius > lastRadiusNoted) {
-      noteDecision('Guardian', `expand →${Math.round(radius)}m`);
-      lastRadiusNoted = radius;
+      lastAdaptReason = `steady ${getActivePreset().label}`;
     }
 
     const evicted = this.evictOutside();
@@ -447,7 +339,8 @@ export const memoryGuardian = {
       lastEvictCount,
       adaptReason: lastAdaptReason,
       drawMs: lastDrawMs,
-      fps: loadGovernor.fps
+      fps: loadGovernor.fps,
+      preset: getActivePreset().label
     };
   }
 };

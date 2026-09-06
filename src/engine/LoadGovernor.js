@@ -1,63 +1,35 @@
 /**
- * Adaptive load throttle. GameLoop reports frame time; the streamer
- * spends more or less CPU so FPS stays near TARGET_FPS (~45) while loading.
+ * LoadGovernor — fixed stream knobs from the active quality preset.
  *
- * All knobs read `level` (0–4). HUD shows loadPercent = level/4*100.
+ * FPS is still measured for hitch HUD diagnostics only. There is NO live
+ * level climb/shrink from frame times, and no stream throttle driven by FPS.
+ * Hardware determines actual frame rate (commercial Ultra / Simples model).
  */
 
 import { noteHitch, setGovernorSnap } from './loadLog.js';
-import { noteDecision } from './personaLog.js';
+import { getActivePreset } from './qualityPresets.js';
 
+/** Hitch HUD threshold only — not a stream control target. */
 export const TARGET_FPS = 60;
-
-let _lastHitchNote = 0;
-let _lastLevelNoted = -1;
-let _lastLevelNoteAt = 0;
 
 export const loadGovernor = {
   fps: 60,
   instantFps: 60,
-  /** 0 = crawl, 4 = sprint */
-  level: 2.5,
-  /** While true, knobs cannot sprint (EMA FPS between hitches was hitting batch 32). */
+  /** While true, HUD shows streaming; knobs stay preset-fixed. */
   streaming: false,
-  /** True while holdForTargetFps is waiting (B1 scheduler hold). */
+  /** Legacy flag — Valve no longer HOLDs for FPS; always false on the stream path. */
   holding: false,
-  /** Temporary quality ladder label from qualityAdapter. */
-  quality: 'full',
+  /** Active preset label (Ultra / Simples). */
+  quality: 'Ultra',
 
   noteFrame(deltaSeconds) {
     const fps = 1 / Math.max(deltaSeconds, 1 / 240);
     this.instantFps = fps;
     this.fps = this.fps * 0.88 + fps * 0.12;
 
-    // Log any frame under ~58 fps (TARGET 60). Missed spikes were hiding between 50–58.
+    // Observation only — Travamentos list. Do not drive load / radius / valve.
     if (deltaSeconds > 1 / (TARGET_FPS - 2)) {
-      this.level = Math.max(0, this.level - 1.2);
-      this._snap();
       noteHitch(deltaSeconds * 1000);
-      const now = performance.now();
-      if (now - _lastHitchNote > 400) {
-        noteDecision('LoadGovernor', `hitch ${Math.round(deltaSeconds * 1000)}ms`);
-        _lastHitchNote = now;
-      }
-      return;
-    }
-
-    const climb = this.streaming ? 0.015 : 0.045;
-    const error = this.fps - TARGET_FPS;
-    this.level += error * climb;
-    if (this.level < 0) this.level = 0;
-    if (this.level > 4) this.level = 4;
-    // B1: while streaming, never sprint — max level 1.5 (~ few ms budget).
-    if (this.streaming && this.level > 1.5) this.level = 1.5;
-    if (this.holding) this.level = Math.min(this.level, 0.5);
-    const lvl = Math.round(this.level * 2) / 2;
-    const now = performance.now();
-    if (lvl !== _lastLevelNoted && now - _lastLevelNoteAt > 1500) {
-      noteDecision('LoadGovernor', `level ${lvl}`);
-      _lastLevelNoted = lvl;
-      _lastLevelNoteAt = now;
     }
     this._snap();
   },
@@ -72,62 +44,47 @@ export const loadGovernor = {
     });
   },
 
-  /** 0–100 for HUD */
+  /** HUD: Ultra shows full "carga" capacity; Simples shows a lower fixed bar. */
   get loadPercent() {
-    return Math.round((this.level / 4) * 100);
+    return getActivePreset().id === 'ultra' ? 100 : 40;
   },
 
-  /** CPU ms of stream work before yielding to a frame */
+  /** Fixed CPU ms of stream work before a light yield (preset). */
   get budgetMs() {
-    const ms = 1.5 + (this.level / 4) * 10.5;
-    // B1: ≤4ms CPU slices while the world is streaming under FPS gate.
-    return this.streaming ? Math.min(ms, 4) : ms;
+    return getActivePreset().budgetMs;
   },
 
   get chunk() {
-    let n = 32;
-    if (this.level < 0.6) n = 1;
-    else if (this.level < 1.4) n = 3;
-    else if (this.level < 2.2) n = 8;
-    else if (this.level < 3.2) n = 16;
-    return this.streaming ? Math.min(n, 4) : n;
+    return getActivePreset().chunk;
   },
 
   get instanceBatch() {
-    // Prefer fewer, larger InstancedMeshes. Reveal rate is throttled by `chunk`
-    // while streaming — capping batch at 4 used to spawn ~168 Stripe meshes and
-    // tag multi-second Travamentos as `instancer … x4`.
-    let n = 32;
-    if (this.level < 0.7) n = 8;
-    else if (this.level < 1.5) n = 16;
-    else if (this.level < 2.4) n = 24;
-    else if (this.level < 3.3) n = 28;
-    return n;
+    return getActivePreset().instanceBatch;
   },
 
-  /** Yield every N merged geometries */
   get mergeStride() {
-    if (this.level < 1) return 2;
-    if (this.level < 2.5) return 6;
-    return 14;
+    return getActivePreset().mergeStride;
   },
 
-  /** Yield every N frames of work when FPS is high (1 = always yield) */
   get yieldEvery() {
-    if (this.streaming) return 1;
-    if (this.level < 1.2) return 1;
-    if (this.level < 2.4) return 1;
-    if (this.level < 3.2) return 2;
-    return 3;
+    return getActivePreset().yieldEvery;
   },
 
-  /** True while we should not start more stream CPU (below target FPS). */
+  /**
+   * Compat for callers that still read `level` (e.g. merge yield stride).
+   * Ultra ≈ 4, Simples ≈ 1.5 — fixed, never climbs from FPS.
+   */
+  get level() {
+    return getActivePreset().id === 'ultra' ? 4 : 1.5;
+  },
+
+  /** Never rest for FPS — stream path must not pauseDraw / HOLD. */
   get needsRest() {
-    return this.instantFps < TARGET_FPS || this.fps < TARGET_FPS - 5 || this.level < 0.8;
+    return false;
   },
 
-  /** Soft: EMA recovered enough to resume after a pause. */
+  /** Always true — no FPS recovery gate. */
   get isSmooth() {
-    return this.instantFps >= TARGET_FPS && this.fps >= TARGET_FPS - 3;
+    return true;
   }
 };

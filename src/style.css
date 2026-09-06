@@ -806,3 +806,46 @@ body.boot-idle .hud-min-toggle {
   color: #e2e8f0;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
+
+
+/* ============================================
+   Quality presets — Ultra / Simples
+   ============================================ */
+
+.quality-preset {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  pointer-events: auto;
+}
+
+#boot-gate .quality-preset {
+  justify-content: center;
+  margin-top: 0.85rem;
+}
+
+.quality-btn {
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.65);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.quality-btn:hover {
+  color: #e2e8f0;
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.quality-btn[aria-pressed="true"] {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.7);
+  color: #7dd3fc;
+}

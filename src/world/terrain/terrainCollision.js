@@ -17,7 +17,6 @@
 
 import * as CANNON from 'cannon-es';
 import { CITY_PAVED_MIN, CITY_PAVED_MAX } from '../RoadDimensions.js';
-import { loadGovernor } from '../../engine/LoadGovernor.js';
 import { memoryGuardian, PHYS_PIN_RADIUS } from '../../engine/memoryGuardian.js';
 import { surfaceY } from './paths.js';
 
@@ -182,7 +181,7 @@ export function hasTile(tile) {
 export function ensureGroundAround(x, z, radius = PHYS_PIN_RADIUS, maxBuilds = 2) {
   if (!physics) return 0;
   // B1: under FPS pressure, at most one heightfield per frame.
-  if (loadGovernor.needsRest || loadGovernor.holding) maxBuilds = Math.min(maxBuilds, 1);
+  // Preset-fixed stream — no FPS HOLD throttle on phys pin builds.
   let built = 0;
   const step = TERRAIN_TILE * 0.5;
   for (let dx = -radius; dx <= radius && built < maxBuilds; dx += step) {

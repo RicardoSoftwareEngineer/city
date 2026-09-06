@@ -64,10 +64,13 @@ export class CityBuildings {
           this.addTypeLabel(parentGroup, sprites[type], template, p);
           if (apartmentDirector) {
             const facadeId = ApartmentDirector.facadeId(typeName, p.x, p.z);
+            const col = template.userData.collider || {};
             apartmentDirector.registerFacade(facadeId, {
               slots: template.userData.apartmentSlots || [],
               pose: { x: p.x, y: 0, z: p.z, rot: p.rot },
-              parent: parentGroup
+              parent: parentGroup,
+              height: col.height || 18,
+              centerZ: col.centerZ || 4
             });
           }
         }

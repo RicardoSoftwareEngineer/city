@@ -23,6 +23,36 @@ function facadeKey(typeName, x, z) {
   return `${typeName}@${x.toFixed(2)},${z.toFixed(2)}`;
 }
 
+/** Big house emoji billboard so the player can spot the apartment demo building. */
+function createHouseSprite() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 256, 256);
+  // Soft disc behind the glyph
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+  ctx.beginPath();
+  ctx.arc(128, 128, 118, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  ctx.font = '140px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏠', 128, 140);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: texture, depthTest: true, sizeAttenuation: true })
+  );
+  sprite.name = 'apartment-house-marker';
+  sprite.scale.set(8, 8, 1);
+  sprite.renderOrder = 5;
+  return sprite;
+}
+
 function buildingMatrix(pose) {
   _dummy.position.set(pose.x, pose.y ?? 0, pose.z);
   _dummy.rotation.set(0, pose.rot ?? 0, 0);
@@ -71,19 +101,24 @@ export class ApartmentDirector {
     /** @type {Map<string, object>} key = facadeId#slotId */
     this.units = new Map();
     this._loadOrder = [];
+    /** @type {THREE.Sprite|null} */
+    this._houseMarker = null;
+    this._houseFacadeId = null;
   }
 
   static facadeId(typeName, x, z) {
     return facadeKey(typeName, x, z);
   }
 
-  registerFacade(facadeId, { slots, pose, parent } = {}) {
+  registerFacade(facadeId, { slots, pose, parent, height = 18, centerZ = 4 } = {}) {
     if (!facadeId || !slots?.length) return;
     this.facades.set(facadeId, {
       id: facadeId,
       slots: slots.slice(),
       pose: { x: pose.x, y: pose.y ?? 0, z: pose.z, rot: pose.rot ?? 0 },
-      parent: parent || this.parent
+      parent: parent || this.parent,
+      height,
+      centerZ
     });
   }
 
@@ -167,6 +202,37 @@ export class ApartmentDirector {
         unit.curtain.visible = false;
       }
     }
+  }
+
+
+  /**
+   * Place / move the 🏠 billboard above a facade (clears previous).
+   * Call after loading apartments so the player knows which building is active.
+   */
+  markFacadeHouse(facadeId) {
+    const facade = this.facades.get(facadeId);
+    if (!facade) return;
+    const host = facade.parent || this.parent;
+    if (!this._houseMarker) {
+      this._houseMarker = createHouseSprite();
+    }
+    if (this._houseMarker.parent) this._houseMarker.parent.remove(this._houseMarker);
+    const cos = Math.cos(facade.pose.rot);
+    const sin = Math.sin(facade.pose.rot);
+    const cz = facade.centerZ ?? 4;
+    const h = facade.height ?? 18;
+    this._houseMarker.position.set(
+      facade.pose.x + sin * cz,
+      h + 6,
+      facade.pose.z + cos * cz
+    );
+    host.add(this._houseMarker);
+    this._houseFacadeId = facadeId;
+  }
+
+  clearHouseMarker() {
+    if (this._houseMarker?.parent) this._houseMarker.parent.remove(this._houseMarker);
+    this._houseFacadeId = null;
   }
 
   /** Nearest registered facade to (x,z), or first Large*, or first overall. */

@@ -3,6 +3,7 @@
 ## Budgets (o que controlamos)
 
 | Knob | Ultra | Simples | Notas |
+- **HUD:** Ultra / Simples também no float `#quality-preset-float` (canto superior direito, sempre visível em play) além do boot gate e do painel FPS.
 |------|-------|---------|-------|
 | Stream CPU ms / frame (play) | 4–6 | 2–3 | Hard budget; yield quando esgota |
 | Residency radius | ~900 m | ~220 m | Fixo no preset |

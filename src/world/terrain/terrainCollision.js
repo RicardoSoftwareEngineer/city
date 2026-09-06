@@ -11,7 +11,8 @@
  *     driving past the streamed ring is safe. MemoryGuardian pins those phys
  *     tiles inside PHYS_PIN_RADIUS — they are never disposed while the car is near.
  *
- * Fine 40 m tiles inside the near rect, coarse 160 m tiles out to the √10 fence.
+ * Fine 40 m tiles inside the near rect, coarse 320 m / low-seg tiles out to
+ * the √10 fence (vista layer). Fewer far tiles → streamable horizon fill.
  */
 
 import * as CANNON from 'cannon-es';
@@ -21,10 +22,13 @@ import { memoryGuardian, PHYS_PIN_RADIUS } from '../../engine/memoryGuardian.js'
 import { surfaceY } from './paths.js';
 
 export const TERRAIN_TILE = 40;
-/** Coarse far tiles (160 m) keep ~10× area streamable without exploding task count. */
-export const TERRAIN_TILE_FAR = 160;
+/**
+ * Ultra-far vista tiles (320 m). Area ~10× vs legacy ±560 stays streamable:
+ * ~140 far tiles vs ~468 at 160 m. Multiple of 40 so seams stay on the grid.
+ */
+export const TERRAIN_TILE_FAR = 320;
 
-/** Both grids share this offset; 40 m and 160 m lines both fall on it. */
+/** Both grids share this offset; 40 m and 320 m lines both fall on it. */
 export const GRID_OFFSET = -10;
 
 /** Paved city rect (RoadDimensions): exactly 5x5 fine tiles. */
@@ -39,23 +43,24 @@ export const PAVED_MAX = CITY_PAVED_MAX;
 const SKIP_MIN = PAVED_MIN + TERRAIN_TILE;
 const SKIP_MAX = PAVED_MAX - TERRAIN_TILE;
 
-/** Near rect: 8 fine tiles each way (320 m); multiple of 160 m. */
+/** Near rect: 8 fine tiles each way (320 m); multiple of 320 m far tile. */
 const NEAR_TILES = 8;
 export const TERRAIN_NEAR_HALF = NEAR_TILES * TERRAIN_TILE;
 export const NEAR_MIN = GRID_OFFSET - TERRAIN_NEAR_HALF;
 export const NEAR_MAX = GRID_OFFSET + TERRAIN_NEAR_HALF;
 
 /**
- * Far rect: covers ±1770 m fence (√10 × legacy 560) on the same offset grid.
- * k=-11..10 → FAR_MIN=-1770, FAR_MAX=1750.
+ * Far rect: covers past ±1770 m fence (√10 × legacy 560) for a round horizon.
+ * k=-6..5 → FAR_MIN=-1930, FAR_MAX=1910 (~144 cells before near hole).
  */
-const FAR_FIRST_K = -11;
-const FAR_LAST_K = 10;
+const FAR_FIRST_K = -6;
+const FAR_LAST_K = 5;
 export const FAR_MIN = GRID_OFFSET + FAR_FIRST_K * TERRAIN_TILE_FAR;
 export const FAR_MAX = GRID_OFFSET + (FAR_LAST_K + 1) * TERRAIN_TILE_FAR;
 
 const NEAR_SEGS = 20;
-const FAR_SEGS = 12;
+/** Low segs: 320 m / 8 ≈ 40 m spacing — cheap horizon, still reads as hills. */
+const FAR_SEGS = 8;
 
 /** -PI/2 on X so Heightfield local Z (height) becomes world Y. */
 const HF_QUAT = new CANNON.Quaternion();

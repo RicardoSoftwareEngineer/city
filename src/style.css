@@ -683,6 +683,25 @@ kbd {
 }
 #clear-asset-cache-btn:hover { background: rgba(40, 20, 24, 0.92); }
 
+/* Floating Ultra / Simples — always visible in play (not buried in FPS panel) */
+#quality-preset-float.quality-preset-float {
+  position: fixed;
+  top: 172px;
+  right: 12px;
+  z-index: 30;
+  margin-top: 0;
+  gap: 0.35rem;
+  padding: 6px;
+  background: rgba(12, 18, 28, 0.82);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+#quality-preset-float .quality-btn {
+  font-size: 0.7rem;
+  padding: 0.45rem 0.85rem;
+}
+
 /* One panel per persona (stacked top-right; drag/min via minimizableHud) */
 .persona-panel {
   position: fixed;
@@ -775,6 +794,7 @@ body.boot-idle #persona-hud,
 body.boot-idle [data-min-id],
 body.boot-idle #radius-rings-btn,
 body.boot-idle #clear-asset-cache-btn,
+body.boot-idle #quality-preset-float,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;

@@ -297,6 +297,7 @@ async function startGame() {
       }
       aptsBtn.disabled = true;
       aptsBtn.textContent = 'Apts…';
+      apartmentDirector.markFacadeHouse(facadeId);
       apartmentDirector.unload(facadeId);
       await apartmentDirector.loadCount(facadeId, 3);
       apartmentDirector.markFacadeHouse(facadeId);

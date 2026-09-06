@@ -18,11 +18,13 @@ import {
   gridStreetCoords
 } from './RoadDimensions.js';
 import { downtown } from './downtownSrc.js';
-import { noCastOpts, castOpts, groundOpts } from './shadowPolicy.js';
+import { noCastOpts, castOpts, groundOpts, sidewalkOpts } from './shadowPolicy.js';
 
 const CAST_KEYS = new Set(['planter', 'tree1', 'tree2', 'tree3', 'tree4', 'tree5']);
 const GROUND_KEYS = new Set([
-  'fourWay', 'tee', 'curve', 'asphalt',
+  'fourWay', 'tee', 'curve', 'asphalt'
+]);
+const SIDEWALK_KEYS = new Set([
   'stripe', 'straight', 'broken1', 'broken2', 'insetL', 'insetR'
 ]);
 
@@ -106,9 +108,11 @@ export class CityGrid {
           poses,
           options: CAST_KEYS.has(key)
             ? castOpts()
-            : GROUND_KEYS.has(key)
-              ? groundOpts()
-              : noCastOpts(),
+            : SIDEWALK_KEYS.has(key)
+              ? sidewalkOpts()
+              : GROUND_KEYS.has(key)
+                ? groundOpts()
+                : noCastOpts(),
           priority
         });
       }

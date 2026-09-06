@@ -5,9 +5,17 @@
 
 export const VC = { keepVertexColors: true };
 
-/** Asphalt, sidewalks, intersections — building/tree shadows land here. */
+/** Asphalt / intersections — keep MegaKit COLOR_0 wear. Shadows land here. */
 export function groundOpts() {
   return { keepVertexColors: true, castShadow: false, receiveShadow: true };
+}
+
+/**
+ * Sidewalks — same shadow receive as ground, but strip COLOR_0.
+ * MegaKit paints pure-red curb verts (US no-parking); not our product look.
+ */
+export function sidewalkOpts() {
+  return { keepVertexColors: false, castShadow: false, receiveShadow: true };
 }
 
 /** Signs, windows, awnings, decals, bank trim. */

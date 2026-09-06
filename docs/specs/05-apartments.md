@@ -18,7 +18,7 @@
 
 - Extracted **before** `mergeBuilding` from `MI_FakeInterior*` triangle centroids, clustered into window-sized slots.
 - Stored on the merged template as `userData.apartmentSlots` (local space of the prepared template).
-- Curtains + room meshes are **scene overlays** (not InstancedMesh), posed `slotLocal → building world`.
+- Curtains + room meshes are **scene overlays** (not InstancedMesh), posed `slotLocal → building world`. Curtains sit **outside** the glass (local −Z) for street visibility; a bright reveal plane is flush outside the pane so interiors still read if InstancedMesh glass sorting fails. Auto-load 3 on mark.
 
 ## Command API (`ApartmentDirector`)
 
@@ -28,7 +28,7 @@ Exposed as `window.__cityApartments` (`maxLoaded` default 3).
 |------|--------|
 | `registerFacade(id, { slots, pose, parent })` | Remember a revealed building placement |
 | `load(facadeId, slotIds)` | Load one or more apartments on that facade |
-| `loadCount(facadeId, n)` | Load `n` more idle slots on that facade |
+| `loadCount(facadeId, n)` | Load `n` best idle slots (mid-height street-facing, largest first) |
 | `unload(facadeId?, slotIds?)` | Remove interiors + curtains |
 | `update(dt)` | Animate curtain open |
 | `pickFacadeNear(x, z)` | Nearest registered facade to planar point |
@@ -52,4 +52,4 @@ Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 
 ## Marker
 
-- First **Large** facade auto-gets a giant house billboard (~80 m) + yellow beacon at **Y=160** + cyan pole, plus a yellow HTML banner `↓ CASA APTS`. **Apts 3** moves the marker to the chosen facade.
+- First **Large** facade auto-gets a giant house billboard (~80 m) + yellow beacon at **Y=160** + cyan pole, plus a yellow HTML banner `CASA APTS · N cortinas`, and **auto-loads 3** apartments on mark. **Apts 3** moves the marker to the chosen facade and reloads 3 best slots.

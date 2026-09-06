@@ -61,20 +61,73 @@ export function createApartmentRoom() {
   return room.clone(true);
 }
 
+/** Bright magenta curtain — sits OUTSIDE the glass (local −Z) so facade reads from street. */
 export function createCurtain(width, height) {
-  const geo = new THREE.PlaneGeometry(Math.max(width, 0.5) * 1.05, Math.max(height, 0.5) * 1.05);
-  const mat = new THREE.MeshLambertMaterial({
-    color: 0x4c1d95,
+  const w = Math.max(width, 0.5) * 1.18;
+  const h = Math.max(height, 0.5) * 1.18;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xe879f9, // bright magenta / fuchsia
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.96,
+    opacity: 1,
+    depthTest: true,
     depthWrite: true
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'apartment-curtain';
+  mesh.renderOrder = 40;
+  mesh.frustumCulled = false;
   // Pivot at top so open anim shrinks downward.
-  mesh.geometry.translate(0, -Math.max(height, 0.5) * 0.525, 0);
+  mesh.geometry.translate(0, -h * 0.5, 0);
   mesh.position.y = Math.max(height, 0.5) * 0.5;
   mesh.userData.baseHeight = Math.max(height, 0.5);
+  return mesh;
+}
+
+/**
+ * Warm “room glow” plane flush with the window from the outside.
+ * Reads even when InstancedMesh glass sorting hides the 3D interior.
+ */
+export function createRevealPlane(width, height) {
+  const w = Math.max(width, 0.5) * 1.08;
+  const h = Math.max(height, 0.5) * 1.08;
+  const geo = new THREE.PlaneGeometry(w, h);
+  // Soft warm interior suggestion (lamp + wall tones)
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 64);
+  g.addColorStop(0, '#fff7ed');
+  g.addColorStop(0.35, '#fdba74');
+  g.addColorStop(0.7, '#fbbf24');
+  g.addColorStop(1, '#78350f');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  // Fake window panes / room depth hint
+  ctx.fillStyle = 'rgba(30, 58, 138, 0.35)';
+  ctx.fillRect(8, 28, 20, 14);
+  ctx.fillRect(36, 28, 20, 14);
+  ctx.fillStyle = 'rgba(255, 255, 200, 0.55)';
+  ctx.beginPath();
+  ctx.arc(32, 18, 6, 0, Math.PI * 2);
+  ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture,
+    color: 0xffffff,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.92,
+    depthTest: true,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'apartment-reveal';
+  mesh.renderOrder = 35;
+  mesh.frustumCulled = false;
   return mesh;
 }

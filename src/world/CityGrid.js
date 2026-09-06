@@ -18,7 +18,7 @@ import {
   gridStreetCoords
 } from './RoadDimensions.js';
 import { downtown } from './downtownSrc.js';
-import { noCastOpts, castOpts, groundOpts, sidewalkOpts } from './shadowPolicy.js';
+import { noCastOpts, castOpts, foliageOpts, groundOpts, sidewalkOpts } from './shadowPolicy.js';
 
 const CAST_KEYS = new Set(['planter', 'tree1', 'tree2', 'tree3', 'tree4', 'tree5']);
 const GROUND_KEYS = new Set([
@@ -106,13 +106,15 @@ export class CityGrid {
         jobs.push({
           url: ASSET_PATHS[key],
           poses,
-          options: CAST_KEYS.has(key)
-            ? castOpts()
-            : SIDEWALK_KEYS.has(key)
-              ? sidewalkOpts()
-              : GROUND_KEYS.has(key)
-                ? groundOpts()
-                : noCastOpts(),
+          options: TREE_KEYS.includes(key)
+            ? foliageOpts()
+            : CAST_KEYS.has(key)
+              ? castOpts()
+              : SIDEWALK_KEYS.has(key)
+                ? sidewalkOpts()
+                : GROUND_KEYS.has(key)
+                  ? groundOpts()
+                  : noCastOpts(),
           priority
         });
       }
@@ -227,24 +229,19 @@ export class CityGrid {
     const walkPoses = [];
     const broken1Poses = [];
     const broken2Poses = [];
-    const insetLPoses = [];
-    const insetRPoses = [];
-    const stripePoses = [];
     const planterPoses = [];
     const treePoses = TREE_KEYS.map(() => []);
     let treeIndex = 0;
     let tileIndex = 0;
 
     const addWalk = (x, z, rot) => {
-      // Stripe is an alternate sidewalk glTF, not an overlay — never push every tile
-      // into stripePoses (was ~672 InstancedMesh batches at stream batch=4 → 5–10s MAP hitches).
+      // Only full 3×3 slabs. Sidewalk_Straight_3m_Stripe is a thin decal (not a tile) —
+      // using it as a replacement left black holes. Inset_* cut planter notches without
+      // matching planter poses. Broken1/2 stay as rare full-slab wear.
       const kind = tileIndex++ % 11;
       const pose = { x, z, rot };
       if (kind === 3) broken1Poses.push(pose);
       else if (kind === 7) broken2Poses.push(pose);
-      else if (kind === 5) insetLPoses.push(pose);
-      else if (kind === 9) insetRPoses.push(pose);
-      else if (kind === 1 || kind === 6) stripePoses.push(pose);
       else walkPoses.push(pose);
     };
 
@@ -305,9 +302,6 @@ export class CityGrid {
     add('straight', walkPoses, 0);
     add('broken1', broken1Poses, 0);
     add('broken2', broken2Poses, 0);
-    add('insetL', insetLPoses, 0);
-    add('insetR', insetRPoses, 0);
-    add('stripe', stripePoses, 0);
     add('planter', planterPoses, 1);
     TREE_KEYS.forEach((key, i) => add(key, treePoses[i], 1));
   }

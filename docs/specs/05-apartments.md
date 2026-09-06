@@ -52,4 +52,4 @@ Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 
 ## Marker
 
-- After **Apts 3**, a large **vector house** billboard (not emoji) sits high above the active facade — readable from free-fly altitude.
+- After **Apts 3**, a **screen-space house** (constant on-screen size) sits at **Y=120** with a cyan pole from the roof — visible from high free-fly.

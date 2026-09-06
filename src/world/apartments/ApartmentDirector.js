@@ -23,11 +23,17 @@ function facadeKey(typeName, x, z) {
   return `${typeName}@${x.toFixed(2)},${z.toFixed(2)}`;
 }
 
+/** World Y for the house icon — always above downtown roofs. */
+const HOUSE_MARKER_Y = 120;
+
 /**
- * Huge vector house billboard (no emoji — canvas emoji often blank on Windows).
- * Drawn big + depthTest off so it stays readable from high free-fly.
+ * Screen-space house + tall neon pole. sizeAttenuation:false keeps constant
+ * on-screen size from high free-fly (world-scaled sprites vanish at altitude).
  */
-function createHouseSprite() {
+function createHouseMarker(roofY) {
+  const group = new THREE.Group();
+  group.name = 'apartment-house-marker';
+
   const size = 512;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -35,8 +41,7 @@ function createHouseSprite() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, size, size);
 
-  // Neon disc
-  ctx.fillStyle = 'rgba(8, 47, 73, 0.92)';
+  ctx.fillStyle = 'rgba(8, 47, 73, 0.95)';
   ctx.beginPath();
   ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
   ctx.fill();
@@ -49,19 +54,16 @@ function createHouseSprite() {
   ctx.arc(size / 2, size / 2, size * 0.4, 0, Math.PI * 2);
   ctx.stroke();
 
-  // House body (vector — always visible)
   const cx = size / 2;
   const cy = size / 2 + 18;
   ctx.fillStyle = '#f8fafc';
   ctx.strokeStyle = '#0f172a';
   ctx.lineWidth = 8;
   ctx.lineJoin = 'round';
-  // walls
   ctx.beginPath();
   ctx.rect(cx - 90, cy - 10, 180, 130);
   ctx.fill();
   ctx.stroke();
-  // roof
   ctx.fillStyle = '#ef4444';
   ctx.beginPath();
   ctx.moveTo(cx - 120, cy - 10);
@@ -70,11 +72,9 @@ function createHouseSprite() {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  // door
   ctx.fillStyle = '#fbbf24';
   ctx.fillRect(cx - 28, cy + 40, 56, 80);
   ctx.strokeRect(cx - 28, cy + 40, 56, 80);
-  // windows
   ctx.fillStyle = '#38bdf8';
   ctx.fillRect(cx - 78, cy + 20, 40, 40);
   ctx.fillRect(cx + 38, cy + 20, 40, 40);
@@ -90,15 +90,39 @@ function createHouseSprite() {
       depthTest: false,
       depthWrite: false,
       transparent: true,
-      sizeAttenuation: true
+      sizeAttenuation: false
     })
   );
-  sprite.name = 'apartment-house-marker';
-  // ~world meters — readable from high above the block
-  sprite.scale.set(28, 28, 1);
+  // ~22% of view height — constant regardless of camera distance
+  sprite.scale.set(0.22, 0.22, 1);
+  sprite.position.y = HOUSE_MARKER_Y;
   sprite.renderOrder = 999;
   sprite.frustumCulled = false;
-  return sprite;
+  group.add(sprite);
+
+  // Pole from roof up to the icon so the eye can trace which building
+  const top = HOUSE_MARKER_Y;
+  const bottom = Math.max(2, roofY);
+  const len = Math.max(8, top - bottom);
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.45, 0.45, len, 8),
+    new THREE.MeshBasicMaterial({ color: 0x22d3ee, depthTest: false, depthWrite: false })
+  );
+  pole.position.y = bottom + len * 0.5;
+  pole.renderOrder = 998;
+  pole.frustumCulled = false;
+  group.add(pole);
+
+  const tip = new THREE.Mesh(
+    new THREE.SphereGeometry(1.8, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfbbf24, depthTest: false, depthWrite: false })
+  );
+  tip.position.y = top;
+  tip.renderOrder = 998;
+  tip.frustumCulled = false;
+  group.add(tip);
+
+  return group;
 }
 
 function buildingMatrix(pose) {
@@ -149,7 +173,7 @@ export class ApartmentDirector {
     /** @type {Map<string, object>} key = facadeId#slotId */
     this.units = new Map();
     this._loadOrder = [];
-    /** @type {THREE.Sprite|null} */
+    /** @type {THREE.Object3D|null} */
     this._houseMarker = null;
     this._houseFacadeId = null;
   }
@@ -262,15 +286,15 @@ export class ApartmentDirector {
     if (!facade) return;
     const host = facade.parent || this.parent;
     if (this._houseMarker?.parent) this._houseMarker.parent.remove(this._houseMarker);
-    // Always rebuild so a blank emoji texture from an older build cannot stick.
-    this._houseMarker = createHouseSprite();
     const cos = Math.cos(facade.pose.rot);
     const sin = Math.sin(facade.pose.rot);
     const cz = facade.centerZ ?? 4;
-    const h = facade.height ?? 18;
+    const roofY = facade.height ?? 18;
+    this._houseMarker = createHouseMarker(roofY);
+    // Group origin on the ground footprint center; pole+sprite use local Y.
     this._houseMarker.position.set(
       facade.pose.x + sin * cz,
-      h + 22,
+      0,
       facade.pose.z + cos * cz
     );
     host.add(this._houseMarker);

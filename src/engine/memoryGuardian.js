@@ -6,9 +6,8 @@
  * to TERRAIN_VISTA_RADIUS (fence) while heap allows. Soft-cap / heap gates
  * stay simple and may be preset-fixed.
  *
- * Phys pin: `kind === 'phys'` residents within PHYS_PIN_RADIUS of the car are
- * immortal until the car leaves — so the Heightfield under the wheels never
- * disappears.
+ * Phys pin: `kind === 'phys'` residents within PHYS_PIN_RADIUS of the **real car**
+ * (`setCarPosition`) are immortal — stream/Guardian focus may be predicted ahead.
  */
 
 import { getLastDraw } from './loadLog.js';
@@ -54,6 +53,9 @@ const residents = new Map();
 
 let focusX = 0;
 let focusZ = 0;
+/** Real car pose — phys pin uses this, not predicted focus. */
+let carX = 0;
+let carZ = 0;
 let radius = presetRadius();
 let lastEvictCount = 0;
 let lastPressure = 0.5;
@@ -170,6 +172,16 @@ export const memoryGuardian = {
     focusZ = z;
   },
 
+  /** Real chassis position — phys pin / ensureGroundAround follow the car, not stream focus. */
+  setCarPosition(x, z) {
+    carX = x;
+    carZ = z;
+  },
+
+  get car() {
+    return { x: carX, z: carZ };
+  },
+
   /** Effective residency disk for streets / veg / buildings (fixed preset R). */
   _worldKeepRadius() {
     return residencyFloor != null ? Math.max(radius, residencyFloor) : radius;
@@ -194,7 +206,7 @@ export const memoryGuardian = {
 
   /** Phys Heightfield under/near the car — never evicted while inside this zone. */
   isPhysPinned(x, z) {
-    return chebyshev(x, z, focusX, focusZ) <= PHYS_PIN_RADIUS + 0.01;
+    return chebyshev(x, z, carX, carZ) <= PHYS_PIN_RADIUS + 0.01;
   },
 
   /** Pose inside inner 10% ring (full quality intent). */
@@ -263,7 +275,10 @@ export const memoryGuardian = {
     const outside = [];
     for (const row of residents.values()) {
       const d = this._residentDist(row);
-      if (row.kind === 'phys' && d <= PHYS_PIN_RADIUS + 0.01) continue;
+      if (row.kind === 'phys') {
+        const dCar = chebyshev(row.x, row.z, carX, carZ);
+        if (dCar <= PHYS_PIN_RADIUS + 0.01) continue;
+      }
       if (row.kind === 'terrain') {
         const dOrigin = Math.max(Math.abs(row.x), Math.abs(row.z));
         if (dOrigin > TERRAIN_VISTA_RADIUS + 320) outside.push({ row, d: dOrigin });
@@ -331,6 +346,8 @@ export const memoryGuardian = {
       innerRadius: this.innerRadius,
       focusX,
       focusZ,
+      carX,
+      carZ,
       residents: residents.size,
       softCapCount: this._softCapCount(),
       softCap: lastSoftCap,

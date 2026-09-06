@@ -849,3 +849,23 @@ body.boot-idle .hud-min-toggle {
   border-color: rgba(56, 189, 248, 0.7);
   color: #7dd3fc;
 }
+
+
+/* Two-stage ready (Mínimo jogável / Foco completo) */
+.play-stage {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.play-stage-idle { color: #9aa3b2; }
+.play-stage-busy { color: #e6b84d; }
+.play-stage-min { color: #6bcb8a; }
+.play-stage-full { color: #5ad0ff; }
+.lo-remain-min { color: #6bcb8a; }
+
+.hitch-bug {
+  color: #ff6b6b;
+  font-weight: 700;
+  font-size: 10px;
+}

@@ -49,7 +49,7 @@ export const loadGovernor = {
     return getActivePreset().id === 'ultra' ? 100 : 40;
   },
 
-  /** Fixed CPU ms of stream work before a light yield (preset). */
+  /** Hard stream CPU ms per display frame while playing (preset; shared frame budget). */
   get budgetMs() {
     return getActivePreset().budgetMs;
   },

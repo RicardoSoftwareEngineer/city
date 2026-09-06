@@ -47,6 +47,9 @@ import { initPersonaHud } from './engine/personaHud.js';
 import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCache.js';
 import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 
+/** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
+const PREDICT_FOCUS_HORIZON = 2.5;
+
 async function startGame() {
   setLoadPhase('boot');
   // Prefetch orchard heightmap during boot UI — mesh samples need it ready.
@@ -165,7 +168,8 @@ async function startGame() {
         const recent = h.recent
           ? ` · <span class="hitch-recent" title="${h.recent}">…${h.recent.split(' ← ').pop()}</span>`
           : '';
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span> <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
+        const bug = h.bug || h.frameMs > 1000 ? ' <span class="hitch-bug">BUG</span>' : '';
+        return `<li><span class="hitch-ms">${h.frameMs}ms</span>${bug} <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }
@@ -180,10 +184,13 @@ async function startGame() {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
 
-    // Phys under the car is pinned by MemoryGuardian — rebuild any missing
-    // tiles inside PHYS_PIN_RADIUS even when visuals have been evicted.
+    // Phys pin follows the real car; stream/Guardian focus leads with velocity.
     const car = vehicleController.chassisBody.position;
-    const focus = focusGrid.update(car.x, car.z);
+    const vel = vehicleController.chassisBody.velocity;
+    memoryGuardian.setCarPosition(car.x, car.z);
+    const predX = car.x + vel.x * PREDICT_FOCUS_HORIZON;
+    const predZ = car.z + vel.z * PREDICT_FOCUS_HORIZON;
+    const focus = focusGrid.update(predX, predZ);
     setFocusCellKey(focus.key);
     memoryGuardian.setFocus(focus.x, focus.z);
     memoryGuardian.tick();
@@ -271,6 +278,7 @@ async function startGame() {
   setLoadPhase('idle');
   loadGovernor.streaming = false;
   {
+    memoryGuardian.setCarPosition(originX, originZ);
     const focus = focusGrid.update(originX, originZ);
     setFocusCellKey(focus.key);
     memoryGuardian.setFocus(focus.x, focus.z);
@@ -293,6 +301,7 @@ async function startGame() {
     setLoadPhase('play');
     loadGovernor.streaming = true;
     {
+      memoryGuardian.setCarPosition(originX, originZ);
       const focus = focusGrid.update(originX, originZ);
       setFocusCellKey(focus.key);
       memoryGuardian.setFocus(focus.x, focus.z);

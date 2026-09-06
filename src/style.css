@@ -722,22 +722,64 @@ kbd {
 }
 #apts-house-hud[hidden] { display: none !important; }
 
-#apts-load-btn {
+#apts-budget {
   position: fixed;
   top: 220px;
   right: 12px;
   z-index: 30;
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  min-width: 9.5rem;
   color: #e9d5ff;
   background: rgba(12, 18, 28, 0.82);
   border: 1px solid rgba(167, 139, 250, 0.6);
-  border-radius: 6px;
+  border-radius: 8px;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+#apts-budget.apts-busy { opacity: 0.65; pointer-events: none; }
+#apts-budget .apts-budget-label {
+  text-transform: uppercase;
+  color: #c4b5fd;
+  font-size: 10px;
+}
+#apts-budget .apts-budget-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#apts-budget button {
+  padding: 4px 8px;
+  font: 700 12px/1 "Segoe UI", system-ui, sans-serif;
+  color: #f5f3ff;
+  background: rgba(40, 24, 56, 0.92);
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 5px;
   cursor: pointer;
 }
-#apts-load-btn:hover { background: rgba(40, 24, 56, 0.92); }
-#apts-load-btn:disabled { opacity: 0.6; cursor: wait; }
+#apts-budget button:hover { background: rgba(67, 36, 96, 0.95); }
+#apts-budget-input {
+  width: 2.6rem;
+  padding: 4px 2px;
+  text-align: center;
+  font: 700 12px/1 "Segoe UI", system-ui, sans-serif;
+  color: #f8fafc;
+  background: rgba(8, 12, 20, 0.9);
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 5px;
+  -moz-appearance: textfield;
+}
+#apts-budget-input::-webkit-outer-spin-button,
+#apts-budget-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#apts-budget-all {
+  margin-left: 2px;
+  letter-spacing: 0.02em;
+}
 
 /* One panel per persona (stacked top-right; drag/min via minimizableHud) */
 .persona-panel {
@@ -833,7 +875,7 @@ body.boot-idle #radius-rings-btn,
 body.boot-idle #clear-asset-cache-btn,
 body.boot-idle #quality-preset-float,
 body.boot-idle #apts-house-hud,
-body.boot-idle #apts-load-btn,
+body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;

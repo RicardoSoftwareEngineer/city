@@ -304,8 +304,15 @@ async function startGame() {
       }
       aptsBudget.classList.add('apts-busy');
       aptsBudget.title = `Aplicando… ${facadeId}`;
+      // Optimistic input so Todos does not look stuck at the previous budget (3).
+      if (count === 'all') {
+        aptsInput.value = String(apartmentDirector.facadeLoadedCount(facadeId) || 0);
+      } else {
+        aptsInput.value = String(count);
+      }
       try {
-        apartmentDirector.markFacadeHouse(facadeId);
+        // autoLoad:false — HUD owns setLiveCount; avoid racing mark's auto apply.
+        apartmentDirector.markFacadeHouse(facadeId, { autoLoad: false });
         await apartmentDirector.setLiveCount(facadeId, count);
         syncAptsInput();
         const live = apartmentDirector.loadedCount();

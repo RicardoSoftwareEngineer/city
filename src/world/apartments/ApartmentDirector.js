@@ -463,9 +463,12 @@ export class ApartmentDirector {
 
   /**
    * Place / move the 🏠 billboard above a facade (clears previous).
-   * If the facade has 0 full interiors, auto-applies liveTarget (async).
+   * @param {string} facadeId
+   * @param {{autoLoad?: boolean}} [opts] autoLoad (default true): if the facade
+   *   has 0 full interiors, apply liveTarget. HUD budget apply passes false so
+   *   it does not race setLiveCount('all') and later strip back to 3.
    */
-  markFacadeHouse(facadeId) {
+  markFacadeHouse(facadeId, { autoLoad = true } = {}) {
     const facade = this.facades.get(facadeId);
     if (!facade) return;
     const host = facade.parent || this.parent;
@@ -486,7 +489,11 @@ export class ApartmentDirector {
     this._syncHouseHud(true, facadeId);
 
     // First mark (e.g. Large auto-mark) applies the current liveTarget budget.
-    if (this.facadeLoadedCount(facadeId) === 0 && !this._autoLoadPending.has(facadeId)) {
+    if (
+      autoLoad &&
+      this.facadeLoadedCount(facadeId) === 0 &&
+      !this._autoLoadPending.has(facadeId)
+    ) {
       this._autoLoadPending.add(facadeId);
       const epoch = this._facadeEpoch.get(facadeId) || 0;
       void (async () => {
@@ -512,16 +519,30 @@ export class ApartmentDirector {
 
   _syncHouseHud(on, facadeId = '') {
     const el = document.getElementById('apts-house-hud');
-    if (!el) return;
+    const input = document.getElementById('apts-budget-input');
+    const panel = document.getElementById('apts-budget');
     if (!on) {
-      el.hidden = true;
-      el.textContent = '';
+      if (el) {
+        el.hidden = true;
+        el.textContent = '';
+      }
       return;
     }
     const live = this.facadeLoadedCount(facadeId);
     const total = this.facades.get(facadeId)?.slots?.length ?? live;
-    el.hidden = false;
-    el.textContent = `CASA APTS · ${live}/${total} vivos — ${facadeId}`;
+    if (el) {
+      el.hidden = false;
+      el.textContent = `CASA APTS · ${live}/${total} vivos — ${facadeId}`;
+    }
+    // Keep Interiores HUD honest while setLiveCount runs (Todos used to stay at 3).
+    if (input) {
+      input.value =
+        this.liveTarget === 'all' ? String(live) : String(this.liveTarget);
+    }
+    if (panel) {
+      const label = this.liveTarget === 'all' ? 'Todos' : String(this.liveTarget);
+      panel.title = `Interiores ${label} · ${live}/${total} — ${facadeId}`;
+    }
   }
 
   /** Nearest registered facade to (x,z), or first Large*, or first overall. */
@@ -608,9 +629,14 @@ export class ApartmentDirector {
     unit.room = room;
     unit.reveal = null;
 
+    // pause:false — do not freeze the canvas for the whole apartment batch;
+    // game loop keeps drawing so curtains open and rooms show through glass.
     if (this.renderer?.compileSubtree) {
       try {
-        await this.renderer.compileSubtree(unit.group, { instancersOnly: false });
+        await this.renderer.compileSubtree(unit.group, {
+          instancersOnly: false,
+          pause: false
+        });
       } catch (_) {
         /* compile optional */
       }
@@ -618,6 +644,8 @@ export class ApartmentDirector {
 
     unit.state = 'ready';
     unit.openT = 0;
+    // One painted frame per room even when compile is a no-op (warmed mats).
+    await new Promise((r) => requestAnimationFrame(r));
   }
 
   _resetCurtainClosed(unit) {

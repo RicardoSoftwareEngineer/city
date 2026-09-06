@@ -25,4 +25,4 @@
 - Retângulo paved (`CITY_PAVED_MIN`…`CITY_PAVED_MAX`) **inalterado**: asfalto/MegaKit não “viram grama”.
 - Terrain enterra sob a paved; phys da cidade usa box plana + pin no campo.
 
-- **Calçadas:** sem `COLOR_0` do MegaKit (meio-fio vermelho US). `sidewalkOpts()` strips vertex colors; asfalto ainda pode manter wear.
+- **Chão pavimentado:** sem `COLOR_0` do MegaKit (meio-fio vermelho US em calçada **e** rua). `groundOpts()` / `sidewalkOpts()` strips vertex colors.

@@ -46,6 +46,7 @@ import { initRadiusDebug } from './engine/radiusDebug.js';
 import { initPersonaHud } from './engine/personaHud.js';
 import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCache.js';
 import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
+import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
 const PREDICT_FOCUS_HORIZON = 2.5;
@@ -73,6 +74,12 @@ async function startGame() {
   const cityGroup = new THREE.Group();
   renderer.scene.add(cityGroup);
   addBootCityGround(cityGroup);
+
+  const apartmentDirector = new ApartmentDirector({
+    parent: cityGroup,
+    renderer
+  });
+  window.__cityApartments = apartmentDirector;
 
   const saved = loadSession();
   const originX = saved?.car?.x ?? 0;
@@ -183,6 +190,7 @@ async function startGame() {
   const gameLoop = new GameLoop((delta, elapsed) => {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
+    apartmentDirector.update(delta);
 
     // Phys pin follows the real car; stream/Guardian focus leads with velocity.
     const car = vehicleController.chassisBody.position;
@@ -272,6 +280,27 @@ async function startGame() {
     });
   }
 
+  const aptsBtn = document.getElementById('apts-load-btn');
+  if (aptsBtn) {
+    aptsBtn.addEventListener('click', async () => {
+      const car = vehicleController.chassisBody.position;
+      let facadeId = apartmentDirector.pickFacadeNear(car.x, car.z);
+      if (!facadeId) {
+        aptsBtn.textContent = 'Sem fachada';
+        setTimeout(() => { aptsBtn.textContent = 'Apts +2'; }, 1500);
+        return;
+      }
+      aptsBtn.disabled = true;
+      aptsBtn.textContent = 'Apts…';
+      const keys = await apartmentDirector.loadCount(facadeId, 2);
+      aptsBtn.textContent = keys.length ? `Apts +${keys.length}` : 'Apts 0';
+      setTimeout(() => {
+        aptsBtn.textContent = 'Apts +2';
+        aptsBtn.disabled = false;
+      }, 1200);
+    });
+  }
+
 
   // Idle playable shell: phys pin + placeholder only. No city stream until click.
   setInteractive(true);
@@ -315,7 +344,7 @@ async function startGame() {
     void new Intersection().build(cityGroup);
 
     // Light jobs only — far veg/avenue/lakes wait for registerHeavyWorld.
-    const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer);
+    const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer, apartmentDirector);
     await yieldToMain();
 
     // Progressive campo boot:

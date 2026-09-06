@@ -29,3 +29,7 @@
 
 - **Chão pavimentado + prédios downtown:** sem `COLOR_0` vermelho do MegaKit (`groundOpts` / `castOpts` / `noCastOpts`). Natureza (`foliageOpts`) mantém VC.
 - **Calçada:** só lajes cheias (`straight` / `broken*`). Nunca `Sidewalk_*_Stripe` nem `Inset_*` como tile — stripe é decal fino e inset abre buraco.
+
+## Apartments
+
+- Vidro real + interiores sob demanda + cortinas: ver [05-apartments.md](./05-apartments.md).

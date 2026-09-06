@@ -17,6 +17,7 @@ Specs in this folder are the **source of truth** for product behavior, loading/s
 | [02-loading.md](./02-loading.md) | **Loading / streaming** (market open-world style) |
 | [03-performance.md](./03-performance.md) | Budgets, hitch definition, what we measure vs control |
 | [04-world.md](./04-world.md) | Fence, orchard, biomes, vista, city paved |
+| [05-apartments.md](./05-apartments.md) | Glass windows, on-demand interiors, curtains |
 
 ## Workflow
 

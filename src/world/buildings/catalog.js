@@ -1,13 +1,17 @@
 /**
  * Loads the 7 official Source prefabs, orients them for the grid, then
  * merges by material for InstancedMesh.
+ *
+ * Window slots are extracted and FakeInterior/MI_Glass become real glass
+ * before merge (spec 05). Interiors are on-demand overlays, not emissive paint.
  */
 
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
 import { BUILDING_SPECS, buildingUrl } from './specs.js';
 import { mergeBuilding } from './merge.js';
-import { prepareInteriors } from './interiors.js';
+import { extractWindowSlots } from '../apartments/slots.js';
+import { applyWindowGlass } from '../apartments/glass.js';
 import { waitUntilSmooth } from '../yield.js';
 
 let slots = BUILDING_SPECS.map(() => null);
@@ -18,9 +22,13 @@ export async function getBuildingTemplate(index) {
     slots[index] = (async () => {
       const root = await loadGltf(buildingUrl(spec), { keepVertexColors: false });
       if (!root) return emptyPlaceholder(spec);
-      await prepareInteriors(root, spec.id % 2);
+      const prepared = prepareSourceBuilding(root, spec);
+      const apartmentSlots = extractWindowSlots(prepared);
+      applyWindowGlass(prepared);
       if (spec.name.startsWith('Large')) await waitUntilSmooth();
-      return await mergeBuilding(prepareSourceBuilding(root, spec), spec.file);
+      const merged = await mergeBuilding(prepared, spec.file);
+      merged.userData.apartmentSlots = apartmentSlots;
+      return merged;
     })();
   }
   return slots[index];
@@ -65,5 +73,6 @@ function emptyPlaceholder(spec) {
   group.name = spec.name;
   group.userData.specId = spec.id;
   group.userData.collider = { width: 8, depth: 8, height: 12, centerZ: 4 };
+  group.userData.apartmentSlots = [];
   return group;
 }

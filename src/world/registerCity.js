@@ -30,7 +30,7 @@ export { STREAM_STEP };
  * overlap spawn streets with first greens. Far veg / avenue / lakes / carpet
  * go through registerHeavyWorld after the first street ring.
  */
-export async function createCityStream(parentGroup, physicsWorld, ox, oz, renderer) {
+export async function createCityStream(parentGroup, physicsWorld, ox, oz, renderer, apartmentDirector = null) {
   const stream = new WorldStream(parentGroup, ox, oz, renderer);
   const grid = new CityGrid();
 
@@ -67,7 +67,7 @@ export async function createCityStream(parentGroup, physicsWorld, ox, oz, render
     run: () => new BankBuilding().build(parentGroup, physicsWorld, renderer)
   });
 
-  new CityBuildings().register(stream, parentGroup, physicsWorld);
+  new CityBuildings().register(stream, parentGroup, physicsWorld, apartmentDirector);
   await yieldToMain();
 
   await registerTerrain(stream, parentGroup, ox, oz, physicsWorld);

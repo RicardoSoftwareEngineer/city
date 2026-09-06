@@ -6,8 +6,10 @@
 import * as THREE from 'three';
 import { createApartmentRoom, createCurtain } from './roomTemplate.js';
 
-/** Spec 05 — only N apartments live at once. */
+/** Spec 05 — default live-interior budget (HUD can change). */
 export const MAX_LOADED = 3;
+/** Soft ceiling when liveTarget === 'all' and no facade length known. */
+const ALL_CEILING = 256;
 
 const OPEN_DURATION = 0.85;
 const MID_Y_MIN = 3;
@@ -196,7 +198,9 @@ export class ApartmentDirector {
   constructor({ parent, renderer = null, maxLoaded = MAX_LOADED } = {}) {
     this.parent = parent;
     this.renderer = renderer;
-    this.maxLoaded = maxLoaded;
+    /** @type {number|'all'} HUD-driven live interior target. */
+    this.liveTarget = maxLoaded;
+    this.maxLoaded = typeof maxLoaded === 'number' ? maxLoaded : ALL_CEILING;
     /** @type {Map<string, {id:string,slots:any[],pose:any,parent:THREE.Object3D}>} */
     this.facades = new Map();
     /** @type {Map<string, object>} key = facadeId#slotId */
@@ -209,6 +213,8 @@ export class ApartmentDirector {
     this._autoLoadPending = new Set();
     /** Bumped on unload so in-flight loads abort cleanly. */
     this._facadeEpoch = new Map();
+    /** Serialize setLiveCount applies. */
+    this._liveApplyChain = Promise.resolve();
   }
 
   static facadeId(typeName, x, z) {
@@ -225,7 +231,7 @@ export class ApartmentDirector {
       height,
       centerZ
     });
-    // Auto-mark first Large so the house appears without waiting for Apts 3 click.
+    // Auto-mark first Large so the house appears without waiting for the Interiores HUD.
     if (!this._houseFacadeId && /Large/i.test(facadeId)) {
       this.markFacadeHouse(facadeId);
     }
@@ -239,17 +245,127 @@ export class ApartmentDirector {
     return this.facades.get(facadeId) || null;
   }
 
+  getLiveTarget() {
+    return this.liveTarget;
+  }
+
+  /** Full interiors only (room present) — not curtain-only shells. */
   loadedCount() {
-    return this.units.size;
+    let n = 0;
+    for (const u of this.units.values()) {
+      if (u.room) n++;
+    }
+    return n;
+  }
+
+  curtainOnlyCount() {
+    let n = 0;
+    for (const u of this.units.values()) {
+      if (u.state === 'curtain-only') n++;
+    }
+    return n;
   }
 
   facadeLoadedCount(facadeId) {
+    if (!facadeId) return 0;
+    let n = 0;
+    for (const [key, u] of this.units) {
+      if (key.startsWith(`${facadeId}#`) && u.room) n++;
+    }
+    return n;
+  }
+
+  facadeUnitCount(facadeId) {
     if (!facadeId) return 0;
     let n = 0;
     for (const key of this.units.keys()) {
       if (key.startsWith(`${facadeId}#`)) n++;
     }
     return n;
+  }
+
+  _refreshMaxLoaded(facadeId = null) {
+    if (this.liveTarget === 'all') {
+      const f = facadeId ? this.facades.get(facadeId) : null;
+      this.maxLoaded = f?.slots?.length || ALL_CEILING;
+    } else {
+      this.maxLoaded = Math.max(0, this.liveTarget | 0);
+    }
+  }
+
+  /**
+   * Set how many full interiors stay live on a facade.
+   * @param {string} facadeId
+   * @param {number|'all'} count
+   */
+  async setLiveCount(facadeId, count) {
+    const run = async () => {
+      const facade = this.facades.get(facadeId);
+      if (!facade) return;
+
+      if (count === 'all') {
+        this.liveTarget = 'all';
+      } else {
+        const n = Math.max(0, Math.floor(Number(count)));
+        this.liveTarget = Number.isFinite(n) ? n : 0;
+      }
+      this._refreshMaxLoaded(facadeId);
+
+      const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
+      const need =
+        this.liveTarget === 'all'
+          ? ranked.length
+          : Math.min(Math.max(0, this.liveTarget), ranked.length);
+      const keepIds = new Set(ranked.slice(0, need).map((s) => s.id));
+
+      const epoch = this._facadeEpoch.get(facadeId) || 0;
+
+      // Strip excess on this facade → closed curtain, no room.
+      for (const slot of facade.slots) {
+        if (keepIds.has(slot.id)) continue;
+        const key = `${facadeId}#${slot.id}`;
+        const unit = this.units.get(key);
+        if (unit) this._stripToCurtainOnly(unit);
+      }
+
+      // Free full interiors on other facades so global budget stays honest.
+      for (const key of [...this.units.keys()]) {
+        if (key.startsWith(`${facadeId}#`)) continue;
+        const unit = this.units.get(key);
+        if (!unit) continue;
+        if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+          this._disposeUnit(key);
+        }
+      }
+
+      for (const slot of ranked.slice(0, need)) {
+        if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
+        const key = `${facadeId}#${slot.id}`;
+        let unit = this.units.get(key);
+        if (!unit) {
+          await this._ensureBudget();
+          if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
+          unit = this._spawnUnit(facade, slot, key);
+          this.units.set(key, unit);
+          this._loadOrder.push(key);
+          await Promise.resolve();
+          await this._finishLoad(unit);
+        } else if (!unit.room || unit.state === 'curtain-only') {
+          this._resetCurtainClosed(unit);
+          unit.state = 'loading';
+          unit.openT = 0;
+          await this._finishLoad(unit);
+        }
+        // already ready/open with room — keep
+        if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+      }
+
+      if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+    };
+
+    const next = this._liveApplyChain.then(run, run);
+    this._liveApplyChain = next.catch(() => {});
+    return next;
   }
 
   /**
@@ -347,7 +463,7 @@ export class ApartmentDirector {
 
   /**
    * Place / move the 🏠 billboard above a facade (clears previous).
-   * If the facade has 0 loaded units, auto-loads 3 apartments (async, non-blocking).
+   * If the facade has 0 full interiors, auto-applies liveTarget (async).
    */
   markFacadeHouse(facadeId) {
     const facade = this.facades.get(facadeId);
@@ -369,17 +485,17 @@ export class ApartmentDirector {
     this._houseFacadeId = facadeId;
     this._syncHouseHud(true, facadeId);
 
-    // First mark (e.g. Large auto-mark) should also populate 3 apts.
+    // First mark (e.g. Large auto-mark) applies the current liveTarget budget.
     if (this.facadeLoadedCount(facadeId) === 0 && !this._autoLoadPending.has(facadeId)) {
       this._autoLoadPending.add(facadeId);
       const epoch = this._facadeEpoch.get(facadeId) || 0;
       void (async () => {
         try {
-          await Promise.resolve(); // let a sync unload+load from HUD win
+          await Promise.resolve(); // let a sync HUD setLiveCount win
           if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) return;
           if (this.facadeLoadedCount(facadeId) > 0) return;
           if (this._houseFacadeId !== facadeId) return;
-          await this.loadCount(facadeId, 3);
+          await this.setLiveCount(facadeId, this.liveTarget);
           if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
         } finally {
           this._autoLoadPending.delete(facadeId);
@@ -402,9 +518,10 @@ export class ApartmentDirector {
       el.textContent = '';
       return;
     }
-    const n = this.facadeLoadedCount(facadeId);
+    const live = this.facadeLoadedCount(facadeId);
+    const total = this.facades.get(facadeId)?.slots?.length ?? live;
     el.hidden = false;
-    el.textContent = `CASA APTS · ${n} cortinas — ${facadeId}`;
+    el.textContent = `CASA APTS · ${live}/${total} vivos — ${facadeId}`;
   }
 
   /** Nearest registered facade to (x,z), or first Large*, or first overall. */
@@ -428,10 +545,12 @@ export class ApartmentDirector {
   }
 
   async _ensureBudget() {
-    while (this.units.size >= this.maxLoaded && this._loadOrder.length) {
+    while (this.loadedCount() >= this.maxLoaded && this._loadOrder.length) {
       const oldest = this._loadOrder.shift();
-      if (oldest && this.units.has(oldest)) this._disposeUnit(oldest);
-      else break;
+      if (!oldest || !this.units.has(oldest)) continue;
+      // Curtain-only shells do not count toward the live budget — skip eviction.
+      if (!this.units.get(oldest).room) continue;
+      this._disposeUnit(oldest);
     }
   }
 
@@ -499,6 +618,35 @@ export class ApartmentDirector {
 
     unit.state = 'ready';
     unit.openT = 0;
+  }
+
+  _resetCurtainClosed(unit) {
+    if (!unit?.curtain) return;
+    unit.curtain.visible = true;
+    unit.curtain.scale.set(1, 1, 1);
+    if (unit.curtain.material) unit.curtain.material.opacity = 0.97;
+    unit.openT = 0;
+  }
+
+  /**
+   * Drop the room mesh (shared template geos/mats kept) and leave a closed curtain.
+   */
+  _stripToCurtainOnly(unit) {
+    if (!unit) return;
+    if (unit.room) {
+      unit.group.remove(unit.room);
+      // Clones share template geometry/materials — do not dispose them.
+      unit.room = null;
+    }
+    if (unit.reveal) {
+      unit.group.remove(unit.reveal);
+      unit.reveal.geometry?.dispose?.();
+      if (unit.reveal.material?.map) unit.reveal.material.map.dispose?.();
+      unit.reveal.material?.dispose?.();
+      unit.reveal = null;
+    }
+    this._resetCurtainClosed(unit);
+    unit.state = 'curtain-only';
   }
 
   _disposeUnit(key) {

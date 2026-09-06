@@ -25,7 +25,15 @@
   <button type="button" id="clear-asset-cache-btn" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button>
 
   <div id="apts-house-hud" hidden></div>
-  <button type="button" id="apts-load-btn" title="Descarrega a fachada mais próxima e carrega até 3 apartamentos (mesmo template)">Apts 3</button>
+  <div id="apts-budget" title="Quantos interiores vivos na fachada ativa">
+    <span class="apts-budget-label">Interiores</span>
+    <div class="apts-budget-row">
+      <button type="button" id="apts-budget-dec" aria-label="Menos">−</button>
+      <input type="number" id="apts-budget-input" min="0" max="99" value="3" inputmode="numeric" />
+      <button type="button" id="apts-budget-inc" aria-label="Mais">+</button>
+      <button type="button" id="apts-budget-all">Todos</button>
+    </div>
+  </div>
 
   <div id="quality-preset-float" class="quality-preset quality-preset-float" role="group" aria-label="Qualidade">
     <button type="button" class="quality-btn" data-quality-mirror="ultra" aria-pressed="true">Ultra</button>

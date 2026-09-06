@@ -280,29 +280,68 @@ async function startGame() {
     });
   }
 
-  const aptsBtn = document.getElementById('apts-load-btn');
-  if (aptsBtn) {
-    const labelApts = () => `Apts ${apartmentDirector.loadedCount()}`;
-    aptsBtn.addEventListener('click', async () => {
+  const aptsBudget = document.getElementById('apts-budget');
+  const aptsInput = document.getElementById('apts-budget-input');
+  const aptsDec = document.getElementById('apts-budget-dec');
+  const aptsInc = document.getElementById('apts-budget-inc');
+  const aptsAll = document.getElementById('apts-budget-all');
+  if (aptsBudget && aptsInput) {
+    const syncAptsInput = () => {
+      const t = apartmentDirector.getLiveTarget();
+      aptsInput.value = t === 'all' ? String(apartmentDirector.loadedCount() || 0) : String(t);
+    };
+    syncAptsInput();
+
+    const applyAptsBudget = async (count) => {
       const car = vehicleController.chassisBody.position;
       const cam = camera.camera.position;
-      // Prefer free-fly camera when active; otherwise car pose.
       const px = camera.isFreeFlight ? cam.x : car.x;
       const pz = camera.isFreeFlight ? cam.z : car.z;
       const facadeId = apartmentDirector.pickFacadeNear(px, pz);
       if (!facadeId) {
-        aptsBtn.textContent = 'Sem fachada';
-        setTimeout(() => { aptsBtn.textContent = 'Apts 3'; }, 1500);
+        aptsBudget.title = 'Sem fachada próxima';
         return;
       }
-      aptsBtn.disabled = true;
-      aptsBtn.textContent = 'Apts…';
-      apartmentDirector.unload(facadeId);
-      await apartmentDirector.loadCount(facadeId, 3);
-      apartmentDirector.markFacadeHouse(facadeId);
-      aptsBtn.textContent = `Apts ✓ ${apartmentDirector.loadedCount()}`;
-      aptsBtn.title = `Apartamentos em: ${facadeId} — cortinas magenta + CASA APTS no topo`;
-      aptsBtn.disabled = false;
+      aptsBudget.classList.add('apts-busy');
+      aptsBudget.title = `Aplicando… ${facadeId}`;
+      try {
+        apartmentDirector.markFacadeHouse(facadeId);
+        await apartmentDirector.setLiveCount(facadeId, count);
+        syncAptsInput();
+        const live = apartmentDirector.loadedCount();
+        const label = count === 'all' ? 'Todos' : String(count);
+        aptsBudget.title = `Interiores ${label} · ${live} vivos — ${facadeId}`;
+      } finally {
+        aptsBudget.classList.remove('apts-busy');
+      }
+    };
+
+    const readInputCount = () => {
+      const n = Math.max(0, Math.floor(Number(aptsInput.value)));
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    aptsDec?.addEventListener('click', () => {
+      const next = Math.max(0, readInputCount() - 1);
+      aptsInput.value = String(next);
+      void applyAptsBudget(next);
+    });
+    aptsInc?.addEventListener('click', () => {
+      const next = Math.min(99, readInputCount() + 1);
+      aptsInput.value = String(next);
+      void applyAptsBudget(next);
+    });
+    aptsAll?.addEventListener('click', () => {
+      void applyAptsBudget('all');
+    });
+    aptsInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void applyAptsBudget(readInputCount());
+      }
+    });
+    aptsInput.addEventListener('change', () => {
+      void applyAptsBudget(readInputCount());
     });
   }
 

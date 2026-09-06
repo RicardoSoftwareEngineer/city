@@ -10,7 +10,7 @@
 
 ## Glass + kit shell
 
-- `applyWindowGlass` replaces `MI_FakeInterior*` / `MI_Glass` with shared transparent glass (opacity ~0.22).
+- `applyWindowGlass` replaces `MI_FakeInterior*` / `MI_Glass` with shared transparent glass (opacity ~0.14).
 - `stripKitInteriorShell` removes meshes whose materials are `MI_InteriorWall` / `MI_InteriorFloor` **before** `mergeBuilding`, so clear glass shows our room — not the dark MegaKit shell.
 - On merge, transparent materials get `castShadow: false`.
 
@@ -18,7 +18,8 @@
 
 - Extracted **before** `mergeBuilding` from `MI_FakeInterior*` triangle centroids, clustered into window-sized slots.
 - Stored on the merged template as `userData.apartmentSlots` (local space of the prepared template).
-- Curtains + room meshes are **scene overlays** (not InstancedMesh), posed `slotLocal → building world`. Curtains sit **outside** the glass (local −Z) for street visibility; a bright reveal plane is flush outside the pane so interiors still read if InstancedMesh glass sorting fails. Auto-load 3 on mark.
+- Curtains + room are **scene overlays** (not InstancedMesh). Curtains sit **outside** glass (local −Z). **No opaque reveal plane** — glass stays transparent; the 3D room is visible through it. Auto-load 3 on mark.
+- **Interior quality (phased):** phase 1 = clear glass + `Brick_InteriorWall` + Standard procedural furniture. Later phases add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
 
 ## Command API (`ApartmentDirector`)
 

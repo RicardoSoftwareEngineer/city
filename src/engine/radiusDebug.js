@@ -1,6 +1,6 @@
 /**
- * Debug rings for MemoryGuardian residency radius:
- * cyan = inner 0.1R (full quality intent), magenta = outer R.
+ * Debug rings for MemoryGuardian:
+ * cyan = inner 0.1R (full quality), magenta = outer R, lime = terrain vista.
  */
 
 import * as THREE from 'three';
@@ -42,8 +42,10 @@ export function initRadiusDebug(scene) {
 
   const inner = makeUnitLoop(0x22d3ee); // cyan
   const outer = makeUnitLoop(0xe879f9); // magenta
+  const vista = makeUnitLoop(0xa3e635); // lime — terrain fence vista
   group.add(inner);
   group.add(outer);
+  group.add(vista);
 
   const btn = document.getElementById('radius-rings-btn');
   const syncBtn = () => {
@@ -65,8 +67,10 @@ export function initRadiusDebug(scene) {
     const { x, z } = memoryGuardian.focus;
     const R = Math.max(memoryGuardian.radius, 1);
     const rIn = Math.max(memoryGuardian.innerRadius, 0.5);
+    const rVista = Math.max(memoryGuardian.vistaRadius || 1, 1);
     group.position.set(x, RING_Y, z);
     inner.scale.set(rIn, 1, rIn);
     outer.scale.set(R, 1, R);
+    vista.scale.set(rVista, 1, rVista);
   };
 }

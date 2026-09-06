@@ -153,7 +153,7 @@ export function initResourceHud({ getRenderer }) {
       rowHtml('geo', 'Geometrias', 'Geometrias no renderer.info') +
       rowHtml('prog', 'Programas', 'Shaders GL compilados') +
       rowHtml('store', 'Storage', 'Quota da origem (cache/assets no browser — não é o HD do PC)') +
-      rowHtml('guard', 'Guardian', 'Raio de residência adaptativo (min 10m → max 600m) + residentes + motivo') +
+      rowHtml('guard', 'Guardian', 'Raio residência (10→900m) + vista terreno até cerca √10 + residentes + motivo') +
       `<div class="res-legend" title="Tendência por linha">▲ acelera · ◆ mantém · ▼ freia · ■ parado</div>` +
       `<div class="res-note" id="res-note">Browser não expõe RAM/GPU%/HD do Windows. Task Manager continua a fonte do sistema.</div>`;
     body.dataset.ready = '1';
@@ -225,11 +225,14 @@ export function initResourceHud({ getRenderer }) {
     const span = Math.max(1, memoryGuardian.maxRadius - memoryGuardian.minRadius);
     const gPct = Math.round(((g.radius - memoryGuardian.minRadius) / span) * 100);
     const reason = g.adaptReason ? ` · ${g.adaptReason}` : '';
+    const softUsed = g.softCapCount ?? g.residents;
     setBar(
       'guard',
       g.tableFull ? 100 : Math.max(0, gPct),
       `r${Math.round(g.radius)}m [${memoryGuardian.minRadius}–${memoryGuardian.maxRadius}]` +
-        ` · ${g.residents}/${g.softCap ?? memoryGuardian.softCap}` +
+        ` · vista${Math.round(g.vistaRadius ?? memoryGuardian.vistaRadius)}` +
+        ` · ${softUsed}/${g.softCap ?? memoryGuardian.softCap}` +
+        ` (Σ${g.residents})` +
         ` · p${Math.round(g.pressure * 100)}%` +
         (g.lastEvictCount ? ` · -${g.lastEvictCount}` : '') +
         reason,
@@ -243,7 +246,8 @@ export function initResourceHud({ getRenderer }) {
       const full = g.tableFull ? ' · MESA CHEIA' : '';
       note.textContent =
         (deviceGb ? `deviceMemory ~${deviceGb} GB · ` : '') +
-        `Guardian r${Math.round(g.radius)}m [${memoryGuardian.minRadius}–${memoryGuardian.maxRadius}] · ` +
+        `Guardian r${Math.round(g.radius)}m [${memoryGuardian.minRadius}–${memoryGuardian.maxRadius}]` +
+        ` vista${Math.round(g.vistaRadius ?? memoryGuardian.vistaRadius)} · ` +
         `heap≠RAM sistema · draw≠GPU% Task Manager${stream}${hold}${full}`;
     }
   };

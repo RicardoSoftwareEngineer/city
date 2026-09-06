@@ -1,3 +1,5 @@
+> **2026-09-05:** Terrain **vista** — `allowsTerrainAt` / `TERRAIN_VISTA_RADIUS` (= `GROUND_BODY_HALF` ±1770) lets coarse 320 m far tiles fill to the √10 fence while adaptive residency R stays ~10–900 m for streets. Terrain/phys excluded from soft-cap count; heap still gates `wantsTerrainLoad`. Biomes centers/radii via `WORLD_LINEAR_SCALE`.
+
 > **2026-09-05:** Progressive campo boot — near veg (±110 m) registers with sliced `scatterGridAsync` overlapping spawn streets; far/dense annulus fills later. Nature bg pump uses `wantsNatureLoad` (heap-only, like terrain #94). Keep White Orchard elevation + biomes √10 tint/veg together. Sync field scatter was ~28s freeze.
 
 > **2026-09-05:** Fast boot — GameLoop starts before Porsche glTF / Intersection / full-scene compile. Phys pin (`ensureGroundAround`) + placeholder chassis + boot city ground plane first; Porsche load+compile and street stream run async under Valve/Guardian.

@@ -95,7 +95,7 @@ export function initPersonaHud(opts = {}) {
       'Guardian',
       Math.max(
         g.pressure * 100,
-        (g.residents / memoryGuardian.softCap) * 100,
+        ((g.softCapCount ?? g.residents) / memoryGuardian.softCap) * 100,
         radiusTight * 0.5
       )
     );

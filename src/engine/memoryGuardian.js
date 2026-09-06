@@ -1,7 +1,8 @@
 /**
  * MemoryGuardian — owns residency radius + budget + eviction.
  *
- * Loader only fills what is inside `radius` around the focus (car).
+ * Loader fills streets/veg inside `radius` around the focus (car).
+ * Terrain meshes may fill to `TERRAIN_VISTA_RADIUS` (fence) while heap allows.
  * Adapts from real runtime signals (sustained FPS, hitchy instant FPS,
  * JS heap pressure, last draw ms) — not a fake GPU tier. When performance
  * is bad, radius shrinks (hard floor ~10 m) and outsiders are disposed.
@@ -19,9 +20,20 @@
 import { getLastDraw } from './loadLog.js';
 import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
 import { noteDecision } from './personaLog.js';
+import { GROUND_BODY_HALF } from '../world/RoadDimensions.js';
 
 export const MIN_RADIUS = 10;
-export const MAX_RADIUS = 600;
+/**
+ * Adaptive residency for streets / buildings / veg. Terrain vista uses
+ * TERRAIN_VISTA_RADIUS so far campo can stay loaded when this shrinks (~180).
+ */
+export const MAX_RADIUS = 900;
+/**
+ * Low-cost countryside mesh may fill out to the √10 fence (heap-gated via
+ * wantsTerrainLoad). Larger than MAX_RADIUS on purpose — fly-cam must see
+ * continuous ground, not a blue void island at ~200 m.
+ */
+export const TERRAIN_VISTA_RADIUS = GROUND_BODY_HALF;
 /** Immortal phys zone under the car (Chebyshev). Matches ensureGroundAround. */
 export const PHYS_PIN_RADIUS = 20;
 const STEP = 10;
@@ -115,9 +127,19 @@ export const memoryGuardian = {
   get adaptReason() {
     return lastAdaptReason;
   },
-  /** Table / budget full — loader should not prepare more. */
+  /** Non-terrain residents (streets/veg/buildings) — vista tiles have their own heap gate. */
+  _softCapCount() {
+    let n = 0;
+    for (const row of residents.values()) {
+      if (row.kind === 'terrain' || row.kind === 'phys') continue;
+      n += 1;
+    }
+    return n;
+  },
+
+  /** Table / budget full — loader should not prepare more (streets/buildings). */
   get isTableFull() {
-    return lastPressure >= HEAP_SHRINK_ABOVE || residents.size >= lastSoftCap;
+    return lastPressure >= HEAP_SHRINK_ABOVE || this._softCapCount() >= lastSoftCap;
   },
   /**
    * Loader may advance residency. Valve HOLD already gates GPU via throughValve —
@@ -150,9 +172,24 @@ export const memoryGuardian = {
     focusZ = z;
   },
 
-  /** True if a world point may stay loaded / be loaded. */
+  /** True if a world point may stay loaded / be loaded (streets / veg / buildings). */
   allowsAt(x, z) {
     return chebyshev(x, z, focusX, focusZ) <= radius + 0.01;
+  },
+
+  /**
+   * Terrain mesh residency — whole √10 countryside to the fence, independent
+   * of adaptive R and of focus drift. Chebyshev-from-focus would drop the
+   * opposite horizon when the car explores; origin-centered extent keeps the
+   * city in the middle of a filled campo. Heap still gates via wantsTerrainLoad.
+   * +320 m slack covers the coarse far-tile half-extent past GROUND_BODY_HALF.
+   */
+  allowsTerrainAt(x, z) {
+    return Math.max(Math.abs(x), Math.abs(z)) <= TERRAIN_VISTA_RADIUS + 320;
+  },
+
+  get vistaRadius() {
+    return TERRAIN_VISTA_RADIUS;
   },
 
   /** Phys Heightfield under/near the car — never evicted while inside this zone. */
@@ -228,6 +265,12 @@ export const memoryGuardian = {
       const d = this._residentDist(row);
       // Pin is stronger than radius shrink: phys near the car stays until the car leaves.
       if (row.kind === 'phys' && d <= PHYS_PIN_RADIUS + 0.01) continue;
+      // Terrain vista is origin-centered (city middle) — never shrink→island void.
+      if (row.kind === 'terrain') {
+        const dOrigin = Math.max(Math.abs(row.x), Math.abs(row.z));
+        if (dOrigin > TERRAIN_VISTA_RADIUS + 320) outside.push({ row, d: dOrigin });
+        continue;
+      }
       if (d > radius + 0.01) outside.push({ row, d });
     }
     outside.sort((a, b) => b.d - a.d);
@@ -256,7 +299,7 @@ export const memoryGuardian = {
     const now = performance.now();
     lastPressure = heapPressure();
     lastSoftCap = softCapFor(radius);
-    const full = residents.size >= lastSoftCap;
+    const full = this._softCapCount() >= lastSoftCap;
     const draw = getLastDraw();
     lastDrawMs = draw?.ms || 0;
     const ema = loadGovernor.fps;
@@ -361,11 +404,13 @@ export const memoryGuardian = {
       radius,
       minRadius: MIN_RADIUS,
       maxRadius: MAX_RADIUS,
+      vistaRadius: TERRAIN_VISTA_RADIUS,
       pinRadius: PHYS_PIN_RADIUS,
       innerRadius: this.innerRadius,
       focusX,
       focusZ,
       residents: residents.size,
+      softCapCount: this._softCapCount(),
       softCap: lastSoftCap,
       pressure: lastPressure,
       tableFull: this.isTableFull,

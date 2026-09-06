@@ -393,7 +393,9 @@ export class WorldStream {
   }
 
   /**
-   * Build terrain tiles currently allowed by MemoryGuardian (car circle).
+   * Build terrain tiles inside the fence-scale vista ring (heap-gated).
+   * Uses allowsTerrainAt — not adaptive residency R — so far campo can fill
+   * while Guardian is stuck ~180 m for streets.
    * Returns how many tiles were successfully built this call.
    */
   async pumpTerrainSlice(maxTiles = 12) {
@@ -405,7 +407,7 @@ export class WorldStream {
           !task.done &&
           !task.building &&
           task.x != null &&
-          memoryGuardian.allowsAt(task.x, task.z)
+          memoryGuardian.allowsTerrainAt(task.x, task.z)
       )
       .sort(
         (a, b) =>
@@ -432,8 +434,8 @@ export class WorldStream {
       sinceCompile = 0;
     };
 
-    setStreamLabel(`terrain r${Math.round(memoryGuardian.radius)}`);
-    tickLoadPhase('terrain', `r${Math.round(memoryGuardian.radius)}`);
+    setStreamLabel(`terrain vista${Math.round(memoryGuardian.vistaRadius)}`);
+    tickLoadPhase('terrain', `vista${Math.round(memoryGuardian.vistaRadius)}`);
 
     // Defer Valve HOLD for the whole terrain pump slice (not only first near
     // tiles). Concurrent street throughValve pauseDraw must not freeze the view
@@ -442,7 +444,7 @@ export class WorldStream {
     try {
       for (const task of pending) {
         if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
-        if (!memoryGuardian.allowsAt(task.x, task.z)) continue;
+        if (!memoryGuardian.allowsTerrainAt(task.x, task.z)) continue;
 
         const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
         beginRing(Math.round(dFocus / STREAM_STEP) * STREAM_STEP || STREAM_STEP);
@@ -479,10 +481,10 @@ export class WorldStream {
     }
   }
 
-  /** True once at least one in-circle terrain tile has been built (carpet may start). */
+  /** True once at least one in-vista terrain tile has been built (carpet may start). */
   hasNearTerrainProgress() {
     return this.tasks.some(
-      (t) => t.kind === 'terrain' && t.done && t.x != null && memoryGuardian.allowsAt(t.x, t.z)
+      (t) => t.kind === 'terrain' && t.done && t.x != null && memoryGuardian.allowsTerrainAt(t.x, t.z)
     );
   }
 
@@ -495,18 +497,18 @@ export class WorldStream {
     this._terrainBg = true;
     const loop = async () => {
       for (;;) {
-        tickLoadPhase('terrain', `bg r${Math.round(memoryGuardian.radius)}`);
+        tickLoadPhase('terrain', `bg vista${Math.round(memoryGuardian.vistaRadius)}`);
         const n = await this.pumpTerrainSlice(16);
         if (n === 0) {
-          // In-radius pending only — outside allowsAt are blocked by radius, not soft-cap.
-          const pendingInRadius = this.tasks.some(
+          // In-vista pending only — outside allowsTerrainAt are past the fence.
+          const pendingInVista = this.tasks.some(
             (t) =>
               t.kind === 'terrain' &&
               !t.done &&
               t.x != null &&
-              memoryGuardian.allowsAt(t.x, t.z)
+              memoryGuardian.allowsTerrainAt(t.x, t.z)
           );
-          if (!pendingInRadius) endLoadPhase('terrain');
+          if (!pendingInVista) endLoadPhase('terrain');
           await yieldToMain();
         }
       }

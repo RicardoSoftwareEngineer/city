@@ -1,11 +1,12 @@
 /**
  * Open countryside visual tiles.
- * Near city: fine 40 m tiles. Far vista: coarse 80 m tiles so we can
- * stretch to GROUND_BODY_HALF without flooding the stream with tasks.
+ * Near city: fine 40 m tiles. Far vista: coarse 320 m / low-seg tiles so we
+ * can fill to GROUND_BODY_HALF without flooding the stream or soft-cap.
  *
  * Colliders live in terrainCollision.js — same grid/surfaceY, built only
  * on demand under the car (ensureGroundAround). The visual stream is mesh-only
  * and is pumped first (pumpTerrainTo) so the far vista appears before city glTF.
+ * Loading uses MemoryGuardian.allowsTerrainAt (fence vista), not adaptive R.
  */
 
 import * as THREE from 'three';
@@ -144,7 +145,7 @@ export async function registerTerrain(stream, parentGroup, ox, oz, physicsWorld)
     };
     task.run = async () => {
       if (task.building || task.done) return false;
-      if (!memoryGuardian.allowsAt(t.cx, t.cz)) return false;
+      if (!memoryGuardian.allowsTerrainAt(t.cx, t.cz)) return false;
       task.building = true;
       const tag = t.far ? 'far' : 'near';
       const label = `mesh ${tag} ${t.x0},${t.z0}`;

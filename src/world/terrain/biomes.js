@@ -17,6 +17,11 @@ export const WORLD_LINEAR_SCALE = Math.sqrt(10);
 export const WORLD_SCALE_NOTE =
   'linear ≈√10 (~3.16×), area ~10×; prefer dramatic feel without breaking streaming';
 
+/** Scale a legacy (±560) design meter into the √10 countryside. */
+function S(meters) {
+  return Math.round(meters * WORLD_LINEAR_SCALE);
+}
+
 function distOutsideCityLocal(x, z) {
   const b = cityBounds();
   const dx = x < b.minX ? b.minX - x : x > b.maxX ? x - b.maxX : 0;
@@ -25,17 +30,20 @@ function distOutsideCityLocal(x, z) {
 }
 
 /**
- * Biome definitions. Centers are in world XZ meters (city 4×4 stays near origin).
+ * Biome definitions. Centers/radii use WORLD_LINEAR_SCALE so distinct regions
+ * sit further out on the √10 map (city 4×4 stays near origin). Soft fields.
  * radius = soft core; blend = meters of falloff beyond radius.
+ *
+ * Bases are legacy ±560 design coords; S() → world meters (~current layout).
  */
 export const BIOMES = [
   {
     id: 'meadow',
     name: 'Meadow Hills',
-    cx: 420,
-    cz: 140,
-    radius: 280,
-    blend: 160,
+    cx: S(133),
+    cz: S(44),
+    radius: S(89),
+    blend: S(51),
     grass: [0.32, 0.52, 0.28],
     dirt: [0.55, 0.45, 0.32],
     rock: [0.42, 0.4, 0.38],
@@ -48,10 +56,10 @@ export const BIOMES = [
   {
     id: 'forest',
     name: 'Deep Forest',
-    cx: -720,
-    cz: 520,
-    radius: 340,
-    blend: 180,
+    cx: S(-228),
+    cz: S(164),
+    radius: S(108),
+    blend: S(57),
     grass: [0.18, 0.38, 0.2],
     dirt: [0.35, 0.28, 0.18],
     rock: [0.3, 0.3, 0.28],
@@ -64,10 +72,10 @@ export const BIOMES = [
   {
     id: 'wetland',
     name: 'Wetland Marsh',
-    cx: -180,
-    cz: -780,
-    radius: 300,
-    blend: 170,
+    cx: S(-57),
+    cz: S(-247),
+    radius: S(95),
+    blend: S(54),
     grass: [0.28, 0.42, 0.3],
     dirt: [0.4, 0.38, 0.28],
     rock: [0.35, 0.36, 0.32],
@@ -80,10 +88,10 @@ export const BIOMES = [
   {
     id: 'lakeshore',
     name: 'Lakeshore',
-    cx: 220,
-    cz: -1100,
-    radius: 260,
-    blend: 140,
+    cx: S(70),
+    cz: S(-348),
+    radius: S(82),
+    blend: S(44),
     grass: [0.35, 0.48, 0.32],
     dirt: [0.5, 0.42, 0.3],
     rock: [0.45, 0.44, 0.4],
@@ -96,10 +104,10 @@ export const BIOMES = [
   {
     id: 'rocky',
     name: 'Rocky Foothills',
-    cx: 820,
-    cz: -420,
-    radius: 320,
-    blend: 170,
+    cx: S(259),
+    cz: S(-133),
+    radius: S(101),
+    blend: S(54),
     grass: [0.4, 0.42, 0.3],
     dirt: [0.48, 0.4, 0.32],
     rock: [0.5, 0.48, 0.45],
@@ -112,10 +120,10 @@ export const BIOMES = [
   {
     id: 'ridge',
     name: 'Mountain Ridge',
-    cx: 980,
-    cz: 980,
-    radius: 380,
-    blend: 220,
+    cx: S(310),
+    cz: S(310),
+    radius: S(120),
+    blend: S(70),
     grass: [0.3, 0.36, 0.28],
     dirt: [0.4, 0.35, 0.28],
     rock: [0.55, 0.54, 0.52],
@@ -128,10 +136,10 @@ export const BIOMES = [
   {
     id: 'highland',
     name: 'Highland Source',
-    cx: 1320,
-    cz: 1480,
-    radius: 300,
-    blend: 200,
+    cx: S(417),
+    cz: S(468),
+    radius: S(95),
+    blend: S(63),
     grass: [0.34, 0.4, 0.3],
     dirt: [0.42, 0.36, 0.28],
     rock: [0.58, 0.56, 0.54],
@@ -144,10 +152,10 @@ export const BIOMES = [
   {
     id: 'pasture',
     name: 'Open Pasture',
-    cx: -900,
-    cz: -200,
-    radius: 300,
-    blend: 160,
+    cx: S(-285),
+    cz: S(-63),
+    radius: S(95),
+    blend: S(51),
     grass: [0.42, 0.55, 0.28],
     dirt: [0.58, 0.48, 0.3],
     rock: [0.4, 0.38, 0.35],

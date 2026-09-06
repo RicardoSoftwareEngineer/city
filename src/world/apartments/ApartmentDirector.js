@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { createApartmentRoom, createCurtain } from './roomTemplate.js';
 
 /** Spec 05 — only N apartments live at once. */
-export const MAX_LOADED = 8;
+export const MAX_LOADED = 3;
 
 const OPEN_DURATION = 0.85;
 const _dummy = new THREE.Object3D();

@@ -116,7 +116,7 @@ export async function mergeBuilding(root, label = root?.name || 'building') {
         meshMat.needsUpdate = true;
       }
       const mesh = new THREE.Mesh(geometry, meshMat);
-      mesh.castShadow = true;
+      mesh.castShadow = !meshMat.transparent;
       mesh.receiveShadow = false;
       merged.add(mesh);
     }

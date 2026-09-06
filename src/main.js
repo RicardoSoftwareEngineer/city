@@ -282,22 +282,25 @@ async function startGame() {
 
   const aptsBtn = document.getElementById('apts-load-btn');
   if (aptsBtn) {
+    const labelApts = () => `Apts ${apartmentDirector.loadedCount()}`;
     aptsBtn.addEventListener('click', async () => {
       const car = vehicleController.chassisBody.position;
-      let facadeId = apartmentDirector.pickFacadeNear(car.x, car.z);
+      const cam = camera.camera.position;
+      // Prefer free-fly camera when active; otherwise car pose.
+      const px = camera.isFreeFlight ? cam.x : car.x;
+      const pz = camera.isFreeFlight ? cam.z : car.z;
+      const facadeId = apartmentDirector.pickFacadeNear(px, pz);
       if (!facadeId) {
         aptsBtn.textContent = 'Sem fachada';
-        setTimeout(() => { aptsBtn.textContent = 'Apts +2'; }, 1500);
+        setTimeout(() => { aptsBtn.textContent = 'Apts 3'; }, 1500);
         return;
       }
       aptsBtn.disabled = true;
       aptsBtn.textContent = 'Apts…';
-      const keys = await apartmentDirector.loadCount(facadeId, 2);
-      aptsBtn.textContent = keys.length ? `Apts +${keys.length}` : 'Apts 0';
-      setTimeout(() => {
-        aptsBtn.textContent = 'Apts +2';
-        aptsBtn.disabled = false;
-      }, 1200);
+      apartmentDirector.unload(facadeId);
+      await apartmentDirector.loadCount(facadeId, 3);
+      aptsBtn.textContent = labelApts();
+      aptsBtn.disabled = false;
     });
   }
 

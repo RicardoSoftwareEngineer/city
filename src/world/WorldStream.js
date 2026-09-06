@@ -15,7 +15,12 @@ import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMai
 import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { beginLoad, clearLoadTag, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
-import { phaseIdForPriority, tickLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
+import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
+import {
+  effectiveLoadRadius,
+  publishFocusRemain,
+  armFocusRemain
+} from '../engine/focusRemain.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
 import { noteDecision } from '../engine/personaLog.js';
@@ -26,6 +31,24 @@ export const STREAM_STEP = 10;
 export const STREAM_PRIORITY_CORE = 4;
 /** Dense grass carpet — background slices only. */
 export const STREAM_PRIORITY_CARPET = 5;
+
+const PRIO_LABEL = {
+  0: 'ruas',
+  1: 'mobília',
+  2: 'banco',
+  3: 'prédios',
+  4: 'natureza',
+  5: 'carpet'
+};
+
+function jobLabel(job) {
+  if (job.url) {
+    const base = String(job.url).split('/').pop() || job.url;
+    return base.replace(/\.glb$/i, '');
+  }
+  if (job.name) return job.name;
+  return PRIO_LABEL[job.priority] || 'job';
+}
 
 function posesCentroid(poses) {
   let sx = 0, sz = 0;
@@ -139,7 +162,169 @@ export class WorldStream {
     return max;
   }
 
+  /**
+   * Count real pending work for a priority inside focus residency radius.
+   * Grower existence alone is NOT pending (that caused eternal phase reopen).
+   */
+  countPriorityPending(priority, radius, focus) {
+    const fx = focus.x;
+    const fz = focus.z;
+    const R = effectiveLoadRadius();
+    let urlLoads = 0;
+    let tplLoads = 0;
+    let tasks = 0;
+    let poses = 0;
+    let buildings = 0;
+    const inFocus = (x, z) => chebyshev(x, z, fx, fz) <= R + 0.01;
+
+    for (const job of this.urlJobs) {
+      if (job.priority !== priority) continue;
+      if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
+      if (minPoseDist(job.poses, fx, fz) > R) continue;
+      if (!job.grower) {
+        if (!job.loading) urlLoads += 1;
+        continue;
+      }
+      poses += job.grower.unrevealedNear?.(fx, fz, R) ?? job.grower.pendingRevealCount?.(radius) ?? 0;
+    }
+    for (const job of this.templateJobs) {
+      if (job.priority !== priority) continue;
+      if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
+      if (minPoseDist(job.poses, fx, fz) > R) continue;
+      if (!job.grower) {
+        tplLoads += 1;
+        continue;
+      }
+      poses += job.grower.unrevealedNear?.(fx, fz, R) ?? job.grower.pendingRevealCount?.(radius) ?? 0;
+    }
+    for (const task of this.tasks) {
+      if (task.done || task.kind === 'terrain') continue;
+      if (task.priority !== priority) continue;
+      if (task.dist > radius) continue;
+      tasks += 1;
+    }
+    if (priority === 3) {
+      for (const b of this.buildings) {
+        if (!b.sorted.length) continue;
+        if (chebyshev(b.sorted[0].x, b.sorted[0].z, this.ox, this.oz) > radius) continue;
+        if (!inFocus(b.sorted[0].x, b.sorted[0].z)) continue;
+        if (!b.grower) {
+          buildings += b.sorted.filter((p) => inFocus(p.x, p.z)).length || 1;
+          continue;
+        }
+        buildings += b.grower.unrevealedNear?.(fx, fz, R) ?? b.grower.pendingRevealCount?.(radius) ?? 0;
+      }
+    }
+    return { urlLoads, tplLoads, tasks, poses, buildings, total: urlLoads + tplLoads + tasks + poses + buildings };
+  }
+
+  /** Build numbered remaining list for HUD (current focus residency / vista). */
+  computeFocusRemain() {
+    const focus = memoryGuardian.focus;
+    const radius = effectiveLoadRadius();
+    const items = [];
+    let total = 0;
+    let done = 0;
+
+    let terrainPending = 0;
+    let terrainDone = 0;
+    for (const t of this.tasks) {
+      if (t.kind !== 'terrain' || t.x == null) continue;
+      if (!memoryGuardian.allowsTerrainAt(t.x, t.z)) continue;
+      if (t.done) terrainDone += 1;
+      else terrainPending += 1;
+    }
+    done += terrainDone;
+    if (terrainPending) {
+      items.push({ label: 'Terreno tiles na vista', count: terrainPending });
+      total += terrainPending;
+    }
+
+    const urlByLabel = new Map();
+    for (const job of this.urlJobs) {
+      if (job.grower) continue;
+      if (minPoseDist(job.poses, focus.x, focus.z) > radius) continue;
+      const label = `glTF ${jobLabel(job)}`;
+      urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+    }
+    for (const job of this.templateJobs) {
+      if (job.grower) continue;
+      if (minPoseDist(job.poses, focus.x, focus.z) > radius) continue;
+      const label = 'template (postes/etc.)';
+      urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+    }
+    for (const [label, count] of urlByLabel) {
+      items.push({ label, count });
+      total += count;
+    }
+
+    const poseByPrio = new Map();
+    const bumpPose = (priority, n) => {
+      if (n <= 0) return;
+      const label = `poses ${PRIO_LABEL[priority] || `p${priority}`}`;
+      poseByPrio.set(label, (poseByPrio.get(label) || 0) + n);
+    };
+    for (const job of this.urlJobs) {
+      if (!job.grower) continue;
+      const n = job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
+      bumpPose(job.priority, n);
+    }
+    for (const job of this.templateJobs) {
+      if (!job.grower) continue;
+      const n = job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
+      bumpPose(job.priority, n);
+    }
+    for (const [label, count] of poseByPrio) {
+      items.push({ label, count });
+      total += count;
+    }
+
+    let bld = 0;
+    for (const b of this.buildings) {
+      if (!b.sorted.length) continue;
+      const inFocus = b.sorted.filter(
+        (p) => chebyshev(p.x, p.z, focus.x, focus.z) <= radius + 0.01
+      );
+      if (!inFocus.length) continue;
+      if (!b.grower) bld += inFocus.length;
+      else bld += b.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
+    }
+    if (bld) {
+      items.push({ label: 'Prédios restantes', count: bld });
+      total += bld;
+    }
+
+    let taskPend = 0;
+    for (const t of this.tasks) {
+      if (t.done || t.kind === 'terrain') continue;
+      if (t.dist > radius) continue;
+      taskPend += 1;
+    }
+    if (taskPend) {
+      items.push({ label: 'Tasks (banco/etc.)', count: taskPend });
+      total += taskPend;
+    }
+
+    // Rough done counter: revealed poses + finished terrain in scope.
+    for (const job of this.urlJobs) {
+      if (job.grower?.revealed) done += job.grower.revealed;
+    }
+    for (const job of this.templateJobs) {
+      if (job.grower?.revealed) done += job.grower.revealed;
+    }
+    for (const b of this.buildings) {
+      if (b.grower?.revealed) done += b.grower.revealed;
+    }
+
+    return { total, done, items };
+  }
+
+  publishRemain() {
+    return publishFocusRemain(this.computeFocusRemain());
+  }
+
   async pumpTo(radius, maxPriority = 5) {
+
     const now = performance.now();
     if (!memoryGuardian.wantsLoad) {
       if (now - this._lastWantsNote > 2000) {
@@ -152,7 +337,8 @@ export class WorldStream {
       noteDecision('Carregador', `pump r${Math.round(radius)}`);
       this._lastPumpNote = now;
     }
-    const capped = Math.min(radius, memoryGuardian.radius);
+    const loadR = effectiveLoadRadius();
+    const capped = Math.min(radius, loadR);
     radius = capped;
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
     const budget = createBudget();
@@ -168,14 +354,14 @@ export class WorldStream {
           !job.grower &&
           !job.loading &&
           minPoseDist(job.poses, this.ox, this.oz) <= radius &&
-          minPoseDist(job.poses, focus.x, focus.z) <= memoryGuardian.radius
+          minPoseDist(job.poses, focus.x, focus.z) <= loadR
       );
       const pendingTpl = this.templateJobs.some(
         (job) =>
           job.priority === priority &&
           !job.grower &&
           minPoseDist(job.poses, this.ox, this.oz) <= radius &&
-          minPoseDist(job.poses, focus.x, focus.z) <= memoryGuardian.radius
+          minPoseDist(job.poses, focus.x, focus.z) <= loadR
       );
       const pendingTasks = this.tasks.some(
         (task) =>
@@ -184,16 +370,10 @@ export class WorldStream {
           task.priority === priority &&
           task.dist <= radius
       );
-      const mayReveal =
-        this.urlJobs.some((job) => job.priority === priority && job.grower) ||
-        this.templateJobs.some((job) => job.priority === priority && job.grower) ||
-        (priority === 3 && this.buildings.some((b) => b.sorted.length));
+      const pending = this.countPriorityPending(priority, radius, focus);
       const phaseId = phaseIdForPriority(priority);
-      if (
-        phaseId &&
-        (toLoad.length || pendingTpl || pendingTasks || mayReveal)
-      ) {
-        tickLoadPhase(phaseId, `r${radius}`);
+      if (phaseId && pending.total > 0) {
+        ensureLoadPhase(phaseId, `r${radius}`);
       }
 
       for (const job of toLoad) {
@@ -233,7 +413,7 @@ export class WorldStream {
       for (const job of this.templateJobs) {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
-        if (minPoseDist(job.poses, focus.x, focus.z) > memoryGuardian.radius) continue;
+        if (minPoseDist(job.poses, focus.x, focus.z) > loadR) continue;
         await throughValve(async () => {
           measureRingItemSync('template instancer', () => {
             job.grower = createGrowingInstancedGltf(
@@ -314,8 +494,16 @@ export class WorldStream {
       }
 
       await this.revealBuildings(radius, priority, budget);
+
+      // End phase when this priority has nothing left in-radius (do not keep
+      // running forever just because growers still exist).
+      if (phaseId) {
+        const left = this.countPriorityPending(priority, radius, focus);
+        if (left.total === 0) endLoadPhase(phaseId);
+      }
     }
     endRing(radius);
+    this.publishRemain();
   }
 
   async revealBuildings(radius, priority, budget) {
@@ -435,7 +623,7 @@ export class WorldStream {
     };
 
     setStreamLabel(`terrain vista${Math.round(memoryGuardian.vistaRadius)}`);
-    tickLoadPhase('terrain', `vista${Math.round(memoryGuardian.vistaRadius)}`);
+    ensureLoadPhase('terrain', `vista${Math.round(memoryGuardian.vistaRadius)}`);
 
     // Defer Valve HOLD for the whole terrain pump slice (not only first near
     // tiles). Concurrent street throughValve pauseDraw must not freeze the view
@@ -497,18 +685,19 @@ export class WorldStream {
     this._terrainBg = true;
     const loop = async () => {
       for (;;) {
-        tickLoadPhase('terrain', `bg vista${Math.round(memoryGuardian.vistaRadius)}`);
-        const n = await this.pumpTerrainSlice(16);
-        if (n === 0) {
-          // In-vista pending only — outside allowsTerrainAt are past the fence.
-          const pendingInVista = this.tasks.some(
-            (t) =>
-              t.kind === 'terrain' &&
-              !t.done &&
-              t.x != null &&
-              memoryGuardian.allowsTerrainAt(t.x, t.z)
-          );
-          if (!pendingInVista) endLoadPhase('terrain');
+        const pendingInVista = this.tasks.some(
+          (t) =>
+            t.kind === 'terrain' &&
+            !t.done &&
+            t.x != null &&
+            memoryGuardian.allowsTerrainAt(t.x, t.z)
+        );
+        if (pendingInVista) {
+          ensureLoadPhase('terrain', `bg vista${Math.round(memoryGuardian.vistaRadius)}`);
+          await this.pumpTerrainSlice(16);
+        } else {
+          endLoadPhase('terrain');
+          this.publishRemain();
           await yieldToMain();
         }
       }
@@ -537,7 +726,7 @@ export class WorldStream {
    */
   async pumpNatureSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
     const priority = STREAM_PRIORITY_CORE;
-    const radius = memoryGuardian.radius;
+    const radius = effectiveLoadRadius();
     const focus = memoryGuardian.focus;
     if (!memoryGuardian.wantsNatureLoad) return 0;
 
@@ -549,8 +738,17 @@ export class WorldStream {
         minPoseDist(job.poses, this.ox, this.oz) <= radius &&
         minPoseDist(job.poses, focus.x, focus.z) <= radius
     );
+    const pendingReveal = this.urlJobs.reduce((n, job) => {
+      if (job.priority !== priority || !job.grower) return n;
+      return n + (job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0);
+    }, 0);
+    if (!pendingLoad.length && pendingReveal === 0) {
+      endLoadPhase('nature');
+      this.publishRemain();
+      return 0;
+    }
 
-    tickLoadPhase('nature', `bg r${Math.round(radius)}`);
+    ensureLoadPhase('nature', `bg r${Math.round(radius)}`);
     setStreamLabel(`nature bg r${Math.round(radius)}`);
     let work = 0;
     const budget = createBudget();
@@ -642,7 +840,7 @@ export class WorldStream {
    */
   async pumpCarpetSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
     const priority = STREAM_PRIORITY_CARPET;
-    const radius = memoryGuardian.radius;
+    const radius = effectiveLoadRadius();
     const focus = memoryGuardian.focus;
     if (!memoryGuardian.wantsLoad) return 0;
 
@@ -654,8 +852,17 @@ export class WorldStream {
         minPoseDist(job.poses, this.ox, this.oz) <= radius &&
         minPoseDist(job.poses, focus.x, focus.z) <= radius
     );
+    const pendingReveal = this.urlJobs.reduce((n, job) => {
+      if (job.priority !== priority || !job.grower) return n;
+      return n + (job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0);
+    }, 0);
+    if (!pendingLoad.length && pendingReveal === 0) {
+      endLoadPhase('carpet');
+      this.publishRemain();
+      return 0;
+    }
 
-    tickLoadPhase('carpet', `bg r${Math.round(radius)}`);
+    ensureLoadPhase('carpet', `bg r${Math.round(radius)}`);
     setStreamLabel(`carpet bg r${Math.round(radius)}`);
     let work = 0;
     const budget = createBudget();
@@ -728,6 +935,7 @@ export class WorldStream {
     }
     if (this.renderer) this.renderer.resumeDraw();
     if (!pendingLoad.length && work === 0) endLoadPhase('carpet');
+    this.publishRemain();
     return work;
   }
 
@@ -738,16 +946,29 @@ export class WorldStream {
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
     // Terrain + nature + carpet already run on their own loops; this only expands core rings.
+    armFocusRemain();
     this.startTerrainBackground();
     this.startNatureBackground();
     this.startCarpetBackground();
-    await this.pumpTo(Math.min(radius, memoryGuardian.radius), core);
-    let r = Math.min(radius, memoryGuardian.radius);
+    await this.pumpTo(Math.min(radius, effectiveLoadRadius()), core);
+    let r = Math.min(radius, effectiveLoadRadius());
     let dumped = false;
 
     for (;;) {
+      this.publishRemain();
+      const remain = this.computeFocusRemain();
+      // Parked / stable focus with nothing left in residency — do not expand rings.
+      if (remain.total === 0) {
+        if (!dumped) {
+          dumpLoadLog();
+          dumped = true;
+        }
+        await yieldToMain();
+        continue;
+      }
+
       if (memoryGuardian.wantsLoad) {
-        const cap = memoryGuardian.radius;
+        const cap = effectiveLoadRadius();
         if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);
           await this.pumpTo(r, core);

@@ -1,3 +1,5 @@
+> **2026-09-06:** Focus remaining HUD + phase lifecycle — `tickLoadPhase` no longer re-opens `done` phases (`mayReveal`/growers forever). End streets/furniture/bank/buildings/nature/carpet when in-radius work is empty; `Fila do foco` lists numbered remaining units; freeze load radius when focus cell is stable and remaining hits 0 (`Foco pronto`). Keep orchard + vista fence (#98).
+
 > **2026-09-05:** Terrain **vista** — `allowsTerrainAt` / `TERRAIN_VISTA_RADIUS` (= `GROUND_BODY_HALF` ±1770) lets coarse 320 m far tiles fill to the √10 fence while adaptive residency R stays ~10–900 m for streets. Terrain/phys excluded from soft-cap count; heap still gates `wantsTerrainLoad`. Biomes centers/radii via `WORLD_LINEAR_SCALE`.
 
 > **2026-09-05:** Progressive campo boot — near veg (±110 m) registers with sliced `scatterGridAsync` overlapping spawn streets; far/dense annulus fills later. Nature bg pump uses `wantsNatureLoad` (heap-only, like terrain #94). Keep White Orchard elevation + biomes √10 tint/veg together. Sync field scatter was ~28s freeze.

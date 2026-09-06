@@ -144,7 +144,15 @@ export function minPoseDist(poses, ox, oz) {
  */
 export function createGrowingInstancedGltf(parent, template, poses, ox, oz, options = {}) {
   if (!template || poses.length === 0) {
-    return { reveal() { return 0; }, maxDist: 0, dispose() {} };
+    return {
+      reveal() { return 0; },
+      pendingRevealCount() { return 0; },
+      unrevealedNear() { return 0; },
+      get revealed() { return 0; },
+      get total() { return 0; },
+      maxDist: 0,
+      dispose() {}
+    };
   }
 
   const { onReveal, firstBatchSize, maxBatchSize, ...specOpts } = options;
@@ -228,6 +236,29 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
         mesh.visible = true;
         mesh.instanceMatrix.needsUpdate = true;
       }
+    },
+    get revealed() {
+      return revealed;
+    },
+    get total() {
+      return sorted.length;
+    },
+    /** Poses still to reveal for origin-based ring radius (sorted prefix). */
+    pendingRevealCount(radius) {
+      let n = 0;
+      for (let i = revealed; i < sorted.length; i++) {
+        if (chebyshev(sorted[i].x, sorted[i].z, ox, oz) <= radius) n += 1;
+        else break;
+      }
+      return n;
+    },
+    /** Unrevealed poses within Chebyshev of an arbitrary focus point. */
+    unrevealedNear(fx, fz, radius) {
+      let n = 0;
+      for (let i = revealed; i < sorted.length; i++) {
+        if (chebyshev(sorted[i].x, sorted[i].z, fx, fz) <= radius) n += 1;
+      }
+      return n;
     },
     reveal(radius, maxAdd = Infinity) {
       let n = revealed;

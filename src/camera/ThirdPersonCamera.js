@@ -14,12 +14,17 @@ const LABEL = {
 };
 
 const UI_BLOCK = '#hud, button, #terrain-debug-readout, #play-hitch-hud';
-const BASE_SPEED = 110;
-const FAST_MULT = 3.8;
+/** m/s at street level — was 110 (teleports when FPS dips). */
+const BASE_SPEED = 22;
+const FAST_MULT = 2.6;
 const SLOW_MULT = 0.35;
 const LOOK_SENS = 0.0045;
 /** Higher = snappier look; still smooth at 60–240 FPS. */
 const LOOK_SMOOTH = 18;
+/** Move accel toward wish (1/s). Higher = snappier, lower = glide. */
+const MOVE_SMOOTH = 10;
+/** Clamp hitch frames so one bad delta cannot jump tens of meters. */
+const MAX_FLY_DT = 1 / 30;
 const MIN_PITCH = -Math.PI / 2 + 0.04;
 const MAX_PITCH = Math.PI / 2 - 0.04;
 
@@ -33,6 +38,7 @@ export class ThirdPersonCamera {
     this._right = new THREE.Vector3();
     this._up = new THREE.Vector3(0, 1, 0);
     this._wish = new THREE.Vector3();
+    this._velocity = new THREE.Vector3();
 
     // Free-flight look: target angles from input, displayed angles lerp each frame
     // (movementX + exponential smoothing — common FPS/Three.js pattern; avoids
@@ -244,10 +250,11 @@ export class ThirdPersonCamera {
   }
 
   _updateFreeFlight(delta) {
+    const dt = Math.min(Math.max(delta, 0), MAX_FLY_DT);
     // Exponential smoothing toward target look — frame-rate independent.
-    const t = 1 - Math.exp(-LOOK_SMOOTH * Math.max(delta, 0));
-    this.flyYaw += (this._targetYaw - this.flyYaw) * t;
-    this.flyPitch += (this._targetPitch - this.flyPitch) * t;
+    const lookT = 1 - Math.exp(-LOOK_SMOOTH * dt);
+    this.flyYaw += (this._targetYaw - this.flyYaw) * lookT;
+    this.flyPitch += (this._targetPitch - this.flyPitch) * lookT;
     this._applyFlyLook();
 
     this.camera.getWorldDirection(this._forward);
@@ -265,17 +272,19 @@ export class ThirdPersonCamera {
       this._wish.y -= 1;
     }
 
-    if (this._wish.lengthSq() > 0) {
-      this._wish.normalize();
-      let speed = this.flySpeed;
-      if (kb.isPressed('ShiftLeft') || kb.isPressed('ShiftRight')) speed *= FAST_MULT;
-      if (kb.isPressed('AltLeft') || kb.isPressed('AltRight')) speed *= SLOW_MULT;
-      // Spectator-style: the higher the camera, the faster it flies.
-      // ~1× near street level (y≈10), scales up with altitude, soft cap.
-      const altitudeScale = Math.min(40, Math.max(0.45, this.camera.position.y / 10));
-      speed *= altitudeScale;
-      this.camera.position.addScaledVector(this._wish, speed * delta);
-    }
+    let speed = this.flySpeed;
+    if (kb.isPressed('ShiftLeft') || kb.isPressed('ShiftRight')) speed *= FAST_MULT;
+    if (kb.isPressed('AltLeft') || kb.isPressed('AltRight')) speed *= SLOW_MULT;
+    // Mild altitude boost only (old y/10 capped at 40× made hitch frames teleport).
+    const altitudeScale = Math.min(2.2, Math.max(0.7, 0.85 + this.camera.position.y / 80));
+    speed *= altitudeScale;
+
+    if (this._wish.lengthSq() > 0) this._wish.normalize().multiplyScalar(speed);
+    else this._wish.set(0, 0, 0);
+
+    const moveT = 1 - Math.exp(-MOVE_SMOOTH * dt);
+    this._velocity.lerp(this._wish, moveT);
+    this.camera.position.addScaledVector(this._velocity, dt);
 
     // Keep a look-ahead point for session save.
     this.orbitControls.target

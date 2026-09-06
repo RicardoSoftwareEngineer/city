@@ -29,7 +29,7 @@ const PATHS = {
 
 export async function loadBuildingKit() {
   const keys = Object.keys(PATHS);
-  const models = await Promise.all(keys.map((k) => loadGltf(PATHS[k], { keepVertexColors: true })));
+  const models = await Promise.all(keys.map((k) => loadGltf(PATHS[k], { keepVertexColors: false })));
   const kit = {};
   keys.forEach((k, i) => { kit[k] = models[i]; });
 

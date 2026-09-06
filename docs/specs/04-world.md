@@ -26,3 +26,6 @@
 - Terrain enterra sob a paved; phys da cidade usa box plana + pin no campo.
 
 - **Chão pavimentado:** sem `COLOR_0` do MegaKit (meio-fio vermelho US em calçada **e** rua). `groundOpts()` / `sidewalkOpts()` strips vertex colors.
+
+- **Chão pavimentado + prédios downtown:** sem `COLOR_0` vermelho do MegaKit (`groundOpts` / `castOpts` / `noCastOpts`). Natureza (`foliageOpts`) mantém VC.
+- **Calçada:** só lajes cheias (`straight` / `broken*`). Nunca `Sidewalk_*_Stripe` nem `Inset_*` como tile — stripe é decal fino e inset abre buraco.

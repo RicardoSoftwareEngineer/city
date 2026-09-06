@@ -20,7 +20,8 @@ import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loa
 import {
   effectiveLoadRadius,
   publishFocusRemain,
-  armFocusRemain
+  armFocusRemain,
+  isLoadRadiusFrozen
 } from '../engine/focusRemain.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
@@ -352,21 +353,32 @@ export class WorldStream {
   async pumpTo(radius, maxPriority = 5) {
 
     const now = performance.now();
-    if (!memoryGuardian.wantsLoad) {
+    const loadR = effectiveLoadRadius();
+    // Soft-cap full + parked freeze: still drain the last in-frozen-disk street
+    // glTFs so Fila do foco can reach 0 (stuck ~15 with wantsLoad false is bad UX).
+    let forceFocusDrain = false;
+    if (!memoryGuardian.wantsLoad && isLoadRadiusFrozen()) {
+      forceFocusDrain = this.computeFocusRemain().total > 0;
+    }
+    if (!memoryGuardian.wantsLoad && !forceFocusDrain) {
       if (now - this._lastWantsNote > 2000) {
         noteDecision('Carregador', 'wantsLoad false');
         this._lastWantsNote = now;
       }
       // Soft-cap / valve hold must still close phases whose in-radius work is 0.
-      this.endIdleCorePhases(Math.min(radius, effectiveLoadRadius()), maxPriority);
+      this.endIdleCorePhases(Math.min(radius, loadR), maxPriority);
       this.publishRemain();
       return;
     }
     if (now - this._lastPumpNote > 2000) {
-      noteDecision('Carregador', `pump r${Math.round(radius)}`);
+      noteDecision(
+        'Carregador',
+        forceFocusDrain
+          ? `focus drain r${Math.round(loadR)}`
+          : `pump r${Math.round(Math.min(radius, loadR))}`
+      );
       this._lastPumpNote = now;
     }
-    const loadR = effectiveLoadRadius();
     const capped = Math.min(radius, loadR);
     radius = capped;
     const priorities = [0, 1, 2, 3, 4, 5].filter((p) => p <= maxPriority);
@@ -1003,6 +1015,8 @@ export class WorldStream {
   /**
    * Long-running residency loop: core rings (prio ≤4) + terrain expand with Guardian.
    * Dense carpet is sliced each turn and never gates ring growth.
+   * Never pumps above effectiveLoadRadius(); when park-frozen, stops expanding rings
+   * and drains the frozen disk (soft-cap exception) until Foco remaining hits 0.
    */
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
@@ -1018,8 +1032,14 @@ export class WorldStream {
     for (;;) {
       this.publishRemain();
       const remain = this.computeFocusRemain();
-      // Parked / stable focus with nothing left in residency — do not expand rings.
+      const cap = effectiveLoadRadius();
+      const frozen = isLoadRadiusFrozen();
+      // Clamp ring cursor to freeze / Guardian cap — never chase past effectiveLoadRadius.
+      if (r > cap) r = cap;
+
+      // Parked / stable focus with nothing left in residency — close phases, do not expand.
       if (remain.total === 0) {
+        this.endIdleCorePhases(cap, core);
         if (!dumped) {
           dumpLoadLog();
           dumped = true;
@@ -1028,18 +1048,18 @@ export class WorldStream {
         continue;
       }
 
-      if (memoryGuardian.wantsLoad) {
-        const cap = effectiveLoadRadius();
-        if (r + STREAM_STEP <= cap + 0.01) {
+      // Frozen: never expand rings past the lock; keep pumping the frozen disk to drain.
+      // Unfrozen: expand toward cap while wantsLoad; still end idle phases under soft-cap.
+      if (frozen || memoryGuardian.wantsLoad) {
+        if (!frozen && r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);
-          await this.pumpTo(r, core);
         } else if (r < cap) {
           r = cap;
-          await this.pumpTo(r, core);
-        } else if (!dumped) {
-          dumpLoadLog();
-          dumped = true;
         }
+        await this.pumpTo(r, core);
+      } else {
+        this.endIdleCorePhases(Math.min(r, cap), core);
+        this.publishRemain();
       }
 
       // Always yield — empty pumpTo can be sync and used to spin the tab to death

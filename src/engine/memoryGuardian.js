@@ -12,6 +12,10 @@
  * seconds (frame-count hysteresis would stall). Soft-cap never dispose-
  * thrash inside the circle (STATUS_BREAKPOINT lesson from PR #72).
  *
+ * Residency floor: when focus park-freezes the load radius, world/building
+ * growers inside that disk must not be disposed just because adaptive R
+ * shrinks with FPS (Fila do foco 15↔329 thrash). Floor is set by focusRemain.
+ *
  * Phys pin: `kind === 'phys'` residents within PHYS_PIN_RADIUS of the car are
  * immortal until the car leaves — stronger than soft-cap / radius shrink, so
  * the Heightfield under the wheels never disappears when Guardian tightens.
@@ -91,6 +95,8 @@ let lastRadiusNoted = radius;
 let lastAdaptReason = 'boot';
 let lastDrawMs = 0;
 let lastSoftCap = softCapFor(radius);
+/** Never thrash-dispose world/building inside this Chebyshev disk (park freeze). */
+let residencyFloor = null;
 
 export const memoryGuardian = {
   get radius() {
@@ -108,6 +114,17 @@ export const memoryGuardian = {
   },
   get pinRadius() {
     return PHYS_PIN_RADIUS;
+  },
+  /** Park-freeze floor — world/building keep this disk even when adaptive R shrinks. */
+  get residencyFloor() {
+    return residencyFloor;
+  },
+  /**
+   * Set by focusRemain when the load radius freezes / clears.
+   * @param {number|null} r
+   */
+  setResidencyFloor(r) {
+    residencyFloor = r == null || !Number.isFinite(r) ? null : Math.max(0, r);
   },
   get focus() {
     return { x: focusX, z: focusZ };
@@ -172,9 +189,14 @@ export const memoryGuardian = {
     focusZ = z;
   },
 
+  /** Effective residency disk for streets / veg / buildings (adaptive R ∪ park floor). */
+  _worldKeepRadius() {
+    return residencyFloor != null ? Math.max(radius, residencyFloor) : radius;
+  },
+
   /** True if a world point may stay loaded / be loaded (streets / veg / buildings). */
   allowsAt(x, z) {
-    return chebyshev(x, z, focusX, focusZ) <= radius + 0.01;
+    return chebyshev(x, z, focusX, focusZ) <= this._worldKeepRadius() + 0.01;
   },
 
   /**
@@ -202,10 +224,10 @@ export const memoryGuardian = {
     return chebyshev(x, z, focusX, focusZ) <= this.innerRadius + 0.01;
   },
 
-  /** Pose between 0.1R and R (low quality intent). */
+  /** Pose between 0.1R and keep-R (low quality intent). */
   isOuterZone(x, z) {
     const d = chebyshev(x, z, focusX, focusZ);
-    return d > this.innerRadius + 0.01 && d <= radius + 0.01;
+    return d > this.innerRadius + 0.01 && d <= this._worldKeepRadius() + 0.01;
   },
 
   /**
@@ -271,7 +293,12 @@ export const memoryGuardian = {
         if (dOrigin > TERRAIN_VISTA_RADIUS + 320) outside.push({ row, d: dOrigin });
         continue;
       }
-      if (d > radius + 0.01) outside.push({ row, d });
+      // Streets / furniture / buildings / nature: never dispose inside park-frozen disk.
+      const keepR =
+        row.kind === 'world' || row.kind === 'building'
+          ? this._worldKeepRadius()
+          : radius;
+      if (d > keepR + 0.01) outside.push({ row, d });
     }
     outside.sort((a, b) => b.d - a.d);
     for (const { row } of outside) {
@@ -287,6 +314,7 @@ export const memoryGuardian = {
     // and Chrome STATUS_BREAKPOINT. Over-cap only flips isTableFull / wantsLoad; tick
     // shrinks radius under pressure, then the next evictOutside drops true outsiders.
     // Phys pin (above) is stronger still: never thrash-dispose colliders under the car.
+    // Park residency floor: world/building inside frozen R survive Guardian shrink.
     lastEvictCount = n;
     return n;
   },
@@ -406,6 +434,8 @@ export const memoryGuardian = {
       maxRadius: MAX_RADIUS,
       vistaRadius: TERRAIN_VISTA_RADIUS,
       pinRadius: PHYS_PIN_RADIUS,
+      residencyFloor,
+      worldKeepRadius: this._worldKeepRadius(),
       innerRadius: this.innerRadius,
       focusX,
       focusZ,

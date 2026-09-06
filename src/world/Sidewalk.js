@@ -8,6 +8,7 @@
  */
 
 import { loadGltf } from './AssetLoader.js';
+import { sidewalkOpts, castOpts } from './shadowPolicy.js';
 import { downtown } from './downtownSrc.js';
 import {
   SIDEWALK_CENTER_X,
@@ -34,8 +35,8 @@ const TREE_SCALE = 0.42;
 export class Sidewalk {
   async build(parentGroup) {
     const [straight, planter, tree1, tree2, tree3, tree4, tree5] = await Promise.all([
-      loadGltf(ASSET_PATHS.straight),
-      loadGltf(ASSET_PATHS.planter),
+      loadGltf(ASSET_PATHS.straight, sidewalkOpts()),
+      loadGltf(ASSET_PATHS.planter, castOpts()),
       loadGltf(ASSET_PATHS.tree1, { keepVertexColors: true }),
       loadGltf(ASSET_PATHS.tree2, { keepVertexColors: true }),
       loadGltf(ASSET_PATHS.tree3, { keepVertexColors: true }),

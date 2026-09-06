@@ -41,8 +41,9 @@ Exposed as `window.__cityApartments` (`liveTarget` default 3).
 ## HUD (`#apts-budget`)
 
 - Compact panel: label **Interiores**, `−` / number input / `+`, button **Todos**.
-- Applies to nearest facade (free-fly camera if active, else car) → `markFacadeHouse` → `setLiveCount`.
+- Applies to nearest facade (free-fly camera if active, else car) → `markFacadeHouse({ autoLoad: false })` → `setLiveCount` (HUD owns the budget; mark must not race an auto `setLiveCount(3)` after Todos).
 - Immediate apply on `+/−/Todos` and on Enter / change in the input. Busy class while applying.
+- While applying, the number input and banner track **live/total** (for `'all'`, input rises with loaded count — must not stay stuck at the previous budget).
 - Hidden in `boot-idle` like other floats.
 
 ## Curtain states (per apartment)
@@ -53,6 +54,8 @@ Budget cut: `open`/`ready` → **`curtain-only`** (room disposed carefully; shar
 
 Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 
+**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains open and rooms show through glass as each unit becomes `ready`. Shared room materials skip re-compile after the first warm. Stream/world compiles still pause as before. No FPS HOLD / adaptive pause for apartments.
+
 ## Out of scope
 
 - Per-frame quality adapt / HOLD for apartments.
@@ -60,4 +63,4 @@ Curtain opens **only** after the interior is added and warmed. No FPS adapt.
 
 ## Marker
 
-- First **Large** facade auto-gets a giant house billboard (~80 m) + yellow beacon at **Y=160** + cyan pole, plus a yellow HTML banner `CASA APTS · N/total vivos`, and **auto-applies `liveTarget`** on mark. The Interiores HUD moves the marker to the chosen facade and applies the requested budget.
+- First **Large** facade auto-gets a giant house billboard (~80 m) + yellow beacon at **Y=160** + cyan pole, plus a yellow HTML banner `CASA APTS · N/total vivos`, and **auto-applies `liveTarget`** on mark (`autoLoad` default true). The Interiores HUD moves the marker with `autoLoad: false` then applies the requested budget itself.

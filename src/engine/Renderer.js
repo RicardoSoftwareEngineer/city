@@ -185,33 +185,34 @@ export class Renderer {
 
   /**
    * Compile each Mesh/InstancedMesh under root that is not yet compiled.
-   * Pause the game-loop draw so 8 new programs cannot land in one render().
-   * First arg is the mesh (never the whole scene). targetScene is lights+fog only
-   * so lights match the real draw — compile(mesh, camera) without lights
-   * left first render() to compile 9–13 programs. compile() only starts
-   * the driver compile; compileAsync waits until each program is ready so
-   * 13 shaders cannot stall one later render() (stream ring 10 prio 0 +13prog).
-   * Only InstancedMesh from makeBatchMesh (`_streamInstancer`). Compiling the
-   * whole city group also recompiled the Porsche (~13 programs) on ring 10.
+   * By default pauses the game-loop draw so new programs cannot land in one
+   * render(). Pass pause:false for small apartment rooms so a long
+   * setLiveCount batch keeps presenting (curtain open / room through glass).
+   * First arg is the mesh (never the whole scene). targetScene is lights+fog
+   * only. compileAsync waits until each program is ready. Shared materials
+   * already warmed skip re-compile (room template clones).
+   * @param {object} root
+   * @param {{instancersOnly?: boolean, pause?: boolean}} [opts]
    */
-  async compileSubtree(root, { instancersOnly = true } = {}) {
+  async compileSubtree(root, { instancersOnly = true, pause = true } = {}) {
     if (!root) return;
     const wasPaused = this._pauseDraw;
-    this._pauseDraw = true;
+    if (pause) this._pauseDraw = true;
     const objects = [];
     root.traverse((object) => {
       if (!object.isMesh || object.userData._gpuCompiled) return;
       if (instancersOnly && !object.userData._streamInstancer) return;
-      // Same material already compiled as InstancedMesh → program is in the driver.
+      // Same material already compiled → program is in the driver (clones share mats).
       const mat = object.material;
-      if (
-        object.isInstancedMesh &&
-        mat &&
-        !Array.isArray(mat) &&
-        mat.userData?._gpuInstancedProgramWarmed
-      ) {
-        object.userData._gpuCompiled = true;
-        return;
+      if (mat && !Array.isArray(mat)) {
+        if (object.isInstancedMesh && mat.userData?._gpuInstancedProgramWarmed) {
+          object.userData._gpuCompiled = true;
+          return;
+        }
+        if (!object.isInstancedMesh && mat.userData?._gpuMeshProgramWarmed) {
+          object.userData._gpuCompiled = true;
+          return;
+        }
       }
       objects.push(object);
     });
@@ -225,12 +226,13 @@ export class Renderer {
       await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       object.userData._gpuCompiled = true;
       const mat = object.material;
-      if (object.isInstancedMesh && mat && !Array.isArray(mat)) {
-        mat.userData._gpuInstancedProgramWarmed = true;
+      if (mat && !Array.isArray(mat)) {
+        if (object.isInstancedMesh) mat.userData._gpuInstancedProgramWarmed = true;
+        else mat.userData._gpuMeshProgramWarmed = true;
       }
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
       await yieldToMain();
     }
-    this._pauseDraw = wasPaused;
+    if (pause) this._pauseDraw = wasPaused;
   }
 }

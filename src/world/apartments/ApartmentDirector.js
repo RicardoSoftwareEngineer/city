@@ -11,7 +11,7 @@ export const MAX_LOADED = 3;
 /** Soft ceiling when liveTarget === 'all' and no facade length known. */
 const ALL_CEILING = 256;
 
-const OPEN_DURATION = 0.85;
+const OPEN_DURATION = 0.2;
 const MID_Y_MIN = 3;
 const MID_Y_MAX = 20;
 /** Curtain sits outside glass along local −Z (toward street). */
@@ -448,13 +448,17 @@ export class ApartmentDirector {
     for (const unit of this.units.values()) {
       if (unit.state !== 'open' && unit.state !== 'ready') continue;
       if (unit.state === 'ready') unit.state = 'open';
-      if (unit.openT >= 1) continue;
+      if (unit.openT >= 1) {
+        unit.curtain.visible = false;
+        continue;
+      }
       unit.openT = Math.min(1, unit.openT + step / OPEN_DURATION);
       const t = unit.openT * unit.openT * (3 - 2 * unit.openT);
-      // Shrink curtain from full height → nearly gone.
+      // Shared curtain mat — open via scale/visibility only (never opacity).
+      const bx = unit.curtain.userData.baseScaleX ?? 1;
+      const by = unit.curtain.userData.baseScaleY ?? 1;
       const sy = Math.max(0.02, 1 - t);
-      unit.curtain.scale.set(1, sy, 1);
-      unit.curtain.material.opacity = 1 * (1 - t * 0.9);
+      unit.curtain.scale.set(bx, by * sy, 1);
       if (unit.openT >= 1) {
         unit.curtain.visible = false;
       }
@@ -581,6 +585,8 @@ export class ApartmentDirector {
     group.frustumCulled = false;
 
     const curtain = createCurtain(slot.width, slot.height);
+    curtain.userData.baseScaleX = curtain.scale.x;
+    curtain.userData.baseScaleY = curtain.scale.y;
     // OUTSIDE the glass along local −Z (toward street) so it reads on the facade.
     curtain.position.z = CURTAIN_OUT_Z;
     curtain.renderOrder = 40;
@@ -615,7 +621,8 @@ export class ApartmentDirector {
     // Phase 1: no opaque reveal plane — transparent glass + real 3D room behind.
     const room = await createApartmentRoom();
     const h = unit.slot.height;
-    room.position.set(0, -h * 0.42, 0.12);
+    // Closer to glass (−Z opening) so near-window props read from the street.
+    room.position.set(0, -h * 0.42, 0.04);
     const sx = Math.max(0.65, unit.slot.width / 2.8);
     const sy = Math.max(0.65, unit.slot.height / 2.35);
     room.scale.set(sx, sy, Math.max(sx, sy));
@@ -643,7 +650,9 @@ export class ApartmentDirector {
     }
 
     unit.state = 'ready';
-    unit.openT = 0;
+    // Snap-hide curtain so a closed plane never sits over the lit room.
+    unit.openT = 1;
+    unit.curtain.visible = false;
     // One painted frame per room even when compile is a no-op (warmed mats).
     await new Promise((r) => requestAnimationFrame(r));
   }
@@ -651,8 +660,10 @@ export class ApartmentDirector {
   _resetCurtainClosed(unit) {
     if (!unit?.curtain) return;
     unit.curtain.visible = true;
-    unit.curtain.scale.set(1, 1, 1);
-    if (unit.curtain.material) unit.curtain.material.opacity = 0.97;
+    const bx = unit.curtain.userData.baseScaleX ?? 1;
+    const by = unit.curtain.userData.baseScaleY ?? 1;
+    unit.curtain.scale.set(bx, by, 1);
+    // Shared material — do not poke opacity.
     unit.openT = 0;
   }
 
@@ -682,12 +693,13 @@ export class ApartmentDirector {
     if (!unit) return;
     unit.host?.remove(unit.group);
     unit.group.traverse((obj) => {
-      if (obj.geometry && (obj.name === 'apartment-curtain' || obj.name === 'apartment-reveal')) {
-        obj.geometry.dispose?.();
+      // Curtain geo/mat are shared across units — never dispose them.
+      if (obj.name === 'apartment-reveal') {
+        obj.geometry?.dispose?.();
         if (obj.material?.map) obj.material.map.dispose?.();
         obj.material?.dispose?.();
       }
-      // Shared room geometries stay cached on the template — only dispose curtain/reveal.
+      // Shared room geometries stay cached on the template.
     });
     this.units.delete(key);
     this._loadOrder = this._loadOrder.filter((k) => k !== key);

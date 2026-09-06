@@ -3,7 +3,7 @@
  * on the building template before mergeBuilding so all instances get glass.
  *
  * Opacity-based (not transmission) so glass reads without an env map —
- * you can see sky / closed curtains through the pane.
+ * you can see sky / closed curtains / lit rooms through the pane.
  *
  * Also strips MegaKit MI_InteriorWall / MI_InteriorFloor shell meshes that
  * sit behind FakeInterior and would otherwise darken the view through glass.
@@ -17,11 +17,12 @@ export function getWindowGlassMaterial() {
   if (!sharedGlass) {
     sharedGlass = new THREE.MeshPhysicalMaterial({
       name: 'MI_WindowGlass',
-      color: 0xc5ddf0,
-      metalness: 0.05,
-      roughness: 0.08,
+      color: 0xd8e8f4,
+      metalness: 0.02,
+      roughness: 0.18,
       transparent: true,
-      opacity: 0.14,
+      // Slightly clearer than 0.14 so room emissive reads through outdoor glare.
+      opacity: 0.09,
       depthWrite: false,
       side: THREE.DoubleSide
     });

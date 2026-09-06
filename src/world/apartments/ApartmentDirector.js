@@ -24,7 +24,7 @@ function facadeKey(typeName, x, z) {
 }
 
 /** World Y for the house icon — always above downtown roofs. */
-const HOUSE_MARKER_Y = 120;
+const HOUSE_MARKER_Y = 160;
 
 /**
  * Screen-space house + tall neon pole. sizeAttenuation:false keeps constant
@@ -84,21 +84,31 @@ function createHouseMarker(roofY) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
+  // World-space giant billboard (80 m) — screen-space sprites were easy to lose.
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture,
       depthTest: false,
       depthWrite: false,
       transparent: true,
-      sizeAttenuation: false
+      sizeAttenuation: true
     })
   );
-  // ~22% of view height — constant regardless of camera distance
-  sprite.scale.set(0.22, 0.22, 1);
+  sprite.scale.set(80, 80, 1);
   sprite.position.y = HOUSE_MARKER_Y;
   sprite.renderOrder = 999;
   sprite.frustumCulled = false;
   group.add(sprite);
+
+  // Extra solid beacon cube — impossible to miss even if texture fails
+  const beacon = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfbbf24, depthTest: false })
+  );
+  beacon.position.y = HOUSE_MARKER_Y;
+  beacon.renderOrder = 997;
+  beacon.frustumCulled = false;
+  group.add(beacon);
 
   // Pole from roof up to the icon so the eye can trace which building
   const top = HOUSE_MARKER_Y;
@@ -192,6 +202,10 @@ export class ApartmentDirector {
       height,
       centerZ
     });
+    // Auto-mark first Large so the house appears without waiting for Apts 3 click.
+    if (!this._houseFacadeId && /Large/i.test(facadeId)) {
+      this.markFacadeHouse(facadeId);
+    }
   }
 
   listFacades() {
@@ -299,11 +313,25 @@ export class ApartmentDirector {
     );
     host.add(this._houseMarker);
     this._houseFacadeId = facadeId;
+    this._syncHouseHud(true, facadeId);
   }
 
   clearHouseMarker() {
     if (this._houseMarker?.parent) this._houseMarker.parent.remove(this._houseMarker);
     this._houseFacadeId = null;
+    this._syncHouseHud(false);
+  }
+
+  _syncHouseHud(on, facadeId = '') {
+    const el = document.getElementById('apts-house-hud');
+    if (!el) return;
+    if (!on) {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = `↓ CASA APTS (Y=160) — ${facadeId}`;
   }
 
   /** Nearest registered facade to (x,z), or first Large*, or first overall. */

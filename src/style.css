@@ -702,6 +702,26 @@ kbd {
   padding: 0.45rem 0.85rem;
 }
 
+#apts-house-hud {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  max-width: min(92vw, 640px);
+  padding: 10px 18px;
+  font: 700 15px/1.25 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+  background: #fbbf24;
+  border: 3px solid #22d3ee;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  pointer-events: none;
+  text-align: center;
+}
+#apts-house-hud[hidden] { display: none !important; }
+
 #apts-load-btn {
   position: fixed;
   top: 220px;
@@ -812,6 +832,7 @@ body.boot-idle [data-min-id],
 body.boot-idle #radius-rings-btn,
 body.boot-idle #clear-asset-cache-btn,
 body.boot-idle #quality-preset-float,
+body.boot-idle #apts-house-hud,
 body.boot-idle #apts-load-btn,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle .hud-min-toggle {

@@ -702,6 +702,23 @@ kbd {
   padding: 0.45rem 0.85rem;
 }
 
+#apts-load-btn {
+  position: fixed;
+  top: 220px;
+  right: 12px;
+  z-index: 30;
+  padding: 8px 14px;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #e9d5ff;
+  background: rgba(12, 18, 28, 0.82);
+  border: 1px solid rgba(167, 139, 250, 0.6);
+  border-radius: 6px;
+  cursor: pointer;
+}
+#apts-load-btn:hover { background: rgba(40, 24, 56, 0.92); }
+#apts-load-btn:disabled { opacity: 0.6; cursor: wait; }
+
 /* One panel per persona (stacked top-right; drag/min via minimizableHud) */
 .persona-panel {
   position: fixed;
@@ -795,6 +812,7 @@ body.boot-idle [data-min-id],
 body.boot-idle #radius-rings-btn,
 body.boot-idle #clear-asset-cache-btn,
 body.boot-idle #quality-preset-float,
+body.boot-idle #apts-load-btn,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;

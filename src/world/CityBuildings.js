@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { SIDEWALK_EDGE, GRID_STREET_COUNT, gridStreetCoords } from './RoadDimensions.js';
 import { getBuildingTemplate } from './buildings/catalog.js';
 import { BUILDING_SPECS } from './buildings/specs.js';
+import { ApartmentDirector } from './apartments/ApartmentDirector.js';
 
 const TYPE_COLORS = ['#3b82f6', '#f97316', '#22c55e', '#a855f7', '#eab308', '#06b6d4', '#ef4444'];
 
@@ -44,7 +45,7 @@ export class CityBuildings {
     return placements;
   }
 
-  register(stream, parentGroup, physicsWorld) {
+  register(stream, parentGroup, physicsWorld, apartmentDirector = null) {
     const placements = this.collectPlacements();
     const sprites = BUILDING_SPECS.map((spec, index) =>
       this.createNumberSprite(spec.id, TYPE_COLORS[index % TYPE_COLORS.length])
@@ -52,14 +53,23 @@ export class CityBuildings {
 
     for (let type = 0; type < BUILDING_SPECS.length; type++) {
       const ofType = placements.filter((p) => p.type === type);
+      const typeName = BUILDING_SPECS[type].name;
       stream.addBuilding({
         placements: ofType,
-        name: BUILDING_SPECS[type].name,
-        heavy: BUILDING_SPECS[type].name.startsWith('Large'),
+        name: typeName,
+        heavy: typeName.startsWith('Large'),
         load: () => getBuildingTemplate(type),
         onReveal: (p, template) => {
           this.addCollider(physicsWorld, template, p);
           this.addTypeLabel(parentGroup, sprites[type], template, p);
+          if (apartmentDirector) {
+            const facadeId = ApartmentDirector.facadeId(typeName, p.x, p.z);
+            apartmentDirector.registerFacade(facadeId, {
+              slots: template.userData.apartmentSlots || [],
+              pose: { x: p.x, y: 0, z: p.z, rot: p.rot },
+              parent: parentGroup
+            });
+          }
         }
       });
     }

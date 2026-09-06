@@ -1,0 +1,79 @@
+/**
+ * One reusable procedural apartment interior — deep enough to read through glass.
+ */
+
+import * as THREE from 'three';
+
+let cached = null;
+
+function box(w, h, d, color, x, y, z) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshLambertMaterial({ color })
+  );
+  mesh.position.set(x, y, z);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
+/**
+ * Room local space: opening faces −Z (toward the street / glass).
+ * Depth extends into +Z (into the building).
+ */
+export function createApartmentRoom() {
+  if (cached) return cached.clone(true);
+
+  const room = new THREE.Group();
+  room.name = 'apartment-room';
+
+  const depth = 3.6;
+  const width = 3.2;
+  const height = 2.6;
+  const wall = 0.08;
+
+  // Floor / ceiling
+  room.add(box(width, wall, depth, 0x6b7280, 0, 0, depth * 0.5));
+  room.add(box(width, wall, depth, 0xe5e7eb, 0, height, depth * 0.5));
+
+  // Back + side walls (leave −Z open toward glass)
+  room.add(box(width, height, wall, 0xd6c3a8, 0, height * 0.5, depth));
+  room.add(box(wall, height, depth, 0xc4b49a, -width * 0.5, height * 0.5, depth * 0.5));
+  room.add(box(wall, height, depth, 0xc4b49a, width * 0.5, height * 0.5, depth * 0.5));
+
+  // Props: sofa, table, lamp, plant
+  room.add(box(1.4, 0.45, 0.55, 0x3b82f6, 0, 0.28, depth * 0.72));
+  room.add(box(1.4, 0.35, 0.12, 0x1e3a8a, 0, 0.55, depth * 0.72 + 0.2));
+  room.add(box(0.7, 0.08, 0.7, 0x92400e, 0.7, 0.4, depth * 0.4));
+  room.add(box(0.08, 0.4, 0.08, 0x78350f, 0.7, 0.2, depth * 0.4));
+  room.add(box(0.12, 0.9, 0.12, 0x44403c, -0.9, 0.5, depth * 0.55));
+  room.add(box(0.35, 0.08, 0.35, 0xfde68a, -0.9, 0.95, depth * 0.55));
+  room.add(box(0.25, 0.35, 0.25, 0x166534, 0.95, 0.25, depth * 0.25));
+  room.add(box(0.2, 0.15, 0.2, 0x78716c, 0.95, 0.08, depth * 0.25));
+
+  // Soft interior fill so the room reads through glass at dusk
+  const fill = new THREE.PointLight(0xffe4c4, 1.1, 6, 2);
+  fill.position.set(0, height * 0.75, depth * 0.45);
+  room.add(fill);
+
+  cached = room;
+  return room.clone(true);
+}
+
+export function createCurtain(width, height) {
+  const geo = new THREE.PlaneGeometry(Math.max(width, 0.5) * 1.05, Math.max(height, 0.5) * 1.05);
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0x4c1d95,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: true
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'apartment-curtain';
+  // Pivot at top so open anim shrinks downward.
+  mesh.geometry.translate(0, -Math.max(height, 0.5) * 0.525, 0);
+  mesh.position.y = Math.max(height, 0.5) * 0.5;
+  mesh.userData.baseHeight = Math.max(height, 0.5);
+  return mesh;
+}

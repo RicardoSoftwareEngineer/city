@@ -1,3 +1,5 @@
+> **2026-09-06:** Carpet no longer blocks `Foco pronto` — prio-5 poses/jobs are `fundo opcional` only. Hard-cap dense carpet (`DENSE_HALF=90`, `DENSE_POSE_CAP=600`, near-city only; no far annulus). Carpet pump ends at `CARPET_REVEAL_RADIUS=80`. Core phases end when in-radius work is 0 even under soft-cap. Keep vista fence #98, orchard, phys pin.
+
 > **2026-09-06:** Focus remaining HUD + phase lifecycle — `tickLoadPhase` no longer re-opens `done` phases (`mayReveal`/growers forever). End streets/furniture/bank/buildings/nature/carpet when in-radius work is empty; `Fila do foco` lists numbered remaining units; freeze load radius when focus cell is stable and remaining hits 0 (`Foco pronto`). Keep orchard + vista fence (#98).
 
 > **2026-09-05:** Terrain **vista** — `allowsTerrainAt` / `TERRAIN_VISTA_RADIUS` (= `GROUND_BODY_HALF` ±1770) lets coarse 320 m far tiles fill to the √10 fence while adaptive residency R stays ~10–900 m for streets. Terrain/phys excluded from soft-cap count; heap still gates `wantsTerrainLoad`. Biomes centers/radii via `WORLD_LINEAR_SCALE`.

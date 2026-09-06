@@ -14,11 +14,12 @@ let frozenRadius = null;
 let armed = false;
 let revision = 0;
 
-/** @type {{ total: number, done: number, items: Array<{label: string, count: number}>, focusReady: boolean, focusKey: string|null, radius: number, frozen: boolean }} */
+/** @type {{ total: number, done: number, items: Array<{label: string, count: number}>, optional: Array<{label: string, count: number}>, focusReady: boolean, focusKey: string|null, radius: number, frozen: boolean }} */
 let snapshot = {
   total: 0,
   done: 0,
   items: [],
+  optional: [],
   focusReady: false,
   focusKey: null,
   radius: 0,
@@ -64,12 +65,15 @@ export function effectiveLoadRadius() {
 }
 
 /**
- * @param {{ total: number, done?: number, items: Array<{label: string, count: number}> }} remain
+ * @param {{ total: number, done?: number, items: Array<{label: string, count: number}>, optional?: Array<{label: string, count: number}> }} remain
+ * `total` / `items` are core focus work only (terrain + streets…nature prio≤4).
+ * Carpet and other fundo work go in `optional` and never block focusReady.
  */
 export function publishFocusRemain(remain) {
   const radius = effectiveLoadRadius();
   const total = Math.max(0, remain.total | 0);
   const items = (remain.items || []).filter((it) => it.count > 0);
+  const optional = (remain.optional || []).filter((it) => it.count > 0);
 
   if (armed && total === 0 && frozenRadius == null && focusKey != null) {
     frozenRadius = memoryGuardian.radius;
@@ -80,6 +84,7 @@ export function publishFocusRemain(remain) {
     total,
     done: remain.done | 0,
     items,
+    optional,
     focusReady,
     focusKey,
     radius: frozenRadius != null ? frozenRadius : radius,

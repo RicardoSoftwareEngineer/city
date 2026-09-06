@@ -42,8 +42,11 @@ export const NEAR_HALF = 110;
 /** Field extent scaled with the √10 world (still denser near city). */
 // Cap below full fence so register-time pose grids stay stream-friendly.
 const FIELD_HALF = Math.min(380, Math.round(160 * WORLD_LINEAR_SCALE * 0.75));
-/** Slightly smaller for denser carpet so scatter stays cheap. */
-const DENSE_HALF = Math.min(300, Math.round(130 * WORLD_LINEAR_SCALE * 0.75));
+/**
+ * Dense carpet stays near-city only. Large halfExtent × high pose caps used to
+ * register ~10k poses and block Foco pronto / keep the carpet phase running for hours.
+ */
+export const DENSE_HALF = 90;
 const HORIZON_MIN = Math.round(360 * WORLD_LINEAR_SCALE);
 const HORIZON_MAX = Math.min(GROUND_BODY_HALF - 40, Math.round(520 * WORLD_LINEAR_SCALE));
 const RIDGE_MIN = Math.round(200 * WORLD_LINEAR_SCALE);
@@ -52,7 +55,8 @@ const RIDGE_MAX = Math.round(340 * WORLD_LINEAR_SCALE);
 /** Cap poses per urlJob — createGrowingInstancedGltf sorts the full list. */
 const NEAR_POSE_CAP = 4200;
 const FAR_POSE_CAP = 5500;
-const DENSE_POSE_CAP = 4800;
+/** Hard cap per carpet job — keep total carpet poses in the low thousands. */
+export const DENSE_POSE_CAP = 600;
 
 function windPrepare(strength, gust) {
   return (root) => applyWindToObject(root, { strength, gust });
@@ -313,8 +317,9 @@ export async function registerFarVegetation(stream, parentGroup, ox, oz) {
 }
 
 /**
- * Dense MegaKit carpet (prio 5) — near first, then far annulus. Jobs only;
- * WorldStream.startCarpetBackground reveals them.
+ * Dense MegaKit carpet (prio 5) — near-city disk only. Jobs only;
+ * WorldStream.startCarpetBackground reveals them inside CARPET_REVEAL_RADIUS.
+ * Far annulus removed so carpet cannot register ~10k poses.
  */
 export async function registerDenseCarpet(stream) {
   const wideTallNear = await scatterGridAsync({
@@ -322,7 +327,7 @@ export async function registerDenseCarpet(stream) {
     seedSalt: 12,
     scaleMin: 0.9,
     scaleMax: 1.25,
-    halfExtent: NEAR_HALF,
+    halfExtent: DENSE_HALF,
     maxPoses: DENSE_POSE_CAP,
     accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.5 })
   });
@@ -340,7 +345,7 @@ export async function registerDenseCarpet(stream) {
     seedSalt: 13,
     scaleMin: 0.85,
     scaleMax: 1.15,
-    halfExtent: NEAR_HALF,
+    halfExtent: DENSE_HALF,
     maxPoses: DENSE_POSE_CAP,
     accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.65 })
   });
@@ -358,7 +363,7 @@ export async function registerDenseCarpet(stream) {
     seedSalt: 14,
     scaleMin: 0.9,
     scaleMax: 1.3,
-    halfExtent: Math.max(80, NEAR_HALF - 10),
+    halfExtent: Math.max(70, DENSE_HALF - 10),
     maxPoses: DENSE_POSE_CAP,
     accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.45 })
   });
@@ -367,45 +372,6 @@ export async function registerDenseCarpet(stream) {
     kitUrl('grassWheat'),
     wheatNear,
     foliageOpts(0.32, 0.42),
-    VEG_DENSE_PRIORITY
-  );
-  await yieldToMain();
-
-  // Far dense — coarser spacing; skip strict slope to cut orchard sample cost.
-  const wideTallFar = await scatterGridAsync({
-    spacing: 5.5,
-    seedSalt: 212,
-    scaleMin: 0.9,
-    scaleMax: 1.25,
-    halfExtent: DENSE_HALF,
-    minHalfExtent: NEAR_HALF,
-    maxPoses: DENSE_POSE_CAP,
-    accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.85 })
-  });
-  addVeg(
-    stream,
-    kitUrl('grassWideTall'),
-    wideTallFar,
-    foliageOpts(0.3, 0.4),
-    VEG_DENSE_PRIORITY
-  );
-  await yieldToMain();
-
-  const wideShortFar = await scatterGridAsync({
-    spacing: 5.8,
-    seedSalt: 213,
-    scaleMin: 0.85,
-    scaleMax: 1.15,
-    halfExtent: DENSE_HALF,
-    minHalfExtent: NEAR_HALF,
-    maxPoses: DENSE_POSE_CAP,
-    accept: (x, z) => acceptFieldGrass(x, z, { maxSlope: 0.9 })
-  });
-  addVeg(
-    stream,
-    kitUrl('grassWideShort'),
-    wideShortFar,
-    foliageOpts(0.26, 0.38),
     VEG_DENSE_PRIORITY
   );
   await yieldToMain();

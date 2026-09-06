@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { beginLoad, loadMark, snapshotDraw, setLoadPhase } from './loadLog.js';
 import { createBudget, waitIfSlow, yieldToMain } from '../world/yield.js';
 import { noteDecision } from './personaLog.js';
+import { getActivePreset } from './qualityPresets.js';
 
 export class Renderer {
   constructor(canvasElement) {
@@ -121,6 +122,10 @@ export class Renderer {
    * (instancing uses a different program than a shared material on a Mesh).
    */
   async resumeShadows() {
+    if (!getActivePreset().shadows) {
+      this.renderer.shadowMap.enabled = false;
+      return;
+    }
     this._pauseDraw = true;
     setLoadPhase('shadow-warmup');
 

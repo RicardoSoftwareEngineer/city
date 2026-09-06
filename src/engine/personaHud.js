@@ -3,7 +3,7 @@
  */
 
 import { getLastDraw } from './loadLog.js';
-import { loadGovernor, TARGET_FPS } from './LoadGovernor.js';
+import { loadGovernor } from './LoadGovernor.js';
 import { memoryGuardian } from './memoryGuardian.js';
 import {
   PERSONA_IDS,
@@ -99,17 +99,11 @@ export function initPersonaHud(opts = {}) {
         radiusTight * 0.5
       )
     );
-    setOverload(
-      'LoadGovernor',
-      Math.max(
-        loadGovernor.loadPercent,
-        (1 - loadGovernor.fps / TARGET_FPS) * 100
-      )
-    );
-    setOverload('Valve', loadGovernor.holding ? 100 : 0);
+    setOverload('LoadGovernor', loadGovernor.loadPercent);
+    setOverload('Valve', 0);
     setOverload(
       'QualityAdapter',
-      ((quality?.level ?? 0) / 3) * 100
+      (quality?.level ?? 0) === 0 ? 0 : 35
     );
     setOverload(
       'Carregador',

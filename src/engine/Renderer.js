@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { beginLoad, loadMark, snapshotDraw, setLoadPhase } from './loadLog.js';
+import { beginLoad, loadMark, snapshotDraw, setLoadPhase, clearLoadTag } from './loadLog.js';
 import { createBudget, waitIfSlow, yieldToMain } from '../world/yield.js';
 import { noteDecision } from './personaLog.js';
 import { getActivePreset } from './qualityPresets.js';
@@ -194,12 +194,13 @@ export class Renderer {
    * @param {object} root
    * @param {{instancersOnly?: boolean, pause?: boolean}} [opts]
    */
-  async compileSubtree(root, { instancersOnly = true, pause = true } = {}) {
+  async compileSubtree(root, { instancersOnly = true, pause = true, only = null } = {}) {
     if (!root) return;
     const wasPaused = this._pauseDraw;
     if (pause) this._pauseDraw = true;
     const objects = [];
     root.traverse((object) => {
+      if (only && !only.has(object)) return;
       if (!object.isMesh || object.userData._gpuCompiled) return;
       if (instancersOnly && !object.userData._streamInstancer) return;
       // Same material already compiled → program is in the driver (clones share mats).
@@ -220,9 +221,11 @@ export class Renderer {
       const object = objects[i];
       const kind = object.isInstancedMesh ? 'inst' : 'mesh';
       const label = `${kind} ${object.name || i}`;
+      // Drop sticky tag across yield so rAF gaps are not one multi-10s hitch.
+      clearLoadTag();
+      await waitIfSlow();
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
-      await waitIfSlow();
       await this.renderer.compileAsync(object, this.camera, this.lightProbe());
       object.userData._gpuCompiled = true;
       const mat = object.material;
@@ -231,6 +234,7 @@ export class Renderer {
         else mat.userData._gpuMeshProgramWarmed = true;
       }
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
+      clearLoadTag();
       await yieldToMain();
     }
     if (pause) this._pauseDraw = wasPaused;

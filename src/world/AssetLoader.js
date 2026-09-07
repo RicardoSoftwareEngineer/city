@@ -2,8 +2,8 @@
  * AssetLoader — Centralized GLTF/GLB loader for all 3D models in the city.
  *
  * loadGltf(url) fetches each URL once (keyed with keepVertexColors).
- * The first caller gets the prepared root; later callers get a clone so they
- * can parent independently while sharing geometry/materials.
+ * The first caller gets the prepared root; later callers get a clone that
+ * **shares materials** (and geometry) so GPU program warm flags stick.
  *
  * Do not enable THREE.Cache: GLTFLoader uses ImageBitmapLoader, and a cached
  * bitmap is detached after the first GPU upload (hang / black textures).
@@ -11,11 +11,14 @@
  * Default: neither cast nor receive. Ground / volumes / car opt in via shadowPolicy.
  * Vertex colors are stripped by default. Pass `{ keepVertexColors: true }`
  * for Nature Pack foliage and Source Downtown wear (COLOR_0).
+ *
+ * Parse: yield before sync work; clearLoadTag across async bin/texture waits so
+ * Travamentos does not attribute multi-second rAF gaps to one sticky gltf:parse.
  */
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { loadMark, beginLoad } from '../engine/loadLog.js';
+import { loadMark, beginLoad, clearLoadTag } from '../engine/loadLog.js';
 import { yieldToMain } from './yield.js';
 import { cachedFetch } from '../engine/assetDiskCache.js';
 
@@ -68,9 +71,24 @@ function prepareModel(root, keepVertexColors = false, useLambert = false) {
 }
 
 /**
- * Load a GLTF/GLB model. Returns the scene root (Object3D).
- * Returns null on failure so callers can safely check with `if (model)`.
+ * Deep clone that reuses the source mesh materials (Three's clone() duplicates
+ * materials → unique GL programs → repeated compile hitches for the same glTF).
  */
+function cloneShareMaterials(root) {
+  const sources = [];
+  root.traverse((o) => {
+    if (o.isMesh) sources.push(o);
+  });
+  const cloned = root.clone(true);
+  let i = 0;
+  cloned.traverse((o) => {
+    if (!o.isMesh) return;
+    const src = sources[i++];
+    if (src) o.material = src.material;
+  });
+  return cloned;
+}
+
 function stripGltfTextures(json) {
   json.images = [];
   json.textures = [];
@@ -87,16 +105,45 @@ function stripGltfTextures(json) {
 }
 
 function finishGltf(url, gltf, keepVertexColors, useLambert) {
+  // Only time sync prepare — async bin/texture wait is not CPU parse.
   const t0 = performance.now();
   const root = prepareModel(gltf.scene || gltf.scenes[0], keepVertexColors, useLambert);
   loadMark('gltf:parse', url, performance.now() - t0);
+  clearLoadTag();
   return root;
+}
+
+/**
+ * Run GLTFLoader.parse without leaving a sticky hitch tag across async
+ * bin/texture fetches (those waits are not CPU parse time).
+ */
+function parseGltfAsync(data, dir, url) {
+  return new Promise((resolve) => {
+    let settled = false;
+    beginLoad('gltf:parse', url);
+    gltfLoader.parse(
+      data,
+      dir,
+      (gltf) => {
+        settled = true;
+        resolve(gltf);
+      },
+      () => {
+        settled = true;
+        clearLoadTag();
+        resolve(null);
+      }
+    );
+    // Sync completion (embedded glb) keeps the tag; async path drops it for the wait.
+    queueMicrotask(() => {
+      if (!settled) clearLoadTag();
+    });
+  });
 }
 
 function loadGltfPayload(url, keepVertexColors, useLambert) {
   const dir = url.slice(0, url.lastIndexOf('/') + 1);
 
-  // Disk cache first (Cache API). Same parse path either way — loader unchanged.
   return cachedFetch(url)
     .then(async (res) => {
       if (!res.ok) return null;
@@ -104,27 +151,17 @@ function loadGltfPayload(url, keepVertexColors, useLambert) {
         const json = await res.json();
         stripGltfTextures(json);
         await yieldToMain();
+        const gltf = await parseGltfAsync(json, dir, url);
+        if (!gltf) return null;
         beginLoad('gltf:parse', url);
-        return new Promise((resolve) => {
-          gltfLoader.parse(
-            json,
-            dir,
-            (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, true)),
-            () => resolve(null)
-          );
-        });
+        return finishGltf(url, gltf, keepVertexColors, true);
       }
       const buf = await res.arrayBuffer();
       await yieldToMain();
+      const gltf = await parseGltfAsync(buf, dir, url);
+      if (!gltf) return null;
       beginLoad('gltf:parse', url);
-      return new Promise((resolve) => {
-        gltfLoader.parse(
-          buf,
-          dir,
-          (gltf) => resolve(finishGltf(url, gltf, keepVertexColors, false)),
-          () => resolve(null)
-        );
-      });
+      return finishGltf(url, gltf, keepVertexColors, false);
     })
     .catch(() => null);
 }
@@ -150,7 +187,7 @@ export function loadGltf(url, options = {}) {
     issued.set(key, n + 1);
     if (n === 0) return root;
     const t0 = performance.now();
-    const cloned = root.clone(true);
+    const cloned = cloneShareMaterials(root);
     const ms = performance.now() - t0;
     if (ms >= 2) loadMark('gltf:clone', url, ms);
     return cloned;

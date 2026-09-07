@@ -20,6 +20,12 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 - Travamentos listados no HUD são **observação**; não disparam HOLD nem mudam raio.
 - HUD mostra top **~50** hitches (carga e FPS), listas scrolláveis (`#hitch-load-hud` / `#play-hitch-hud`); memória guarda todos em `hitchEntries` (`window.__cityHitches` / `dumpLoadLog()`).
 
+### Meta interim (ship bar)
+
+- **Worst Travamentos hitch &lt; 10 s** (`worstFrameMs` / top entry &lt; 10000 ms) on a typical Ultra boot/stream near downtown.
+- Frames &gt;1 s still tag **BUG** in the HUD; tightening below 1 s comes later.
+- Levers for this bar: merge furniture urlJobs that share a glTF; share materials on `loadGltf` clones; `clearLoadTag` across async glTF waits and GPU compile yields; interactive stream compiles use `pause: false` (no multi-10s `pauseDraw` sandwich); grower warmup compiles **only** the new batch meshes.
+
 ## O que medimos vs o que controlamos
 
 | Medimos (HUD) | Controlamos (código/preset) |
@@ -32,13 +38,15 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 ## Técnicas preferidas
 
 - Time-slice + yield (`throughValve`, `createBudget`)
-- Warmup GPU antes de reveal
+- Warmup GPU antes de reveal (scoped to the new batch, not the whole city parent)
+- Dedupe / merge urlJobs by glTF URL (awnings, shared props)
+- Clone with shared materials so `_gpu*ProgramWarmed` sticks
 - Predicted focus + phys pin real
 - Deletar leftovers de FPS-adapt em vez de novas personas
 
 ## pauseDraw + stream ownership
 
-- WorldStream still uses `renderer.pauseDraw()` around building / low-prio ring compiles (avoid compile-via-draw).
+- **Boot (pre-interactive):** WorldStream may still `pauseDraw()` around ring / building compiles (avoid compile-via-draw on the first programs).
 - While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
-- When **interactive**, nature / carpet / stream ring **prio ≥4** compiles use `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — eliminates ~8s Travamentos BUG LOAD (`stream ring` / `nature bg`) freezes before or beside apartment intent.
-- Hitch law still applies: wall frame >1000 ms during play/stream = bug (Travamentos observation only; no HOLD).
+- When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Travamentos freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
+- Hitch law still applies: wall frame >1000 ms during play/stream = bug (Travamentos observation only; no HOLD). Interim ship bar: worst &lt; 10 s.

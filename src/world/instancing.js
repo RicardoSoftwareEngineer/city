@@ -253,7 +253,9 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
         mesh.visible = false;
         mesh.instanceMatrix.needsUpdate = true;
       }
-      await renderer.compileSubtree(parent);
+      // Only this batch — compiling `parent` re-walked the whole city and could
+      // one-shot compile hundreds of pending instancers (Cube153-class hitches).
+      await renderer.compileSubtree(parent, { only: new Set(batch.meshes) });
       for (const mesh of batch.meshes) {
         mesh.count = 0;
         mesh.visible = true;

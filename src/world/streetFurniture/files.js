@@ -25,7 +25,8 @@ export const FILES = {
   railsMarbleS2: 'Stairs_Rails_Marble_Straight_2.gltf',
   railsMetalS1: 'Stairs_Rails_Metal_Straight_1.gltf',
   railsMetalS2: 'Stairs_Rails_Metal_Straight_2.gltf',
-  // Four unique JadeGarden glTFs — each is a separate gltf:parse (MAP hitch).
+  // JadeGarden: four files (main + vertical + L/R). StreetFurniture merges
+  // duplicate URLs (awning* → Prop_Awning.gltf) into one urlJob.
   jadeV: 'Prop_Sign_JadeGarden_Vertical.gltf',
   jade: 'Prop_Sign_JadeGarden.gltf',
   jadeL: 'Prop_Sign_JadeGarden_Side_L.gltf',
@@ -38,6 +39,7 @@ export const FILES = {
   mays: 'Prop_Sign_Mays.gltf',
   hwL: 'Prop_Sign_HW_Side_L.gltf',
   hwR: 'Prop_Sign_HW_Side_R.gltf',
+  // Shared awning glTFs — collectJobs merges keys with the same URL.
   awning: 'Prop_Awning.gltf',
   awningLong: 'Prop_Awning_Long.gltf',
   awningBakery: 'Prop_Awning.gltf',

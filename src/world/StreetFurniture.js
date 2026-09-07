@@ -2,8 +2,11 @@
  * StreetFurniture — orchestrates downtown stairs, shop signs, props, roads.
  * Placement lives in ./streetFurniture/* so MAP hitches (signs, rails) are
  * easy to find and optimize one module at a time.
+ *
+ * Jobs are merged by glTF URL + shadow opts + priority so keys that share a
+ * file (awning / awningBakery / awningPub → Prop_Awning.gltf) parse once and
+ * share one instancer / GPU program warm — avoids repeated MAP parse+compile.
  */
-
 import { gridStreetCoords } from './RoadDimensions.js';
 import { downtown } from './downtownSrc.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
@@ -16,20 +19,30 @@ import { placePlanterRows } from './streetFurniture/planters.js';
 import { placeExtraRoads } from './streetFurniture/extraRoads.js';
 import { collectStreetlightPoses, createStreetlightModel } from './streetFurniture/streetlight.js';
 
+function optsKey(options) {
+  return `c${options.castShadow ? 1 : 0}|r${options.receiveShadow ? 1 : 0}|vc${options.keepVertexColors ? 1 : 0}`;
+}
+
 export class StreetFurniture {
   collectJobs() {
     const xs = gridStreetCoords();
     const zs = gridStreetCoords();
     const jobs = [];
+    const byUrl = new Map();
+
     const add = (key, poses, priority = 1) => {
-      if (poses?.length) {
-        jobs.push({
-          url: downtown(FILES[key]),
-          poses,
-          options: CAST_KEYS.has(key) ? castOpts() : noCastOpts(),
-          priority
-        });
+      if (!poses?.length || !FILES[key]) return;
+      const url = downtown(FILES[key]);
+      const options = CAST_KEYS.has(key) ? castOpts() : noCastOpts();
+      const mergeKey = `${url}|${optsKey(options)}|p${priority}`;
+      const existing = byUrl.get(mergeKey);
+      if (existing) {
+        for (let i = 0; i < poses.length; i++) existing.poses.push(poses[i]);
+        return;
       }
+      const job = { url, poses: poses.slice(), options, priority };
+      byUrl.set(mergeKey, job);
+      jobs.push(job);
     };
 
     placeStairs(add, xs, zs);

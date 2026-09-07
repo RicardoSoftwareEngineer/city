@@ -16,12 +16,6 @@ import { noteDecision } from '../../engine/personaLog.js';
 
 /** Spec 05 — numeric fallback / heap demotion floor (HUD can change liveTarget). */
 export const MAX_LOADED = 3;
-/**
- * Soft ceiling for full interiors when liveTarget === 'all' (stream-owned).
- * Remaining slots on huge facades stay curtain-only — product “Todos” means
- * as many full rooms as affordable, not a main-thread slam of every window.
- */
-export const ALL_LIVE_SOFT = 16;
 /** Absolute fallback when facade length unknown. */
 const ALL_CEILING = 256;
 /** Heap pressure → demote live full-interior cap (MemoryGuardian-friendly). */
@@ -215,7 +209,7 @@ export class ApartmentDirector {
   constructor({ parent, renderer = null, maxLoaded = MAX_LOADED } = {}) {
     this.parent = parent;
     this.renderer = renderer;
-    /** @type {number|'all'} HUD-driven live interior target. Default `'all'` (ALL_LIVE_SOFT). */
+    /** @type {number|'all'} HUD-driven live interior target. Default `'all'` = every slot full room. */
     this.liveTarget = 'all';
     this.maxLoaded = typeof maxLoaded === 'number' ? maxLoaded : ALL_CEILING;
     /** @type {Map<string, {id:string,slots:any[],pose:any,parent:THREE.Object3D}>} */
@@ -318,14 +312,15 @@ export class ApartmentDirector {
 
   /**
    * Stream-owned full-interior cap for the active intent.
-   * `'all'` → soft ceiling (ALL_LIVE_SOFT), then MemoryGuardian heap demotion.
+   * `'all'` / Todos → every window slot (ranked.length), then MemoryGuardian
+   * heap demotion may temporarily shrink (unload farthest — not curtain shells).
    */
   _effectiveLiveCap(facadeId = null) {
     const f = facadeId ? this.facades.get(facadeId) : null;
     const slots = f?.slots?.length || ALL_CEILING;
     let want;
     if (this.liveTarget === 'all') {
-      want = Math.min(slots, ALL_LIVE_SOFT);
+      want = slots;
     } else {
       want = Math.min(Math.max(0, this.liveTarget | 0), slots);
     }
@@ -340,8 +335,8 @@ export class ApartmentDirector {
   /**
    * Set live-interior **intent** for a facade. Does not slam every slot on the
    * click — a stream pump applies with LoadGovernor frame budget + yields
-   * (same persona as streets/nature). `'all'` = soft-capped full rooms +
-   * curtain-only shells for the rest of the facade.
+   * (same persona as streets/nature). `'all'` / Todos = every slot a full
+   * open interior (stream-paced); heap demotion unloads farthest if needed.
    * @param {string} facadeId
    * @param {number|'all'} count
    */
@@ -376,7 +371,7 @@ export class ApartmentDirector {
   /**
    * Apply current liveTarget on facadeId with hard ms/frame budget between units.
    * Progressive: rooms appear as each unit finishes; canvas stays drawing
-   * (compile pause:false). Under heap pressure, demotes to curtain-only.
+   * (compile pause:false). Under heap pressure, unload farthest (full dispose).
    */
   async _pumpLiveIntent(facadeId, intentEpoch, facadeEpoch) {
     const facade = this.facades.get(facadeId);
@@ -404,7 +399,7 @@ export class ApartmentDirector {
       if (this._intentEpoch !== intentEpoch) return;
       if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
 
-      // Warm shared curtain + room programs once (pause:false) so Phase A/B
+      // Warm shared curtain + room programs once (pause:false) so the pump
       // never pays a multi-mesh first-compile hitch on the click frame.
       await this._warmApartmentPrograms();
       await yieldToMain();
@@ -417,21 +412,21 @@ export class ApartmentDirector {
         return this.maxLoaded;
       };
 
-      // Strip excess full rooms → curtain-only when cap shrinks or target drops.
-      const stripAboveCap = (cap) => {
+      // Unload excess full rooms when cap shrinks (heap demotion / numeric drop).
+      // Prefer dispose farthest / lowest-ranked — closed curtain-only is not “Todos”.
+      const unloadAboveCap = (cap) => {
         const keepIds = new Set(ranked.slice(0, cap).map((s) => s.id));
         for (const slot of facade.slots) {
           if (keepIds.has(slot.id)) continue;
           const key = `${facadeId}#${slot.id}`;
-          const unit = this.units.get(key);
-          if (unit?.room) this._stripToCurtainOnly(unit);
+          if (this.units.has(key)) this._disposeUnit(key);
         }
       };
 
       let cap = liveCap();
-      stripAboveCap(cap);
+      unloadAboveCap(cap);
 
-      // Phase A — full interiors up to stream-owned cap (budgeted).
+      // Full interiors up to stream-owned cap (budgeted). `'all'` → want = ranked.length.
       for (let i = 0; i < ranked.length; i++) {
         if (this._intentEpoch !== intentEpoch) return;
         if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
@@ -467,49 +462,9 @@ export class ApartmentDirector {
       if (this._intentEpoch !== intentEpoch) return;
       if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
 
+      // Final trim: heap demotion or numeric target — unload, never Phase-B curtain shells.
       cap = liveCap();
-      stripAboveCap(cap);
-
-      // Phase B — for `'all'`, curtain-only shells on the rest (cheap; still budgeted).
-      if (this.liveTarget === 'all') {
-        for (let i = cap; i < ranked.length; i++) {
-          if (this._intentEpoch !== intentEpoch) return;
-          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-          // Mid-pump demotion: shrink full rooms if heap climbed.
-          const nextCap = liveCap();
-          if (nextCap < cap) {
-            stripAboveCap(nextCap);
-            cap = nextCap;
-          }
-          const slot = ranked[i];
-          const key = `${facadeId}#${slot.id}`;
-          if (this.units.has(key)) {
-            const u = this.units.get(key);
-            if (u.room) this._stripToCurtainOnly(u);
-            continue;
-          }
-          await throughValve(() => {
-            if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-            const unit = this._spawnUnit(facade, slot, key);
-            // Curtain-only: never build the room mesh/lights.
-            unit.state = 'curtain-only';
-            unit.room = null;
-            this.units.set(key, unit);
-            this._loadOrder.push(key);
-          });
-          // Yield every shell — ~60 curtain adds must not land in one frame.
-          if (this._houseFacadeId === facadeId && i % 8 === 7) {
-            this._syncHouseHud(true, facadeId);
-          }
-          await yieldToMain();
-        }
-      } else {
-        // Numeric target: dispose units beyond cap (no curtain-only flood).
-        for (let i = cap; i < ranked.length; i++) {
-          const key = `${facadeId}#${ranked[i].id}`;
-          if (this.units.has(key)) this._disposeUnit(key);
-        }
-      }
+      unloadAboveCap(cap);
 
       if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
     } finally {

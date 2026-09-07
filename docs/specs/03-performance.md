@@ -37,6 +37,7 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 
 ## pauseDraw + stream ownership
 
-- WorldStream still uses `renderer.pauseDraw()` around nature / carpet / building ring compiles (avoid compile-via-draw).
+- WorldStream still uses `renderer.pauseDraw()` around building / low-prio ring compiles (avoid compile-via-draw).
 - While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
+- When **interactive**, nature / carpet / stream ring **prio ≥4** compiles use `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — eliminates ~8s Travamentos BUG LOAD (`stream ring` / `nature bg`) freezes before or beside apartment intent.
 - Hitch law still applies: wall frame >1000 ms during play/stream = bug (Travamentos observation only; no HOLD).

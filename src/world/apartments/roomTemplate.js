@@ -179,16 +179,11 @@ export async function createApartmentRoom() {
   room.add(box(0.02, 0.5, 0.6, wood, -width * 0.5 + 0.06, 1.55, 1.2));
   room.add(box(0.01, 0.42, 0.52, std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.5 }), -width * 0.5 + 0.08, 1.55, 1.2));
 
-  // Strong fill — outdoor ACES eats weak interior lights.
-  const fill = new THREE.PointLight(0xfff2e0, 4.5, 10, 1.4);
-  fill.position.set(0, height * 0.75, 1.1);
+  // One PointLight per room — Todos on Large (~77) must not spawn hundreds of lights.
+  // Walls/furniture already carry emissive fill for street readability under ACES.
+  const fill = new THREE.PointLight(0xfff2e0, 5.5, 9, 1.35);
+  fill.position.set(0, height * 0.72, 0.85);
   room.add(fill);
-  const windowFill = new THREE.PointLight(0xfff8f0, 2.8, 6, 1.6);
-  windowFill.position.set(0, height * 0.55, 0.35);
-  room.add(windowFill);
-  const lamp = new THREE.PointLight(0xffe4b5, 1.8, 5, 2);
-  lamp.position.set(-1.35, 1.2, 0.7);
-  room.add(lamp);
 
   room.userData.phase = 1;
   room.userData.kitWall = usedKitWall;

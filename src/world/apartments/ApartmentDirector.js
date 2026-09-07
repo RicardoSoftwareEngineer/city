@@ -5,11 +5,22 @@
 
 import * as THREE from 'three';
 import { createApartmentRoom, createCurtain } from './roomTemplate.js';
+import { throughValve, yieldToMain } from '../yield.js';
+import { memoryGuardian } from '../../engine/memoryGuardian.js';
 
 /** Spec 05 — default live-interior budget (HUD can change). */
 export const MAX_LOADED = 3;
-/** Soft ceiling when liveTarget === 'all' and no facade length known. */
+/**
+ * Soft ceiling for full interiors when liveTarget === 'all' (stream-owned).
+ * Remaining slots on huge facades stay curtain-only — product “Todos” means
+ * as many full rooms as affordable, not a main-thread slam of every window.
+ */
+export const ALL_LIVE_SOFT = 16;
+/** Absolute fallback when facade length unknown. */
 const ALL_CEILING = 256;
+/** Heap pressure → demote live full-interior cap (MemoryGuardian-friendly). */
+const HEAP_DEMOTE = 0.72;
+const HEAP_SOFT_DEMOTE = 0.6;
 
 const OPEN_DURATION = 0.2;
 const MID_Y_MIN = 3;
@@ -213,8 +224,12 @@ export class ApartmentDirector {
     this._autoLoadPending = new Set();
     /** Bumped on unload so in-flight loads abort cleanly. */
     this._facadeEpoch = new Map();
-    /** Serialize setLiveCount applies. */
+    /** Serialize intent applies / stream pumps. */
     this._liveApplyChain = Promise.resolve();
+    /** Active stream intent — HUD sets target; pump owns pacing. */
+    this._intentFacadeId = null;
+    this._intentEpoch = 0;
+    this._pumpRunning = false;
   }
 
   static facadeId(typeName, x, z) {
@@ -285,16 +300,35 @@ export class ApartmentDirector {
   }
 
   _refreshMaxLoaded(facadeId = null) {
-    if (this.liveTarget === 'all') {
-      const f = facadeId ? this.facades.get(facadeId) : null;
-      this.maxLoaded = f?.slots?.length || ALL_CEILING;
-    } else {
-      this.maxLoaded = Math.max(0, this.liveTarget | 0);
-    }
+    this.maxLoaded = this._effectiveLiveCap(facadeId);
   }
 
   /**
-   * Set how many full interiors stay live on a facade.
+   * Stream-owned full-interior cap for the active intent.
+   * `'all'` → soft ceiling (ALL_LIVE_SOFT), then MemoryGuardian heap demotion.
+   */
+  _effectiveLiveCap(facadeId = null) {
+    const f = facadeId ? this.facades.get(facadeId) : null;
+    const slots = f?.slots?.length || ALL_CEILING;
+    let want;
+    if (this.liveTarget === 'all') {
+      want = Math.min(slots, ALL_LIVE_SOFT);
+    } else {
+      want = Math.min(Math.max(0, this.liveTarget | 0), slots);
+    }
+    const p = memoryGuardian.pressure ?? 0.5;
+    if (p >= HEAP_DEMOTE) want = Math.min(want, MAX_LOADED);
+    else if (p >= HEAP_SOFT_DEMOTE) {
+      want = Math.min(want, Math.max(MAX_LOADED, Math.floor(want * 0.5)));
+    }
+    return Math.max(0, want);
+  }
+
+  /**
+   * Set live-interior **intent** for a facade. Does not slam every slot on the
+   * click — a stream pump applies with LoadGovernor frame budget + yields
+   * (same persona as streets/nature). `'all'` = soft-capped full rooms +
+   * curtain-only shells for the rest of the facade.
    * @param {string} facadeId
    * @param {number|'all'} count
    */
@@ -309,46 +343,86 @@ export class ApartmentDirector {
         const n = Math.max(0, Math.floor(Number(count)));
         this.liveTarget = Number.isFinite(n) ? n : 0;
       }
+      this._intentFacadeId = facadeId;
+      this._intentEpoch += 1;
+      const intentEpoch = this._intentEpoch;
       this._refreshMaxLoaded(facadeId);
 
-      const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
-      const need =
-        this.liveTarget === 'all'
-          ? ranked.length
-          : Math.min(Math.max(0, this.liveTarget), ranked.length);
-      const keepIds = new Set(ranked.slice(0, need).map((s) => s.id));
+      // Abort in-flight loads for this facade; pump starts clean.
+      this._facadeEpoch.set(facadeId, (this._facadeEpoch.get(facadeId) || 0) + 1);
+      const facadeEpoch = this._facadeEpoch.get(facadeId);
 
-      const epoch = this._facadeEpoch.get(facadeId) || 0;
+      await this._pumpLiveIntent(facadeId, intentEpoch, facadeEpoch);
+    };
 
-      // Strip excess on this facade → closed curtain, no room.
+    const next = this._liveApplyChain.then(run, run);
+    this._liveApplyChain = next.catch(() => {});
+    return next;
+  }
+
+  /**
+   * Apply current liveTarget on facadeId with hard ms/frame budget between units.
+   * Progressive: rooms appear as each unit finishes; canvas stays drawing
+   * (compile pause:false). Under heap pressure, demotes to curtain-only.
+   */
+  async _pumpLiveIntent(facadeId, intentEpoch, facadeEpoch) {
+    const facade = this.facades.get(facadeId);
+    if (!facade) return;
+
+    const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
+
+    // Free full interiors on other facades so global budget stays honest.
+    for (const key of [...this.units.keys()]) {
+      if (key.startsWith(`${facadeId}#`)) continue;
+      const unit = this.units.get(key);
+      if (!unit) continue;
+      if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+        this._disposeUnit(key);
+      }
+    }
+    await yieldToMain();
+    if (this._intentEpoch !== intentEpoch) return;
+    if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+
+    // Recompute cap each step (MemoryGuardian pressure may rise mid-pump).
+    const liveCap = () => {
+      this._refreshMaxLoaded(facadeId);
+      return this.maxLoaded;
+    };
+
+    // Strip excess full rooms → curtain-only when cap shrinks or target drops.
+    const stripAboveCap = (cap) => {
+      const keepIds = new Set(ranked.slice(0, cap).map((s) => s.id));
       for (const slot of facade.slots) {
         if (keepIds.has(slot.id)) continue;
         const key = `${facadeId}#${slot.id}`;
         const unit = this.units.get(key);
-        if (unit) this._stripToCurtainOnly(unit);
+        if (unit?.room) this._stripToCurtainOnly(unit);
       }
+    };
 
-      // Free full interiors on other facades so global budget stays honest.
-      for (const key of [...this.units.keys()]) {
-        if (key.startsWith(`${facadeId}#`)) continue;
-        const unit = this.units.get(key);
-        if (!unit) continue;
-        if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
-          this._disposeUnit(key);
-        }
-      }
+    let cap = liveCap();
+    stripAboveCap(cap);
 
-      for (const slot of ranked.slice(0, need)) {
-        if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
-        const key = `${facadeId}#${slot.id}`;
-        let unit = this.units.get(key);
+    // Phase A — full interiors up to stream-owned cap (budgeted).
+    for (let i = 0; i < ranked.length; i++) {
+      if (this._intentEpoch !== intentEpoch) return;
+      if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+      cap = liveCap();
+      if (i >= cap) break;
+
+      const slot = ranked[i];
+      const key = `${facadeId}#${slot.id}`;
+      let unit = this.units.get(key);
+
+      await throughValve(async () => {
+        if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
         if (!unit) {
           await this._ensureBudget();
-          if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
+          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
           unit = this._spawnUnit(facade, slot, key);
           this.units.set(key, unit);
           this._loadOrder.push(key);
-          await Promise.resolve();
           await this._finishLoad(unit);
         } else if (!unit.room || unit.state === 'curtain-only') {
           this._resetCurtainClosed(unit);
@@ -356,16 +430,60 @@ export class ApartmentDirector {
           unit.openT = 0;
           await this._finishLoad(unit);
         }
-        // already ready/open with room — keep
-        if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
-      }
+      });
 
       if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
-    };
+      // Hard yield every unit so Travamentos never sees multi-second apartment batches.
+      await yieldToMain();
+    }
 
-    const next = this._liveApplyChain.then(run, run);
-    this._liveApplyChain = next.catch(() => {});
-    return next;
+    if (this._intentEpoch !== intentEpoch) return;
+    if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+
+    cap = liveCap();
+    stripAboveCap(cap);
+
+    // Phase B — for `'all'`, curtain-only shells on the rest (cheap; still budgeted).
+    if (this.liveTarget === 'all') {
+      for (let i = cap; i < ranked.length; i++) {
+        if (this._intentEpoch !== intentEpoch) return;
+        if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+        // Mid-pump demotion: shrink full rooms if heap climbed.
+        const nextCap = liveCap();
+        if (nextCap < cap) {
+          stripAboveCap(nextCap);
+          cap = nextCap;
+        }
+        const slot = ranked[i];
+        const key = `${facadeId}#${slot.id}`;
+        if (this.units.has(key)) {
+          const u = this.units.get(key);
+          if (u.room) this._stripToCurtainOnly(u);
+          continue;
+        }
+        await throughValve(() => {
+          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+          const unit = this._spawnUnit(facade, slot, key);
+          // Curtain-only: never build the room mesh/lights.
+          unit.state = 'curtain-only';
+          unit.room = null;
+          this.units.set(key, unit);
+          this._loadOrder.push(key);
+        });
+        if (i % 4 === 3) {
+          if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+          await yieldToMain();
+        }
+      }
+    } else {
+      // Numeric target: dispose units beyond cap (no curtain-only flood).
+      for (let i = cap; i < ranked.length; i++) {
+        const key = `${facadeId}#${ranked[i].id}`;
+        if (this.units.has(key)) this._disposeUnit(key);
+      }
+    }
+
+    if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
   }
 
   /**
@@ -392,10 +510,9 @@ export class ApartmentDirector {
       this.units.set(key, unit);
       this._loadOrder.push(key);
       started.push(key);
-      // Yield so curtain paints closed before room work.
-      await Promise.resolve();
-      await this._finishLoad(unit);
+      await throughValve(() => this._finishLoad(unit));
       if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+      await yieldToMain();
     }
     return started;
   }

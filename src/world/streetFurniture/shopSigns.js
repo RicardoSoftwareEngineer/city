@@ -1,6 +1,8 @@
 /**
  * Shop signs + awnings + entrances.
- * MAP hotspot: each Prop_Sign_*.gltf is a unique parse (textures restored).
+ * MAP hotspot: each Prop_Sign_*.gltf is still a unique parse (textures restored).
+ * Awning keys reuse Prop_Awning.gltf / Prop_Awning_Long.gltf — StreetFurniture
+ * merges those URL jobs so one parse + one GPU warm covers all shop poses.
  * JadeGarden alone is four files (main + vertical + L/R sides).
  */
 import { east, north, south, west } from './faces.js';

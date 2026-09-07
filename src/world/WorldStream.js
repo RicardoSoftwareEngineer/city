@@ -137,13 +137,13 @@ export class WorldStream {
   }
 
   /**
-   * Nature/carpet (prio ≥4) while interactive: compile with pause:false and
-   * never hold pauseDraw across the batch — Travamentos ~8s BUG LOAD freezes
-   * came from pauseDraw + compileSubtree(parent) on stream ring / nature bg.
-   * Lower prios keep the pauseDraw sandwich (avoid compile-via-draw).
+   * While interactive: compile with pause:false and never hold pauseDraw across
+   * the batch — multi-10s Travamentos freezes came from pauseDraw sandwiches on
+   * furniture (prio 1), buildings (prio 3), and nature/carpet (prio ≥4).
+   * Boot (pre-interactive) still pauses so first programs do not compile-via-draw.
    */
-  _keepDrawingForPrio(priority) {
-    return getInteractive() && priority >= APARTMENT_DEFER_PRIORITY;
+  _keepDrawingForPrio(_priority) {
+    return getInteractive();
   }
 
   async _compileReveal(label, priority) {
@@ -648,10 +648,10 @@ export class WorldStream {
       // Guardian may have disposed the grower (soft-cap / evict) between load and reveal.
       if (!b.grower) continue;
 
-      // Same as urlJobs: pause so makeBatchMesh cannot compile-via-draw
-      // (instancer Small_2 x4 +3prog ~3s). Compile new instancers, then one draw.
+      // Same as urlJobs: interactive → pause:false; boot still pauseDraw-sandwiches.
       await ensureGrowerWarmed(b.grower, this.renderer, `warmup ${b.name || b.url || 'building'}`);
-      if (this.renderer) this.renderer.pauseDraw();
+      const keepDrawing = this._keepDrawingForPrio(3);
+      if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
       let added = 0;
       if (!b.primed) {
         if (b.grower.reveal(radius, 1) > 0) {
@@ -664,17 +664,15 @@ export class WorldStream {
         await budget.tick();
       }
       if (added && this.renderer) {
-        await measureRingItem(`compile building r${radius}`, () =>
-          throughValve(() => this.renderer.compileSubtree(this.parent))
-        );
-        this.renderer.resumeDraw();
+        await this._compileReveal(`compile building r${radius}`, 3);
+        if (!keepDrawing) this.renderer.resumeDraw();
         await yieldToMain();
-        this.renderer.pauseDraw();
+        if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
       } else if (added) {
         if (b.heavy) await waitUntilSmooth();
         await yieldToMain();
       }
-      if (this.renderer) this.renderer.resumeDraw();
+      if (this.renderer && !keepDrawing) this.renderer.resumeDraw();
     }
   }
 

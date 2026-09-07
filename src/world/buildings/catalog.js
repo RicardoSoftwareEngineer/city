@@ -12,7 +12,8 @@ import { BUILDING_SPECS, buildingUrl } from './specs.js';
 import { mergeBuilding } from './merge.js';
 import { extractWindowSlots } from '../apartments/slots.js';
 import { applyWindowGlass, stripKitInteriorShell } from '../apartments/glass.js';
-import { waitUntilSmooth } from '../yield.js';
+import { yieldToMain } from '../yield.js';
+import { clearLoadTag, beginLoad } from '../../engine/loadLog.js';
 
 let slots = BUILDING_SPECS.map(() => null);
 
@@ -26,8 +27,16 @@ export async function getBuildingTemplate(index) {
       const apartmentSlots = extractWindowSlots(prepared);
       applyWindowGlass(prepared);
       stripKitInteriorShell(prepared);
-      if (spec.name.startsWith('Large')) await waitUntilSmooth();
+      if (spec.name.startsWith('Large')) {
+        // waitUntilSmooth is a no-op (no FPS HOLD); real double-rAF yield so
+        // Building_Large_* parse/merge cannot pin one multi-second hitch.
+        clearLoadTag();
+        await yieldToMain();
+        beginLoad('merge', spec.file);
+      }
       const merged = await mergeBuilding(prepared, spec.file);
+      clearLoadTag();
+      if (spec.name.startsWith('Large')) await yieldToMain();
       merged.userData.apartmentSlots = apartmentSlots;
       return merged;
     })();

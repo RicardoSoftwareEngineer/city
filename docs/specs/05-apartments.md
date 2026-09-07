@@ -21,7 +21,8 @@
 - Extracted **before** `mergeBuilding` from `MI_FakeInterior*` triangle centroids, clustered into window-sized slots.
 - Stored on the merged template as `userData.apartmentSlots` (local space of the prepared template).
 - Curtains + room are **scene overlays** (not InstancedMesh). Curtains sit **outside** glass (local −Z). **No opaque reveal plane** — glass stays transparent; the 3D room is visible through it. Auto-load applies `liveTarget` on mark.
-- **Interior quality (phased):** phase 1 = clear glass + `Brick_InteriorWall` + Standard procedural furniture. Later phases add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
+- **Interior quality (phased):** phase 1 = clear glass + **one merged room mesh** (procedural Standard furniture/walls baked via `BufferGeometryUtils.mergeGeometries` + material groups) + one `PointLight`. No per-box meshes and no kit `Brick_InteriorWall` glTF in the live template (lean plaster back wall) — fewer geometries/programs/clones at 128 vivos. Later phases may add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
+- **One asset:** `createApartmentRoom()` bakes once into a cached `apartment-room` group (`apartment-room-merged` mesh + light). Units `clone(true)` sharing geometry + materials (Three Mesh clone). Answer to “1 asset lighter?”: **YES** for apartments at scale — not a substitute for fixing `draw frame+shadows` / Large glTF / terrain hitches (those dominate Travamentos).
 - **Phase-1 visibility bar:** from the street you must instantly see “tem quarto” — bright/emissive walls + fill lights strong enough under ACES outdoor exposure, and a **large near-glass silhouette** (sofa / plant) pushed toward the −Z opening. Furniture buried deep in the room is not enough.
 
 ## Command API (`ApartmentDirector`)

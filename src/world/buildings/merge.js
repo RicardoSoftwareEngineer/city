@@ -1,13 +1,17 @@
 /**
  * Bakes a modular building (hundreds of kit pieces) into a few meshes,
  * one per material. That is what actually reduces draw calls.
+ *
+ * Large glTFs (Building_Large_*) can spend multi-seconds in sync merge —
+ * yield + clearLoadTag often so Travamentos does not pin one 7–14s hitch
+ * on merge / the following draw+shadows frame.
  */
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { yieldToMain } from '../yield.js';
 import { loadGovernor } from '../../engine/LoadGovernor.js';
-import { beginLoad, loadMark } from '../../engine/loadLog.js';
+import { beginLoad, loadMark, clearLoadTag } from '../../engine/loadLog.js';
 
 const KEEP = new Set(['position', 'normal', 'uv', 'uv1', 'uv2', 'color']);
 const OPTIONAL = ['uv1', 'uv2', 'color'];
@@ -75,6 +79,12 @@ function eachMaterialGeom(child, visit) {
   visit(child.geometry, materials[0]);
 }
 
+async function yieldMerge(label) {
+  clearLoadTag();
+  await yieldToMain();
+  beginLoad('merge', label);
+}
+
 export async function mergeBuilding(root, label = root?.name || 'building') {
   beginLoad('merge', label);
   const t0 = performance.now();
@@ -86,6 +96,12 @@ export async function mergeBuilding(root, label = root?.name || 'building') {
     if (child.isMesh && child.geometry) children.push(child);
   });
 
+  // Large prefabs: tighter stride so one merge cannot own a >10s frame.
+  const heavy = /large/i.test(String(label));
+  const stride = heavy
+    ? Math.max(4, Math.floor(loadGovernor.mergeStride / 2))
+    : loadGovernor.mergeStride;
+
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     eachMaterialGeom(child, (geometry, material) => {
@@ -96,7 +112,7 @@ export async function mergeBuilding(root, label = root?.name || 'building') {
       if (!buckets.has(key)) buckets.set(key, { material, geoms: [] });
       buckets.get(key).geoms.push(baked);
     });
-    if ((i + 1) % loadGovernor.mergeStride === 0) await yieldToMain();
+    if ((i + 1) % stride === 0) await yieldMerge(label);
   }
 
   const merged = new THREE.Group();
@@ -104,9 +120,26 @@ export async function mergeBuilding(root, label = root?.name || 'building') {
   merged.userData = { ...root.userData };
 
   let n = 0;
+  const bucketYieldEvery = heavy ? 1 : Math.max(1, Math.round(5 - loadGovernor.level));
   for (const { material, geoms } of buckets.values()) {
     unifyOptionalAttrs(geoms);
-    const geometry = mergeGeometries(geoms, false);
+    // Chunk large geom lists before the sync mergeGeometries call.
+    let geometry;
+    if (heavy && geoms.length > 24) {
+      const mid = (geoms.length / 2) | 0;
+      await yieldMerge(label);
+      const a = mergeGeometries(geoms.slice(0, mid), false);
+      await yieldMerge(label);
+      const b = mergeGeometries(geoms.slice(mid), false);
+      const parts = [a, b].filter(Boolean);
+      unifyOptionalAttrs(parts);
+      geometry = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+      for (const p of parts) {
+        if (p && p !== geometry) p.dispose();
+      }
+    } else {
+      geometry = mergeGeometries(geoms, false);
+    }
     if (geometry) {
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
@@ -121,9 +154,10 @@ export async function mergeBuilding(root, label = root?.name || 'building') {
       merged.add(mesh);
     }
     n++;
-    if (n % Math.max(1, Math.round(5 - loadGovernor.level)) === 0) await yieldToMain();
+    if (n % bucketYieldEvery === 0) await yieldMerge(label);
   }
 
+  clearLoadTag();
   loadMark('merge', label, performance.now() - t0);
   return merged;
 }

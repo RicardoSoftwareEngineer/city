@@ -25,6 +25,7 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 - **Worst Travamentos hitch &lt; 10 s** (`worstFrameMs` / top entry &lt; 10000 ms) on a typical Ultra boot/stream near downtown.
 - Frames &gt;1 s still tag **BUG** in the HUD; tightening below 1 s comes later.
 - Levers for this bar: merge furniture urlJobs that share a glTF; share materials on `loadGltf` clones; `clearLoadTag` across async glTF waits and GPU compile yields; interactive stream compiles use `pause: false` (no multi-10s `pauseDraw` sandwich); grower warmup compiles **only** the new batch meshes.
+- **Post-#125 (14s `draw frame+shadows`):** screenshot hitch was **not** apartment rooms — it was shadowed first-draw (+N GL programs) while `terrain vista*` streamed, plus `Building_Large_*.gltf` merge. Fixes: terrain `compileSubtree(..., { instancersOnly: false, pause: false })` when interactive (terrain is plain Mesh, not `_streamInstancer`); defer `shadowMap.needsUpdate` bake ~1.5s after `resumeShadows` (timed; streaming stays true all session); `resumeShadows` no longer `pauseDraw`-sandwiches; Large merge yields + `clearLoadTag` every stride / half-bucket; bank/interactive same pause:false rule; apartment interiors = **1 merged mesh** (helps draws/programs at 128 vivos, separate from the shadow/terrain bar).
 
 ## O que medimos vs o que controlamos
 
@@ -48,5 +49,7 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 
 - **Boot (pre-interactive):** WorldStream may still `pauseDraw()` around ring / building compiles (avoid compile-via-draw on the first programs).
 - While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
-- When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Travamentos freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
+- When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet, **terrain**) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Travamentos freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
+- **Terrain caveat:** tiles are plain `Mesh` (shared `terrainLambert`). Compiles must pass `instancersOnly: false` or the first shadowed `render()` compiles programs via draw (BUG LOAD `draw frame+shadows +Nprog`).
+- **Shadow bake:** `shadowMap.autoUpdate = false`; after `resumeShadows`, defer the first `needsUpdate` bake by ~1.5s so it does not stack on first-draw program compiles (`loadGovernor.streaming` stays true all session — do not gate on it). `resumeShadows` keeps drawing (no pauseDraw) and budgets `compileAsync` with `clearLoadTag` / yields.
 - Hitch law still applies: wall frame >1000 ms during play/stream = bug (Travamentos observation only; no HOLD). Interim ship bar: worst &lt; 10 s.

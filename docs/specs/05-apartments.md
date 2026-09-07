@@ -6,9 +6,9 @@
 - **Um template; todas as janelas são slots; budget de interiores vivos é HUD-driven.**
 - One reusable **apartment room template**; every window slot *can* use that same template (cloned).
 - Interiors are **on-demand only**. Buildings do not preload all apartments.
-- Budget: **`liveTarget`** (number or `'all'`, default **`'all'`**) — HUD/ApartmentDirector **intent** for how many **full interiors** should stay live on the active facade. On mark/start (first Large auto-`markFacadeHouse` with `autoLoad`), intent `'all'` is applied via the stream pump — soft ceiling **`ALL_LIVE_SOFT` (16)** still applies; remaining slots stay curtain-only. The **stream pump** (LoadGovernor frame budget + `yieldToMain` / `throughValve`) owns pacing — never a click-time for-loop that builds every room on the main thread.
-- **`'all'` soft ceiling (stream-owned):** full rooms cap at **`ALL_LIVE_SOFT` (16)**. Remaining slots on huge facades (e.g. Large_2 ≈77) get **curtain-only** shells (no room / no lights). Product “Todos” = as many full interiors as affordable, not 77× room clones in one apply.
-- **MemoryGuardian demotion:** when heap pressure ≥0.6 / ≥0.72, the pump shrinks the live full-interior cap (same persona as streets/nature `wantsLoad` gates) and strips excess rooms to curtain-only mid-apply.
+- Budget: **`liveTarget`** (number or `'all'`, default **`'all'`**) — HUD/ApartmentDirector **intent** for how many **full interiors** should stay live on the active facade. On mark/start (first Large auto-`markFacadeHouse` with `autoLoad`), intent `'all'` is applied via the stream pump. The **stream pump** (LoadGovernor frame budget + `yieldToMain` / `throughValve`) owns pacing — never a click-time for-loop that builds every room on the main thread.
+- **`'all'` / Todos = every window slot:** `want = ranked.length` — **every** slot gets a **full interior with curtain OPEN**. Closed curtain-only shells are **not** the product look for Todos (the old soft ceiling 16 + curtain overflow was wrong). Still stream-paced — never sync-slam ~77 rooms on click.
+- **MemoryGuardian demotion:** when heap pressure ≥0.6 / ≥0.72, the pump may temporarily shrink the live full-interior cap (same persona as streets/nature `wantsLoad` gates) and **unloads farthest / lowest-ranked** rooms (full dispose) — prefer that over leaving closed curtains as the Todos facade.
 
 ## Glass + kit shell
 
@@ -31,7 +31,7 @@ Exposed as `window.__cityApartments` (`liveTarget` default `'all'`).
 | Call | Effect |
 |------|--------|
 | `registerFacade(id, { slots, pose, parent })` | Remember a revealed building placement |
-| `setLiveCount(facadeId, count)` | Set **intent** (`number` \| `'all'`); stream pump ranks mid-height street-facing slots, loads full rooms up to stream cap (soft ceiling + heap demotion) with hard ms/frame budget + yields; `'all'` fills the rest as `curtain-only` |
+| `setLiveCount(facadeId, count)` | Set **intent** (`number` \| `'all'`); stream pump ranks mid-height street-facing slots, loads **full open interiors** for `'all'` = all slots (`want = ranked.length`) with hard ms/frame budget + yields; heap demotion unloads farthest if needed |
 | `getLiveTarget()` | Current budget (`number` \| `'all'`) |
 | `loadedCount()` | Full interiors only (room present) |
 | `curtainOnlyCount()` | Units that kept a closed curtain after a budget cut |
@@ -53,17 +53,17 @@ Exposed as `window.__cityApartments` (`liveTarget` default `'all'`).
 
 `idle` → `loading` (curtain **closed**) → `ready` (interior in scene, optional `compileAsync`, **curtain snap-hidden**) → `open`.
 
-Budget cut: `open`/`ready` → **`curtain-only`** (room disposed carefully; shared template kept; curtain reset closed + visible). Raising the budget again reloads the room and re-opens.
+Budget cut / heap demotion: prefer **full unload** of farthest slots (dispose unit). Legacy `curtain-only` state can still be reloaded to a full room if encountered. Raising the budget again loads missing rooms and opens curtains.
 
 Curtain hides **as soon as** the interior is added and warmed (snap hide — no closed plane left over the glass). No FPS adapt.
 
 **Shared curtain:** one `MeshStandardMaterial` + one unit `PlaneGeometry`, scaled per slot. Compile warms **once**; do not create per-unit curtain materials (that caused ~11s `apartment-curtain` hitch spam × N). Never mutate shared `material.opacity` — open/close via `scale` + `visible` only. Do not dispose shared curtain geo/mat on unit teardown.
 
-**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and rooms show through glass as each unit becomes `ready`. Shared room **and curtain** materials skip re-compile after the first warm. Stream/world compiles still pause as before. No FPS HOLD / adaptive pauseDraw for world streaming or apartments.
+**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and rooms show through glass as each unit becomes `ready`. Shared room **and curtain** materials skip re-compile after the first warm. Nature/carpet (prio ≥4) while interactive also compile with `pause: false`. No FPS HOLD / adaptive pauseDraw for world streaming or apartments.
 
-**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). Curtain-only shells for `'all'` overflow are also valve-admitted and **yield every spawn**. Per-room cost stays lean: **one** `PointLight` + emissive materials (not 3 lights × N slots). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
+**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). No Phase-B curtain-only flood for `'all'`. Per-room cost stays lean: **one** `PointLight` + emissive materials (not 3 lights × N slots). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
 
-**Stream ownership while intent pumps:** `_pumpLiveIntent` sets `streamIntent` (`isApartmentLiveIntentActive`). While active, WorldStream **defers** nature / water / carpet work at **prio ≥4** (ring `pumpTo` skip + `pumpNatureSlice` / `pumpCarpetSlice` early return) so their `pauseDraw` + multi-second `compileSubtree(parent)` cannot freeze the canvas mid-Todos. Resume when the intent finally-block releases. Shared curtain + room GPU programs are **warmed once** (`pause:false`) before Phase A. Not an FPS HOLD / adaptive valve.
+**Stream ownership while intent pumps:** `_pumpLiveIntent` sets `streamIntent` (`isApartmentLiveIntentActive`). While active, WorldStream **defers** nature / water / carpet work at **prio ≥4** (ring `pumpTo` skip + `pumpNatureSlice` / `pumpCarpetSlice` early return) so their `pauseDraw` + multi-second `compileSubtree(parent)` cannot freeze the canvas mid-Todos. Resume when the intent finally-block releases. Shared curtain + room GPU programs are **warmed once** (`pause:false`) before the full-room pump. Not an FPS HOLD / adaptive valve. Separately: when **interactive**, nature/carpet reveals compile with `pause: false` (no multi-second `pauseDraw` freeze on `stream ring` / `nature bg`).
 
 ## Orientation
 
@@ -73,7 +73,7 @@ Curtain hides **as soon as** the interior is added and warmed (snap hide — no 
 
 - Per-frame quality adapt / HOLD / FPS-driven pauseDraw for apartments.
 - Unique furniture per unit (one shared template is enough).
-- Loading every window as a full room on `'all'` for huge facades (soft ceiling + curtain-only overflow is intentional).
+- Sync-slamming every window on the click frame (stream pump + yields own pacing; product still wants all slots live under Todos).
 
 ## Marker
 

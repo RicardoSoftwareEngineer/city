@@ -15,7 +15,7 @@ import {
 import { createBudget, throughValve, waitUntilSmooth, yieldAfterWork, yieldToMain, pushDeferValveHold, popDeferValveHold } from './yield.js';
 import { memoryGuardian } from '../engine/memoryGuardian.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
-import { beginLoad, clearLoadTag, dumpLoadLog, setStreamLabel } from '../engine/loadLog.js';
+import { beginLoad, clearLoadTag, dumpLoadLog, setStreamLabel, getInteractive } from '../engine/loadLog.js';
 import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
 import {
   effectiveLoadRadius,
@@ -134,6 +134,31 @@ export class WorldStream {
       this._lastAptsDeferNote = now;
     }
     return true;
+  }
+
+  /**
+   * Nature/carpet (prio ≥4) while interactive: compile with pause:false and
+   * never hold pauseDraw across the batch — Travamentos ~8s BUG LOAD freezes
+   * came from pauseDraw + compileSubtree(parent) on stream ring / nature bg.
+   * Lower prios keep the pauseDraw sandwich (avoid compile-via-draw).
+   */
+  _keepDrawingForPrio(priority) {
+    return getInteractive() && priority >= APARTMENT_DEFER_PRIORITY;
+  }
+
+  async _compileReveal(label, priority) {
+    if (!this.renderer) return;
+    const keepDrawing = this._keepDrawingForPrio(priority);
+    // Caller owns any pauseDraw sandwich for !keepDrawing; we only flip pause:false
+    // so interactive nature/carpet never freezes the canvas for multi-second compiles.
+    await measureRingItem(label, () =>
+      throughValve(() =>
+        this.renderer.compileSubtree(
+          this.parent,
+          keepDrawing ? { pause: false } : undefined
+        )
+      )
+    );
   }
 
   addUrl(url, poses, options = {}, priority = 0) {
@@ -514,42 +539,41 @@ export class WorldStream {
         await yieldAfterWork();
       }
 
-      if (this.renderer) this.renderer.pauseDraw();
-      for (const job of this.urlJobs) {
-        if (!job.grower || job.priority !== priority) continue;
-        await ensureGrowerWarmed(job.grower, this.renderer, `warmup ${job.url?.split('/').pop() || 'url'}`);
-        let added = 0;
-        while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
-          added += 1;
-          await budget.tick();
+      {
+        const keepDrawing = this._keepDrawingForPrio(priority);
+        if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+        for (const job of this.urlJobs) {
+          if (!job.grower || job.priority !== priority) continue;
+          await ensureGrowerWarmed(job.grower, this.renderer, `warmup ${job.url?.split('/').pop() || 'url'}`);
+          let added = 0;
+          while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+            added += 1;
+            await budget.tick();
+          }
+          if (added && this.renderer) {
+            await this._compileReveal(`compile urls r${radius} p${priority}`, priority);
+            if (!keepDrawing) this.renderer.resumeDraw();
+            await yieldToMain();
+            if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+          }
         }
-        if (added && this.renderer) {
-          await measureRingItem(`compile urls r${radius} p${priority}`, () =>
-            throughValve(() => this.renderer.compileSubtree(this.parent))
-          );
-          this.renderer.resumeDraw();
-          await yieldToMain();
-          this.renderer.pauseDraw();
+        for (const job of this.templateJobs) {
+          if (!job.grower || job.priority !== priority) continue;
+          await ensureGrowerWarmed(job.grower, this.renderer, 'warmup template');
+          let added = 0;
+          while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
+            added += 1;
+            await budget.tick();
+          }
+          if (added && this.renderer) {
+            await this._compileReveal(`compile templates r${radius} p${priority}`, priority);
+            if (!keepDrawing) this.renderer.resumeDraw();
+            await yieldToMain();
+            if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+          }
         }
+        if (this.renderer && !keepDrawing) this.renderer.resumeDraw();
       }
-      for (const job of this.templateJobs) {
-        if (!job.grower || job.priority !== priority) continue;
-        await ensureGrowerWarmed(job.grower, this.renderer, 'warmup template');
-        let added = 0;
-        while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
-          added += 1;
-          await budget.tick();
-        }
-        if (added && this.renderer) {
-          await measureRingItem(`compile templates r${radius} p${priority}`, () =>
-            throughValve(() => this.renderer.compileSubtree(this.parent))
-          );
-          this.renderer.resumeDraw();
-          await yieldToMain();
-          this.renderer.pauseDraw();
-        }
-      }
-      if (this.renderer) this.renderer.resumeDraw();
 
       const tasks = this.tasks.filter(
         (task) =>
@@ -880,34 +904,35 @@ export class WorldStream {
 
     // Re-check: intent may have started between loads and reveal.
     if (this._shouldDeferLowPrioStream(priority)) return work;
-    if (this.renderer) this.renderer.pauseDraw();
-    let passes = 0;
-    for (const job of this.urlJobs) {
-      if (passes >= maxRevealPasses) break;
-      if (!job.grower || job.priority !== priority) continue;
-      await ensureGrowerWarmed(job.grower, this.renderer, 'warmup nature');
-      let added = 0;
-      const maxAdd = Math.min(loadGovernor.chunk, 8);
-      if (job.grower.reveal(radius, maxAdd) > 0) {
-        added += 1;
-        await budget.tick();
-      }
-      if (added) {
-        passes += 1;
-        work += added;
-        if (this.renderer) {
-          await measureRingItem('compile nature', () =>
-            throughValve(() => this.renderer.compileSubtree(this.parent))
-          );
-          this.renderer.resumeDraw();
-          await yieldToMain();
-          this.renderer.pauseDraw();
-        } else {
-          await yieldToMain();
+    {
+      const keepDrawing = this._keepDrawingForPrio(priority);
+      if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+      let passes = 0;
+      for (const job of this.urlJobs) {
+        if (passes >= maxRevealPasses) break;
+        if (!job.grower || job.priority !== priority) continue;
+        await ensureGrowerWarmed(job.grower, this.renderer, 'warmup nature');
+        let added = 0;
+        const maxAdd = Math.min(loadGovernor.chunk, 8);
+        if (job.grower.reveal(radius, maxAdd) > 0) {
+          added += 1;
+          await budget.tick();
+        }
+        if (added) {
+          passes += 1;
+          work += added;
+          if (this.renderer) {
+            await this._compileReveal('compile nature', priority);
+            if (!keepDrawing) this.renderer.resumeDraw();
+            await yieldToMain();
+            if (!keepDrawing) this.renderer.pauseDraw();
+          } else {
+            await yieldToMain();
+          }
         }
       }
+      if (this.renderer && !keepDrawing) this.renderer.resumeDraw();
     }
-    if (this.renderer) this.renderer.resumeDraw();
     return work;
   }
 
@@ -1008,35 +1033,36 @@ export class WorldStream {
     }
 
     if (this._shouldDeferLowPrioStream(priority)) return work;
-    if (this.renderer) this.renderer.pauseDraw();
-    let passes = 0;
-    for (const job of this.urlJobs) {
-      if (passes >= maxRevealPasses) break;
-      if (!job.grower || job.priority !== priority) continue;
-      await ensureGrowerWarmed(job.grower, this.renderer, 'warmup carpet');
-      let added = 0;
-      // One batch worth per pass — never dump many ensureBatch allocations in one MAP.
-      const maxAdd = Math.min(loadGovernor.chunk, 4);
-      if (job.grower.reveal(radius, maxAdd) > 0) {
-        added += 1;
-        await budget.tick();
-      }
-      if (added) {
-        passes += 1;
-        work += added;
-        if (this.renderer) {
-          await measureRingItem('compile carpet', () =>
-            throughValve(() => this.renderer.compileSubtree(this.parent))
-          );
-          this.renderer.resumeDraw();
-          await yieldToMain();
-          this.renderer.pauseDraw();
-        } else {
-          await yieldToMain();
+    {
+      const keepDrawing = this._keepDrawingForPrio(priority);
+      if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+      let passes = 0;
+      for (const job of this.urlJobs) {
+        if (passes >= maxRevealPasses) break;
+        if (!job.grower || job.priority !== priority) continue;
+        await ensureGrowerWarmed(job.grower, this.renderer, 'warmup carpet');
+        let added = 0;
+        // One batch worth per pass — never dump many ensureBatch allocations in one MAP.
+        const maxAdd = Math.min(loadGovernor.chunk, 4);
+        if (job.grower.reveal(radius, maxAdd) > 0) {
+          added += 1;
+          await budget.tick();
+        }
+        if (added) {
+          passes += 1;
+          work += added;
+          if (this.renderer) {
+            await this._compileReveal('compile carpet', priority);
+            if (!keepDrawing) this.renderer.resumeDraw();
+            await yieldToMain();
+            if (!keepDrawing) this.renderer.pauseDraw();
+          } else {
+            await yieldToMain();
+          }
         }
       }
+      if (this.renderer && !keepDrawing) this.renderer.resumeDraw();
     }
-    if (this.renderer) this.renderer.resumeDraw();
     const stillReveal = this.urlJobs.reduce((n, job) => {
       if (job.priority !== priority || !job.grower) return n;
       return n + (job.grower.pendingRevealCount?.(radius) || 0);

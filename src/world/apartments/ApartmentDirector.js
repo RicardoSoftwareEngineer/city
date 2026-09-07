@@ -7,6 +7,12 @@ import * as THREE from 'three';
 import { createApartmentRoom, createCurtain } from './roomTemplate.js';
 import { throughValve, yieldToMain } from '../yield.js';
 import { memoryGuardian } from '../../engine/memoryGuardian.js';
+import {
+  pushApartmentLiveIntent,
+  popApartmentLiveIntent,
+  isApartmentLiveIntentActive
+} from '../../engine/streamIntent.js';
+import { noteDecision } from '../../engine/personaLog.js';
 
 /** Spec 05 — default live-interior budget (HUD can change). */
 export const MAX_LOADED = 3;
@@ -230,6 +236,8 @@ export class ApartmentDirector {
     this._intentFacadeId = null;
     this._intentEpoch = 0;
     this._pumpRunning = false;
+    /** Shared curtain/room GPU programs warmed once. */
+    this._gpuWarmed = false;
   }
 
   static facadeId(typeName, x, z) {
@@ -262,6 +270,11 @@ export class ApartmentDirector {
 
   getLiveTarget() {
     return this.liveTarget;
+  }
+
+  /** True while a stream-paced live-intent pump is in flight (Todos / setLiveCount). */
+  isLiveIntentActive() {
+    return this._pumpRunning || isApartmentLiveIntentActive();
   }
 
   /** Full interiors only (room present) — not curtain-only shells. */
@@ -369,121 +382,172 @@ export class ApartmentDirector {
     const facade = this.facades.get(facadeId);
     if (!facade) return;
 
-    const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
+    // Own the stream persona: WorldStream defers nature/carpet/water (prio ≥4)
+    // pauseDraw compiles so Travamentos does not flag multi-second BUG LOAD
+    // while Todos pumps. Not an FPS HOLD — cooperative ownership only.
+    this._pumpRunning = true;
+    pushApartmentLiveIntent();
+    noteDecision('Carregador', 'apts intent owns stream');
+    try {
+      const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
 
-    // Free full interiors on other facades so global budget stays honest.
-    for (const key of [...this.units.keys()]) {
-      if (key.startsWith(`${facadeId}#`)) continue;
-      const unit = this.units.get(key);
-      if (!unit) continue;
-      if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
-        this._disposeUnit(key);
-      }
-    }
-    await yieldToMain();
-    if (this._intentEpoch !== intentEpoch) return;
-    if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-
-    // Recompute cap each step (MemoryGuardian pressure may rise mid-pump).
-    const liveCap = () => {
-      this._refreshMaxLoaded(facadeId);
-      return this.maxLoaded;
-    };
-
-    // Strip excess full rooms → curtain-only when cap shrinks or target drops.
-    const stripAboveCap = (cap) => {
-      const keepIds = new Set(ranked.slice(0, cap).map((s) => s.id));
-      for (const slot of facade.slots) {
-        if (keepIds.has(slot.id)) continue;
-        const key = `${facadeId}#${slot.id}`;
+      // Free full interiors on other facades so global budget stays honest.
+      for (const key of [...this.units.keys()]) {
+        if (key.startsWith(`${facadeId}#`)) continue;
         const unit = this.units.get(key);
-        if (unit?.room) this._stripToCurtainOnly(unit);
+        if (!unit) continue;
+        if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+          this._disposeUnit(key);
+        }
       }
-    };
-
-    let cap = liveCap();
-    stripAboveCap(cap);
-
-    // Phase A — full interiors up to stream-owned cap (budgeted).
-    for (let i = 0; i < ranked.length; i++) {
+      await yieldToMain();
       if (this._intentEpoch !== intentEpoch) return;
       if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-      cap = liveCap();
-      if (i >= cap) break;
 
-      const slot = ranked[i];
-      const key = `${facadeId}#${slot.id}`;
-      let unit = this.units.get(key);
-
-      await throughValve(async () => {
-        if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-        if (!unit) {
-          await this._ensureBudget();
-          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-          unit = this._spawnUnit(facade, slot, key);
-          this.units.set(key, unit);
-          this._loadOrder.push(key);
-          await this._finishLoad(unit);
-        } else if (!unit.room || unit.state === 'curtain-only') {
-          this._resetCurtainClosed(unit);
-          unit.state = 'loading';
-          unit.openT = 0;
-          await this._finishLoad(unit);
-        }
-      });
-
-      if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
-      // Hard yield every unit so Travamentos never sees multi-second apartment batches.
+      // Warm shared curtain + room programs once (pause:false) so Phase A/B
+      // never pays a multi-mesh first-compile hitch on the click frame.
+      await this._warmApartmentPrograms();
       await yieldToMain();
-    }
+      if (this._intentEpoch !== intentEpoch) return;
+      if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
 
-    if (this._intentEpoch !== intentEpoch) return;
-    if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+      // Recompute cap each step (MemoryGuardian pressure may rise mid-pump).
+      const liveCap = () => {
+        this._refreshMaxLoaded(facadeId);
+        return this.maxLoaded;
+      };
 
-    cap = liveCap();
-    stripAboveCap(cap);
+      // Strip excess full rooms → curtain-only when cap shrinks or target drops.
+      const stripAboveCap = (cap) => {
+        const keepIds = new Set(ranked.slice(0, cap).map((s) => s.id));
+        for (const slot of facade.slots) {
+          if (keepIds.has(slot.id)) continue;
+          const key = `${facadeId}#${slot.id}`;
+          const unit = this.units.get(key);
+          if (unit?.room) this._stripToCurtainOnly(unit);
+        }
+      };
 
-    // Phase B — for `'all'`, curtain-only shells on the rest (cheap; still budgeted).
-    if (this.liveTarget === 'all') {
-      for (let i = cap; i < ranked.length; i++) {
+      let cap = liveCap();
+      stripAboveCap(cap);
+
+      // Phase A — full interiors up to stream-owned cap (budgeted).
+      for (let i = 0; i < ranked.length; i++) {
         if (this._intentEpoch !== intentEpoch) return;
         if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-        // Mid-pump demotion: shrink full rooms if heap climbed.
-        const nextCap = liveCap();
-        if (nextCap < cap) {
-          stripAboveCap(nextCap);
-          cap = nextCap;
-        }
+        cap = liveCap();
+        if (i >= cap) break;
+
         const slot = ranked[i];
         const key = `${facadeId}#${slot.id}`;
-        if (this.units.has(key)) {
-          const u = this.units.get(key);
-          if (u.room) this._stripToCurtainOnly(u);
-          continue;
-        }
-        await throughValve(() => {
+        let unit = this.units.get(key);
+
+        await throughValve(async () => {
           if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-          const unit = this._spawnUnit(facade, slot, key);
-          // Curtain-only: never build the room mesh/lights.
-          unit.state = 'curtain-only';
-          unit.room = null;
-          this.units.set(key, unit);
-          this._loadOrder.push(key);
+          if (!unit) {
+            await this._ensureBudget();
+            if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+            unit = this._spawnUnit(facade, slot, key);
+            this.units.set(key, unit);
+            this._loadOrder.push(key);
+            await this._finishLoad(unit);
+          } else if (!unit.room || unit.state === 'curtain-only') {
+            this._resetCurtainClosed(unit);
+            unit.state = 'loading';
+            unit.openT = 0;
+            await this._finishLoad(unit);
+          }
         });
-        if (i % 4 === 3) {
-          if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+
+        if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+        // Hard yield every unit so Travamentos never sees multi-second apartment batches.
+        await yieldToMain();
+      }
+
+      if (this._intentEpoch !== intentEpoch) return;
+      if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+
+      cap = liveCap();
+      stripAboveCap(cap);
+
+      // Phase B — for `'all'`, curtain-only shells on the rest (cheap; still budgeted).
+      if (this.liveTarget === 'all') {
+        for (let i = cap; i < ranked.length; i++) {
+          if (this._intentEpoch !== intentEpoch) return;
+          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+          // Mid-pump demotion: shrink full rooms if heap climbed.
+          const nextCap = liveCap();
+          if (nextCap < cap) {
+            stripAboveCap(nextCap);
+            cap = nextCap;
+          }
+          const slot = ranked[i];
+          const key = `${facadeId}#${slot.id}`;
+          if (this.units.has(key)) {
+            const u = this.units.get(key);
+            if (u.room) this._stripToCurtainOnly(u);
+            continue;
+          }
+          await throughValve(() => {
+            if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+            const unit = this._spawnUnit(facade, slot, key);
+            // Curtain-only: never build the room mesh/lights.
+            unit.state = 'curtain-only';
+            unit.room = null;
+            this.units.set(key, unit);
+            this._loadOrder.push(key);
+          });
+          // Yield every shell — ~60 curtain adds must not land in one frame.
+          if (this._houseFacadeId === facadeId && i % 8 === 7) {
+            this._syncHouseHud(true, facadeId);
+          }
           await yieldToMain();
         }
+      } else {
+        // Numeric target: dispose units beyond cap (no curtain-only flood).
+        for (let i = cap; i < ranked.length; i++) {
+          const key = `${facadeId}#${ranked[i].id}`;
+          if (this.units.has(key)) this._disposeUnit(key);
+        }
       }
-    } else {
-      // Numeric target: dispose units beyond cap (no curtain-only flood).
-      for (let i = cap; i < ranked.length; i++) {
-        const key = `${facadeId}#${ranked[i].id}`;
-        if (this.units.has(key)) this._disposeUnit(key);
-      }
-    }
 
-    if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+      if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
+    } finally {
+      popApartmentLiveIntent();
+      this._pumpRunning = false;
+      noteDecision('Carregador', 'apts intent release stream');
+    }
+  }
+
+  /**
+   * One-shot GPU warm for shared curtain + room materials (pause:false).
+   * Subsequent unit compiles skip warmed programs (Renderer mat flags).
+   */
+  async _warmApartmentPrograms() {
+    if (this._gpuWarmed || !this.renderer?.compileSubtree) return;
+    const group = new THREE.Group();
+    group.name = 'apt-warm';
+    group.visible = false;
+    group.frustumCulled = false;
+    group.add(createCurtain(2, 2));
+    try {
+      const room = await createApartmentRoom();
+      group.add(room);
+    } catch (_) {
+      /* room template optional for curtain-only warm */
+    }
+    const host = this.parent;
+    host.add(group);
+    try {
+      await throughValve(() =>
+        this.renderer.compileSubtree(group, { instancersOnly: false, pause: false })
+      );
+      this._gpuWarmed = true;
+    } catch (_) {
+      /* compile optional */
+    } finally {
+      host.remove(group);
+    }
   }
 
   /**

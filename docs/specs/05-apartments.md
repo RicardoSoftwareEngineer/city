@@ -61,7 +61,9 @@ Curtain hides **as soon as** the interior is added and warmed (snap hide — no 
 
 **Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and rooms show through glass as each unit becomes `ready`. Shared room **and curtain** materials skip re-compile after the first warm. Stream/world compiles still pause as before. No FPS HOLD / adaptive pauseDraw for world streaming or apartments.
 
-**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). Curtain-only shells for `'all'` overflow are also valve-admitted and yield every few spawns. Per-room cost stays lean: **one** `PointLight` + emissive materials (not 3 lights × N slots). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
+**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). Curtain-only shells for `'all'` overflow are also valve-admitted and **yield every spawn**. Per-room cost stays lean: **one** `PointLight` + emissive materials (not 3 lights × N slots). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
+
+**Stream ownership while intent pumps:** `_pumpLiveIntent` sets `streamIntent` (`isApartmentLiveIntentActive`). While active, WorldStream **defers** nature / water / carpet work at **prio ≥4** (ring `pumpTo` skip + `pumpNatureSlice` / `pumpCarpetSlice` early return) so their `pauseDraw` + multi-second `compileSubtree(parent)` cannot freeze the canvas mid-Todos. Resume when the intent finally-block releases. Shared curtain + room GPU programs are **warmed once** (`pause:false`) before Phase A. Not an FPS HOLD / adaptive valve.
 
 ## Orientation
 

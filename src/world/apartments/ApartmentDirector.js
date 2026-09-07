@@ -14,7 +14,7 @@ import {
 } from '../../engine/streamIntent.js';
 import { noteDecision } from '../../engine/personaLog.js';
 
-/** Spec 05 — default live-interior budget (HUD can change). */
+/** Spec 05 — numeric fallback / heap demotion floor (HUD can change liveTarget). */
 export const MAX_LOADED = 3;
 /**
  * Soft ceiling for full interiors when liveTarget === 'all' (stream-owned).
@@ -210,13 +210,13 @@ export class ApartmentDirector {
    * @param {object} opts
    * @param {THREE.Object3D} opts.parent scene/group for overlays
    * @param {{compileSubtree?: Function}|null} [opts.renderer]
-   * @param {number} [opts.maxLoaded]
+   * @param {number} [opts.maxLoaded] numeric soft baseline until first intent (heap demote floor)
    */
   constructor({ parent, renderer = null, maxLoaded = MAX_LOADED } = {}) {
     this.parent = parent;
     this.renderer = renderer;
-    /** @type {number|'all'} HUD-driven live interior target. */
-    this.liveTarget = maxLoaded;
+    /** @type {number|'all'} HUD-driven live interior target. Default `'all'` (ALL_LIVE_SOFT). */
+    this.liveTarget = 'all';
     this.maxLoaded = typeof maxLoaded === 'number' ? maxLoaded : ALL_CEILING;
     /** @type {Map<string, {id:string,slots:any[],pose:any,parent:THREE.Object3D}>} */
     this.facades = new Map();
@@ -728,6 +728,8 @@ export class ApartmentDirector {
       const label = this.liveTarget === 'all' ? 'Todos' : String(this.liveTarget);
       panel.title = `Interiores ${label} · ${live}/${total} — ${facadeId}`;
     }
+    const allBtn = document.getElementById('apts-budget-all');
+    if (allBtn) allBtn.setAttribute('aria-pressed', this.liveTarget === 'all' ? 'true' : 'false');
   }
 
   /** Nearest registered facade to (x,z), or first Large*, or first overall. */

@@ -780,6 +780,11 @@ kbd {
   margin-left: 2px;
   letter-spacing: 0.02em;
 }
+#apts-budget-all[aria-pressed="true"] {
+  background: rgba(109, 40, 217, 0.95);
+  border-color: rgba(196, 181, 253, 0.85);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.35);
+}
 
 /* One panel per persona (stacked top-right; drag/min via minimizableHud) */
 .persona-panel {

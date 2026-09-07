@@ -6,7 +6,7 @@
 - **Um template; todas as janelas são slots; budget de interiores vivos é HUD-driven.**
 - One reusable **apartment room template**; every window slot *can* use that same template (cloned).
 - Interiors are **on-demand only**. Buildings do not preload all apartments.
-- Budget: **`liveTarget`** (number or `'all'`, default **3**) — HUD/ApartmentDirector **intent** for how many **full interiors** should stay live on the active facade. The **stream pump** (LoadGovernor frame budget + `yieldToMain` / `throughValve`) owns pacing — never a click-time for-loop that builds every room on the main thread.
+- Budget: **`liveTarget`** (number or `'all'`, default **`'all'`**) — HUD/ApartmentDirector **intent** for how many **full interiors** should stay live on the active facade. On mark/start (first Large auto-`markFacadeHouse` with `autoLoad`), intent `'all'` is applied via the stream pump — soft ceiling **`ALL_LIVE_SOFT` (16)** still applies; remaining slots stay curtain-only. The **stream pump** (LoadGovernor frame budget + `yieldToMain` / `throughValve`) owns pacing — never a click-time for-loop that builds every room on the main thread.
 - **`'all'` soft ceiling (stream-owned):** full rooms cap at **`ALL_LIVE_SOFT` (16)**. Remaining slots on huge facades (e.g. Large_2 ≈77) get **curtain-only** shells (no room / no lights). Product “Todos” = as many full interiors as affordable, not 77× room clones in one apply.
 - **MemoryGuardian demotion:** when heap pressure ≥0.6 / ≥0.72, the pump shrinks the live full-interior cap (same persona as streets/nature `wantsLoad` gates) and strips excess rooms to curtain-only mid-apply.
 
@@ -26,7 +26,7 @@
 
 ## Command API (`ApartmentDirector`)
 
-Exposed as `window.__cityApartments` (`liveTarget` default 3).
+Exposed as `window.__cityApartments` (`liveTarget` default `'all'`).
 
 | Call | Effect |
 |------|--------|
@@ -43,8 +43,8 @@ Exposed as `window.__cityApartments` (`liveTarget` default 3).
 
 ## HUD (`#apts-budget`)
 
-- Compact panel: label **Interiores**, `−` / number input / `+`, button **Todos**.
-- Applies to nearest facade (free-fly camera if active, else car) → `markFacadeHouse({ autoLoad: false })` → `setLiveCount` (HUD owns the budget; mark must not race an auto `setLiveCount(3)` after Todos).
+- Compact panel: label **Interiores**, `−` / number input / `+`, button **Todos** (aria-pressed when `liveTarget === 'all'`; pressed on boot).
+- Applies to nearest facade (free-fly camera if active, else car) → `markFacadeHouse({ autoLoad: false })` → `setLiveCount` (HUD owns the budget; mark must not race an auto apply after Todos).
 - Immediate apply on `+/−/Todos` and on Enter / change in the input. Busy class while applying.
 - While applying, the number input and banner track **live/total** (for `'all'`, input rises with loaded count — must not stay stuck at the previous budget).
 - Hidden in `boot-idle` like other floats.

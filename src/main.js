@@ -289,8 +289,11 @@ async function startGame() {
     const syncAptsInput = () => {
       const t = apartmentDirector.getLiveTarget();
       aptsInput.value = t === 'all' ? String(apartmentDirector.loadedCount() || 0) : String(t);
+      if (aptsAll) aptsAll.setAttribute('aria-pressed', t === 'all' ? 'true' : 'false');
     };
     syncAptsInput();
+    // Reflect default liveTarget `'all'` before any facade mark / Todos click.
+    aptsBudget.title = 'Interiores Todos (boot)';
 
     const applyAptsBudget = async (count) => {
       const car = vehicleController.chassisBody.position;

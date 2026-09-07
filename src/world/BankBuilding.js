@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { loadGltf } from './AssetLoader.js';
 import { addInstancedGltfAsync, warmupInstancedTemplate } from './instancing.js';
 import { waitIfSlow, waitUntilSmooth, yieldAfterWork, yieldToMain } from './yield.js';
-import { loadMark } from '../engine/loadLog.js';
+import { loadMark, getInteractive } from '../engine/loadLog.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
 
 const SRC = '/models/downtown/Exports/glTF';
@@ -139,7 +139,9 @@ export class BankBuilding {
     bankGroup.name = 'BankBuilding';
 
     await waitUntilSmooth();
-    if (renderer) renderer.pauseDraw();
+    // Interactive: never pauseDraw-sandwich kit compiles (draw+shadows hitch).
+    const keepDrawing = getInteractive();
+    if (renderer && !keepDrawing) renderer.pauseDraw();
     parentGroup.add(bankGroup);
     for (const key of Object.keys(ASSET_PATHS)) {
       if (!poses[key].length) continue;
@@ -158,16 +160,23 @@ export class BankBuilding {
         poses[key],
         kitOpts
       );
-      if (renderer) await renderer.compileSubtree(bankGroup);
+      if (renderer) {
+        await renderer.compileSubtree(
+          bankGroup,
+          keepDrawing ? { pause: false } : undefined
+        );
+      }
       await yieldAfterWork();
       // One real frame per kit so first GPU upload is not the whole bank (4139ms bank:total).
-      if (renderer) {
+      if (renderer && !keepDrawing) {
         renderer.resumeDraw();
         await yieldToMain();
         renderer.pauseDraw();
+      } else if (renderer) {
+        await yieldToMain();
       }
     }
-    if (renderer) renderer.resumeDraw();
+    if (renderer && !keepDrawing) renderer.resumeDraw();
 
     if (physicsWorld) {
       physicsWorld.addStaticBox(

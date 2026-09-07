@@ -612,13 +612,20 @@ export class WorldStream {
       if (!memoryGuardian.allowsAt(b.sorted[0].x, b.sorted[0].z)) continue;
 
       if (!b.grower) {
-        if (b.heavy) await waitUntilSmooth();
+        if (b.heavy) {
+          clearLoadTag();
+          await yieldToMain();
+        }
         const template = await measureRingItem(b.url || b.name || 'building', () =>
           throughValve(() => b.load())
         );
+        clearLoadTag();
         await yieldAfterWork();
         if (!template) continue;
-        if (b.heavy) await waitUntilSmooth();
+        if (b.heavy) {
+          clearLoadTag();
+          await yieldToMain();
+        }
         b.template = template;
         await throughValve(async () => {
           measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
@@ -723,11 +730,22 @@ export class WorldStream {
       if (!sinceCompile || !this.renderer) return;
       // Do not leave prior terrain/street loadMark sticky across pauseDraw/compile.
       clearLoadTag();
-      this.renderer.pauseDraw();
+      // Terrain tiles are plain Mesh (not _streamInstancer). Default
+      // instancersOnly:true skipped them → first shadowed draw paid +Nprog
+      // (14s-class draw frame+shadows). Interactive: never pauseDraw sandwich.
+      const keepDrawing = getInteractive();
+      if (!keepDrawing) this.renderer.pauseDraw();
+      const terrainRoot =
+        this.parent?.getObjectByName?.('terrain') || this.parent;
       await measureRingItem(label, () =>
-        throughValve(() => this.renderer.compileSubtree(this.parent))
+        throughValve(() =>
+          this.renderer.compileSubtree(terrainRoot, {
+            instancersOnly: false,
+            pause: false
+          })
+        )
       );
-      this.renderer.resumeDraw();
+      if (!keepDrawing) this.renderer.resumeDraw();
       clearLoadTag();
       await yieldToMain();
       sinceCompile = 0;

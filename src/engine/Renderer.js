@@ -16,6 +16,9 @@ export class Renderer {
     this.canvas = canvasElement;
     this._pauseDraw = false;
     this._lastPauseNote = 0;
+    this._shadowBakeDeferred = false;
+    this._forceShadowBake = false;
+    this._shadowBakeAt = 0;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -99,6 +102,18 @@ export class Renderer {
       return;
     }
     const shadows = this.renderer.shadowMap.enabled;
+    // Timed defer: streaming stays true for the whole session, so we cannot
+    // gate on loadGovernor.streaming. Hold needsUpdate until _shadowBakeAt so
+    // the bake does not stack on the same frame as a burst of new programs.
+    if (shadows && this._shadowBakeDeferred) {
+      if (performance.now() >= (this._shadowBakeAt || 0) || this._forceShadowBake) {
+        this.renderer.shadowMap.needsUpdate = true;
+        this._shadowBakeDeferred = false;
+      } else {
+        this.renderer.shadowMap.needsUpdate = false;
+      }
+    }
+    this._forceShadowBake = false;
     const baking = shadows && this.renderer.shadowMap.needsUpdate;
     const tag = !shadows ? 'frame' : baking ? 'frame+shadow-bake' : 'frame+shadows';
     const t0 = performance.now();
@@ -126,7 +141,9 @@ export class Renderer {
       this.renderer.shadowMap.enabled = false;
       return;
     }
-    this._pauseDraw = true;
+    // Keep presenting during shadow program warmup — pauseDraw sandwich here
+    // stacked with interactive draw+shadows is a multi-10s Travamentos freeze.
+    this._pauseDraw = false;
     setLoadPhase('shadow-warmup');
 
     beginLoad('gpu', 'shadows-on');
@@ -135,6 +152,7 @@ export class Renderer {
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = false;
     loadMark('gpu', 'shadows-on', performance.now() - tEnable);
+    clearLoadTag();
 
     const objects = [];
     this.scene.traverse((object) => {
@@ -146,16 +164,28 @@ export class Renderer {
       const object = objects[i];
       const kind = object.isInstancedMesh ? 'inst' : 'mesh';
       const label = `${kind} ${object.name || i}`;
+      clearLoadTag();
+      await waitIfSlow();
       beginLoad('gpu', `compile ${label}`);
       const t0 = performance.now();
       await this.renderer.compileAsync(object, this.camera, this.lightProbe());
+      object.userData._gpuCompiled = true;
+      const mat = object.material;
+      if (mat && !Array.isArray(mat)) {
+        if (object.isInstancedMesh) mat.userData._gpuInstancedProgramWarmed = true;
+        else mat.userData._gpuMeshProgramWarmed = true;
+      }
       loadMark('gpu', `compile ${label}`, performance.now() - t0);
+      clearLoadTag();
       await budget.tick();
-      await waitIfSlow();
     }
 
-    this.renderer.shadowMap.needsUpdate = true;
-    this._pauseDraw = false;
+    // Bake ~1.5s later so first shadowed frames are compiles-only, not bake+compile.
+    this.renderer.shadowMap.needsUpdate = false;
+    this._shadowBakeDeferred = true;
+    this._shadowBakeAt = performance.now() + 1500;
+    this._forceShadowBake = false;
+    clearLoadTag();
     await yieldToMain();
   }
 

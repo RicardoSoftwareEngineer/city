@@ -27,6 +27,10 @@ import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingIte
 import { castOpts } from './shadowPolicy.js';
 import { noteDecision } from '../engine/personaLog.js';
 import { noteZonePolicy } from '../engine/qualityAdapter.js';
+import {
+  isApartmentLiveIntentActive,
+  APARTMENT_DEFER_PRIORITY
+} from '../engine/streamIntent.js';
 
 export const STREAM_STEP = 10;
 /** Max priority that may gate ring expansion (streets…base veg). */
@@ -117,6 +121,19 @@ export class WorldStream {
     this.buildings = [];
     this._lastPumpNote = 0;
     this._lastWantsNote = 0;
+    this._lastAptsDeferNote = 0;
+  }
+
+  /** Apartment live-intent owns Valve — defer nature/carpet (prio ≥4). */
+  _shouldDeferLowPrioStream(priority = APARTMENT_DEFER_PRIORITY) {
+    if (priority < APARTMENT_DEFER_PRIORITY) return false;
+    if (!isApartmentLiveIntentActive()) return false;
+    const now = performance.now();
+    if (now - this._lastAptsDeferNote > 1500) {
+      noteDecision('Carregador', `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`);
+      this._lastAptsDeferNote = now;
+    }
+    return true;
   }
 
   addUrl(url, poses, options = {}, priority = 0) {
@@ -399,6 +416,7 @@ export class WorldStream {
     beginRing(radius);
 
     for (const priority of priorities) {
+      if (this._shouldDeferLowPrioStream(priority)) continue;
       setStreamLabel(`stream r${radius} p${priority}`);
       beginLoad('stream', `ring ${radius} prio ${priority}`);
       const toLoad = this.urlJobs.filter(
@@ -817,6 +835,8 @@ export class WorldStream {
       this.publishRemain();
       return 0;
     }
+    // Apartment Todos / live-intent owns the stream — do not pauseDraw-compile nature.
+    if (this._shouldDeferLowPrioStream(priority)) return 0;
     // Heap gate after empty-check so a full table cannot leave nature "running" forever.
     if (!memoryGuardian.wantsNatureLoad) return 0;
 
@@ -858,6 +878,8 @@ export class WorldStream {
       await yieldAfterWork();
     }
 
+    // Re-check: intent may have started between loads and reveal.
+    if (this._shouldDeferLowPrioStream(priority)) return work;
     if (this.renderer) this.renderer.pauseDraw();
     let passes = 0;
     for (const job of this.urlJobs) {
@@ -935,6 +957,8 @@ export class WorldStream {
       this.publishRemain();
       return 0;
     }
+    // Defer dense carpet while apartment live-intent owns the stream.
+    if (this._shouldDeferLowPrioStream(priority)) return 0;
     // Soft-cap must not leave carpet "running" when the small disk is already empty
     // (handled above). When work remains, wait for wantsLoad like other world growers.
     if (!memoryGuardian.wantsLoad) return 0;
@@ -983,6 +1007,7 @@ export class WorldStream {
       await yieldAfterWork();
     }
 
+    if (this._shouldDeferLowPrioStream(priority)) return work;
     if (this.renderer) this.renderer.pauseDraw();
     let passes = 0;
     for (const job of this.urlJobs) {

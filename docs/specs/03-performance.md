@@ -34,3 +34,9 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 - Warmup GPU antes de reveal
 - Predicted focus + phys pin real
 - Deletar leftovers de FPS-adapt em vez de novas personas
+
+## pauseDraw + stream ownership
+
+- WorldStream still uses `renderer.pauseDraw()` around nature / carpet / building ring compiles (avoid compile-via-draw).
+- While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
+- Hitch law still applies: wall frame >1000 ms during play/stream = bug (Travamentos observation only; no HOLD).

@@ -18,6 +18,7 @@ Sem ladder ao vivo por FPS. Hardware decide o FPS real.
 
 - Frame com **> 1000 ms** de wall time durante play/stream = **bug** (não “custo aceitável de carga”).
 - Travamentos listados no HUD são **observação**; não disparam HOLD nem mudam raio.
+- HUD mostra top **~50** hitches (carga e FPS), listas scrolláveis (`#hitch-load-hud` / `#play-hitch-hud`); memória guarda todos em `hitchEntries` (`window.__cityHitches` / `dumpLoadLog()`).
 
 ## O que medimos vs o que controlamos
 

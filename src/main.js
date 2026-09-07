@@ -239,8 +239,8 @@ async function startGame() {
 
     if ((hitchList || playHitchList) && getHitchRevision() !== shownHitchRev) {
       shownHitchRev = getHitchRevision();
-      renderHitchList(hitchList, getTopLoadHitches(12));
-      renderHitchList(playHitchList, getTopPlayHitches(12));
+      renderHitchList(hitchList, getTopLoadHitches(50));
+      renderHitchList(playHitchList, getTopPlayHitches(50));
     }
     if (fpsSacredStats) {
       const s = getSessionStats();

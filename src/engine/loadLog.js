@@ -276,7 +276,7 @@ function isFreshStreamWork(e) {
   );
 }
 
-export function getTopHitches(limit = 8, kind = 'all') {
+export function getTopHitches(limit = 50, kind = 'all') {
   let rows = hitchEntries;
   if (kind === 'load') {
     // Boot / pre-interactive, or stream work still attributed to a load tag.
@@ -293,12 +293,12 @@ export function getTopHitches(limit = 8, kind = 'all') {
 }
 
 /** Loading hitches (boot / stream work). */
-export function getTopLoadHitches(limit = 8) {
+export function getTopLoadHitches(limit = 50) {
   return getTopHitches(limit, 'load');
 }
 
 /** FPS hitches after the session became interactive. */
-export function getTopPlayHitches(limit = 8) {
+export function getTopPlayHitches(limit = 50) {
   return getTopHitches(limit, 'play');
 }
 
@@ -370,4 +370,6 @@ export function dumpLoadLog() {
 
 if (typeof window !== 'undefined') {
   window.dumpLoadLog = dumpLoadLog;
+  /** Full in-memory hitch log (not just HUD top-N). */
+  window.__cityHitches = hitchEntries;
 }

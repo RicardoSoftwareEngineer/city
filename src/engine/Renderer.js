@@ -214,6 +214,16 @@ export class Renderer {
   }
 
   /**
+   * autoUpdate=false after resumeShadows — mark the map dirty when new casters
+   * stream/reveal so sidewalk trees etc. appear without waiting for a sun move.
+   */
+  requestShadowBake() {
+    if (!this.renderer.shadowMap.enabled) return;
+    this._forceShadowBake = true;
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
+  /**
    * Compile each Mesh/InstancedMesh under root that is not yet compiled.
    * By default pauses the game-loop draw so new programs cannot land in one
    * render(). Pass pause:false for small apartment rooms so a long

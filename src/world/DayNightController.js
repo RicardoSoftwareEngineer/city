@@ -283,6 +283,10 @@ export function createDayNightController(opts) {
     setPlaying,
     isPlaying,
     getSunDirection,
+    /** New casters / scrub — next apply() sets shadowMap.needsUpdate. */
+    requestShadowBake() {
+      forceShadowBake = true;
+    },
     /** Hours in [0, 24). */
     getHours() {
       return t * 24;

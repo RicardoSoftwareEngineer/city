@@ -8,16 +8,18 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 
 - **MUST** janelas = vidro transparente real (não FakeInterior emissive).
 - **MUST** um room template; slots via **InstancedMesh** (não Mesh clones); on-demand only.
-- **MUST** `liveTarget` default `'all'` / **Todos** = `want = ranked.length` — full interior + cortina OPEN por slot.
+- **MUST** `liveTarget` default `'all'` / **Todos** = `want = ranked.length` — stream upgrades shells to full open interiors (curtain snap-hide on ready).
+- **MUST** every registered facade window slot **without** a ready/open interior show a **visible closed sheer curtain** (Fabric 203 shared InstancedMesh) outside the glass — including idle, waiting-in-pump, and heap-demoted slots. Never blank white/black holes.
 - **MUST** stream pump (`throughValve` + yields) owns pacing — nunca for-loop sync no click.
 - **MUST** `applyWindowGlass` (~0.09 Physical) + `stripKitInteriorShell` antes de `mergeBuilding`.
 - **MUST** slots pré-merge de `MI_FakeInterior*` → `userData.apartmentSlots`; opening faces local −Z.
 - **MUST** cortinas fora do vidro (−Z); open/close via instance **scale** (0 = hidden) — nunca mutar opacity shared.
 - **MUST** closed / curtain-only shells = shared InstancedMesh sheer (ShareTextures Fabric 203, CC0) with color+normal+roughness+**alphaMap** (opacity) — translucency for light/silhouettes; one material for all instances.
+- **MUST** shell intent live in `ApartmentDirector` (`_ensureFacadeShells` / `_stripToCurtainOnly`) — not scattered per-slot flags.
 - **MUST** sem per-room `PointLight` (emissive baked); compile `pause: false`; warm room+curtain **uma vez**.
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
 - **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique furniture por unit; dispose shared curtain geo/mat no teardown.
-- Heap ≥0.6/≥0.72: unload farthest (full dispose) — preferir a cortinas fechadas na facade Todos.
+- Heap ≥0.6/≥0.72: demote farthest full interiors → **curtain-only** shells (keep sheer visible).
 
 ## Knobs
 
@@ -25,7 +27,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 |------|-------|-------|
 | `liveTarget` | `number` \| `'all'` (default) | HUD `#apts-budget` |
 | Glass opacity | ~0.09 | Shared Physical |
-| Curtain | idle → loading (closed) → ready (snap-hide) → open | Scale only; Fabric 203 sheer + alphaMap |
+| Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer + alphaMap |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.

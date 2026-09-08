@@ -15,6 +15,7 @@ const STORAGE_KEY = 'city.qualityPreset';
  * @property {PresetId} id
  * @property {string} label
  * @property {number} radius           Fixed residency radius (streets/veg/buildings)
+ * @property {number} playCoreRadius   Near disk for load-tile / Foco completo (gate outer rings)
  * @property {number} softCap          Soft resident table cap (non-terrain)
  * @property {number} instanceBatch
  * @property {number} chunk
@@ -32,8 +33,9 @@ export const PRESETS = {
   ultra: {
     id: 'ultra',
     label: 'Ultra',
-    // Generous Guardian max — Witcher-3-ultra class HW should not hitch from our knobs.
-    radius: 900,
+    // Smaller play circle + playCore gate (spec 02); vista terrain still fence-scale.
+    radius: 480,
+    playCoreRadius: 160,
     softCap: 280,
     instanceBatch: 32,
     chunk: 16,
@@ -49,6 +51,7 @@ export const PRESETS = {
     id: 'simple',
     label: 'Simples',
     radius: 220,
+    playCoreRadius: 100,
     softCap: 140,
     instanceBatch: 12,
     chunk: 4,

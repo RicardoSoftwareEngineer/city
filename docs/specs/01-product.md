@@ -13,6 +13,7 @@ Jogador em **português** (HUD, boot gate, Fila do foco). IDs técnicos em ingl�
 - **Cidade centrada** no mapa; asfalto / calçadas MegaKit inalterados na área paved.
 - **Jogável antes do mundo terminar** — idle com phys + shell; após *Começar*, o mundo sobe em streaming (sem exigir tela preta).
 - Presets fixos: **Ultra** (padrão) e **Simples**. Sem adaptação contínua por FPS.
+- **Stable FPS > high FPS** — meta de play: célula focusGrid → próxima a ≥30 FPS estável (ver `02-loading.md` / `03-performance.md`).
 
 ## Não-objetivos
 

@@ -4,6 +4,7 @@
  * Then streets → props → bank → buildings → countryside veg (prio ≤4).
  * Dense carpet (prio 5) is background-only — never blocks radius expansion
  * or Foco pronto (optional HUD line only).
+ * Foco completo = playCore disk (load tile); outer rings unlock after that.
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -19,10 +20,13 @@ import { beginLoad, clearLoadTag, dumpLoadLog, setStreamLabel, getInteractive } 
 import { phaseIdForPriority, ensureLoadPhase, endLoadPhase } from '../engine/loadOrderLog.js';
 import {
   effectiveLoadRadius,
+  playCoreRadius,
   publishFocusRemain,
   armFocusRemain,
-  setNearTerrainReady
+  setNearTerrainReady,
+  isOuterUnlocked
 } from '../engine/focusRemain.js';
+import { demoteMaps, upgradeMaps, demoteUpgradedUnderPressure } from './placeholderMaps.js';
 import { beginRing, endRing, measureRingItem, measureRingItemSync, recordRingItem } from '../engine/ringLoadLog.js';
 import { castOpts } from './shadowPolicy.js';
 import { noteDecision } from '../engine/personaLog.js';
@@ -277,34 +281,46 @@ export class WorldStream {
   }
 
   /**
-   * Build numbered remaining list for HUD (current focus residency / vista).
-   * Core = terrain vista + streets + furniture + bank + buildings + nature prio≤4.
-   * Dense carpet (prio 5) is optional background — never blocks Foco pronto.
+   * Build numbered remaining list for HUD (current focus load tile).
+   * Core Fila = playCore disk only (terrain near + streets…nature prio≤4).
+   * Outer annulus (playCore→effectiveLoadRadius) + dense carpet = optional.
+   * Foco completo unlocks outer rings without flipping the play bar back to loading.
    */
   computeFocusRemain() {
     const focus = memoryGuardian.focus;
-    const radius = effectiveLoadRadius();
-    const carpetR = Math.min(CARPET_REVEAL_RADIUS, radius);
+    const coreR = playCoreRadius();
+    const loadR = effectiveLoadRadius();
+    const carpetR = Math.min(CARPET_REVEAL_RADIUS, loadR);
     const items = [];
     const optional = [];
     let total = 0;
     let done = 0;
 
-    let terrainPending = 0;
+    let terrainNear = 0;
+    let terrainFar = 0;
     let terrainDone = 0;
     for (const t of this.tasks) {
       if (t.kind !== 'terrain' || t.x == null) continue;
       if (!memoryGuardian.allowsTerrainAt(t.x, t.z)) continue;
-      if (t.done) terrainDone += 1;
-      else terrainPending += 1;
+      if (t.done) {
+        terrainDone += 1;
+        continue;
+      }
+      const d = chebyshev(t.x, t.z, focus.x, focus.z);
+      if (d <= coreR + 0.01) terrainNear += 1;
+      else terrainFar += 1;
     }
     done += terrainDone;
-    if (terrainPending) {
-      items.push({ label: 'Terreno tiles na vista', count: terrainPending });
-      total += terrainPending;
+    if (terrainNear) {
+      items.push({ label: 'Terreno perto (célula)', count: terrainNear });
+      total += terrainNear;
+    }
+    if (terrainFar) {
+      optional.push({ label: 'Terreno vista (fundo)', count: terrainFar });
     }
 
     const urlByLabel = new Map();
+    const urlOuter = new Map();
     let carpetUrlLoads = 0;
     for (const job of this.urlJobs) {
       if (job.grower) continue;
@@ -312,29 +328,37 @@ export class WorldStream {
         if (minPoseDist(job.poses, focus.x, focus.z) <= carpetR) carpetUrlLoads += 1;
         continue;
       }
-      if (minPoseDist(job.poses, focus.x, focus.z) > radius) continue;
+      const d = minPoseDist(job.poses, focus.x, focus.z);
+      if (d > loadR) continue;
       const label = `glTF ${jobLabel(job)}`;
-      urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+      if (d <= coreR) urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+      else urlOuter.set(label, (urlOuter.get(label) || 0) + 1);
     }
     for (const job of this.templateJobs) {
       if (job.grower) continue;
-      if (minPoseDist(job.poses, focus.x, focus.z) > radius) continue;
+      const d = minPoseDist(job.poses, focus.x, focus.z);
+      if (d > loadR) continue;
       const label = 'template (postes/etc.)';
-      urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+      if (d <= coreR) urlByLabel.set(label, (urlByLabel.get(label) || 0) + 1);
+      else urlOuter.set(label, (urlOuter.get(label) || 0) + 1);
     }
     for (const [label, count] of urlByLabel) {
       items.push({ label, count });
       total += count;
+    }
+    for (const [label, count] of urlOuter) {
+      optional.push({ label: `${label} (anel)`, count });
     }
     if (carpetUrlLoads) {
       optional.push({ label: 'glTF carpet (fundo)', count: carpetUrlLoads });
     }
 
     const poseByPrio = new Map();
-    const bumpPose = (priority, n) => {
+    const poseOuter = new Map();
+    const bumpPose = (map, priority, n) => {
       if (n <= 0) return;
       const label = `poses ${PRIO_LABEL[priority] || `p${priority}`}`;
-      poseByPrio.set(label, (poseByPrio.get(label) || 0) + n);
+      map.set(label, (map.get(label) || 0) + n);
     };
     let carpetPoses = 0;
     for (const job of this.urlJobs) {
@@ -343,49 +367,78 @@ export class WorldStream {
         carpetPoses += job.grower.unrevealedNear?.(focus.x, focus.z, carpetR) || 0;
         continue;
       }
-      const n = job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
-      bumpPose(job.priority, n);
+      const near = job.grower.unrevealedNear?.(focus.x, focus.z, coreR) || 0;
+      bumpPose(poseByPrio, job.priority, near);
+      if (loadR > coreR + 0.01) {
+        const all = job.grower.unrevealedNear?.(focus.x, focus.z, loadR) || 0;
+        bumpPose(poseOuter, job.priority, Math.max(0, all - near));
+      }
     }
     for (const job of this.templateJobs) {
       if (!job.grower) continue;
-      const n = job.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
-      bumpPose(job.priority, n);
+      const near = job.grower.unrevealedNear?.(focus.x, focus.z, coreR) || 0;
+      bumpPose(poseByPrio, job.priority ?? 1, near);
+      if (loadR > coreR + 0.01) {
+        const all = job.grower.unrevealedNear?.(focus.x, focus.z, loadR) || 0;
+        bumpPose(poseOuter, job.priority ?? 1, Math.max(0, all - near));
+      }
     }
     for (const [label, count] of poseByPrio) {
       items.push({ label, count });
       total += count;
+    }
+    for (const [label, count] of poseOuter) {
+      optional.push({ label: `${label} (anel)`, count });
     }
     if (carpetPoses) {
       optional.push({ label: 'poses carpet', count: carpetPoses });
     }
 
     let bld = 0;
+    let bldOuter = 0;
     for (const b of this.buildings) {
       if (!b.sorted.length) continue;
-      const inFocus = b.sorted.filter(
-        (p) => chebyshev(p.x, p.z, focus.x, focus.z) <= radius + 0.01
+      const inCore = b.sorted.filter(
+        (p) => chebyshev(p.x, p.z, focus.x, focus.z) <= coreR + 0.01
       );
-      if (!inFocus.length) continue;
-      if (!b.grower) bld += inFocus.length;
-      else bld += b.grower.unrevealedNear?.(focus.x, focus.z, radius) || 0;
+      const inLoad = b.sorted.filter(
+        (p) => chebyshev(p.x, p.z, focus.x, focus.z) <= loadR + 0.01
+      );
+      if (!inLoad.length) continue;
+      if (!b.grower) {
+        bld += inCore.length;
+        bldOuter += Math.max(0, inLoad.length - inCore.length);
+      } else {
+        const near = b.grower.unrevealedNear?.(focus.x, focus.z, coreR) || 0;
+        const all = b.grower.unrevealedNear?.(focus.x, focus.z, loadR) || 0;
+        bld += near;
+        bldOuter += Math.max(0, all - near);
+      }
     }
     if (bld) {
       items.push({ label: 'Prédios restantes', count: bld });
       total += bld;
     }
+    if (bldOuter) {
+      optional.push({ label: 'Prédios (anel)', count: bldOuter });
+    }
 
     let taskPend = 0;
+    let taskOuter = 0;
     for (const t of this.tasks) {
       if (t.done || t.kind === 'terrain') continue;
-      if (t.dist > radius) continue;
-      taskPend += 1;
+      if (t.dist > loadR) continue;
+      if (t.dist <= coreR) taskPend += 1;
+      else taskOuter += 1;
     }
     if (taskPend) {
       items.push({ label: 'Tasks (banco/etc.)', count: taskPend });
       total += taskPend;
     }
+    if (taskOuter) {
+      optional.push({ label: 'Tasks (anel)', count: taskOuter });
+    }
 
-    // Rough done counter: revealed core poses + finished terrain in scope.
     for (const job of this.urlJobs) {
       if (job.priority === STREAM_PRIORITY_CARPET) continue;
       if (job.grower?.revealed) done += job.grower.revealed;
@@ -402,7 +455,22 @@ export class WorldStream {
 
   publishRemain() {
     setNearTerrainReady(this.hasNearTerrainProgress());
+    demoteUpgradedUnderPressure();
     return publishFocusRemain(this.computeFocusRemain());
+  }
+
+  /** Load glTF, demote maps to shared placeholder when textured (Pareto two-stage). */
+  async _loadStreamTemplate(url, options) {
+    const template = await loadGltf(url, options);
+    if (template && !options?.useLambert) demoteMaps(template);
+    return template;
+  }
+
+  async _upgradeStreamTemplate(template) {
+    if (!template?.userData?._mapsDemoted) return;
+    await throughValve(() => {
+      upgradeMaps(template);
+    });
   }
 
   async pumpTo(radius, maxPriority = 5) {
@@ -477,12 +545,13 @@ export class WorldStream {
         job.loading = true;
         try {
           const template = await measureRingItem(job.url, () =>
-            throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
+            throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
           );
           if (template && typeof job.options.prepare === 'function') {
             await throughValve(async () => { job.options.prepare(template); });
           }
           const tGrow = performance.now();
+          if (template) job._streamTemplate = template;
           job.grower = template
             ? createGrowingInstancedGltf(
               this.parent,
@@ -498,6 +567,7 @@ export class WorldStream {
             await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
               throughValve(() => job.grower.warmup(this.renderer))
             );
+            await this._upgradeStreamTemplate(job._streamTemplate);
           }
           registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
         } finally {
@@ -510,6 +580,10 @@ export class WorldStream {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
         if (minPoseDist(job.poses, focus.x, focus.z) > loadR) continue;
+        if (job.template && !job._streamTemplate) {
+          demoteMaps(job.template);
+          job._streamTemplate = job.template;
+        }
         await throughValve(async () => {
           measureRingItemSync('template instancer', () => {
             job.grower = createGrowingInstancedGltf(
@@ -526,6 +600,7 @@ export class WorldStream {
           await measureRingItem('warmup template', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );
+          await this._upgradeStreamTemplate(job._streamTemplate);
         }
         {
           const c = posesCentroid(job.poses);
@@ -622,11 +697,13 @@ export class WorldStream {
         clearLoadTag();
         await yieldAfterWork();
         if (!template) continue;
+        demoteMaps(template);
         if (b.heavy) {
           clearLoadTag();
           await yieldToMain();
         }
         b.template = template;
+        b._streamTemplate = template;
         await throughValve(async () => {
           measureRingItemSync(`instancer ${b.url || b.name || 'building'}`, () => {
             b.grower = createGrowingInstancedGltf(
@@ -647,6 +724,7 @@ export class WorldStream {
           await measureRingItem(`warmup ${b.name || b.url || 'building'}`, () =>
             throughValve(() => b.grower.warmup(this.renderer))
           );
+          await this._upgradeStreamTemplate(b._streamTemplate);
         }
         registerGrowerResident(`bld:${b.name || b.url || 'building'}`, 'building', b.sorted, b);
         await yieldToMain();
@@ -890,11 +968,12 @@ export class WorldStream {
       job.loading = true;
       try {
         const template = await measureRingItem(job.url, () =>
-          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
+          throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
         );
         if (template && typeof job.options.prepare === 'function') {
           await throughValve(async () => { job.options.prepare(template); });
         }
+        if (template) job._streamTemplate = template;
         job.grower = template
           ? createGrowingInstancedGltf(
             this.parent,
@@ -909,6 +988,7 @@ export class WorldStream {
           await measureRingItem('warmup nature', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );
+          await this._upgradeStreamTemplate(job._streamTemplate);
         }
         registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
         work += 1;
@@ -1014,7 +1094,7 @@ export class WorldStream {
       job.loading = true;
       try {
         const template = await measureRingItem(job.url, () =>
-          throughValve(() => loadGltf(job.url, zoneAwareOptions(job.options, job.poses)))
+          throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
         );
         if (template && typeof job.options.prepare === 'function') {
           await throughValve(async () => { job.options.prepare(template); });
@@ -1025,6 +1105,7 @@ export class WorldStream {
           firstBatchSize: 2,
           maxBatchSize: 4
         };
+        if (template) job._streamTemplate = template;
         job.grower = template
           ? createGrowingInstancedGltf(
             this.parent,
@@ -1039,6 +1120,7 @@ export class WorldStream {
           await measureRingItem('warmup carpet', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );
+          await this._upgradeStreamTemplate(job._streamTemplate);
         }
         registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
         work += 1;
@@ -1104,6 +1186,7 @@ export class WorldStream {
   async continueAfter(radius) {
     const core = STREAM_PRIORITY_CORE;
     // Terrain + nature + carpet already run on their own loops; this only expands core rings.
+    // playCore first (load tile); outer rings only after Foco completo (spec 02).
     armFocusRemain();
     this.startTerrainBackground();
     this.startNatureBackground();
@@ -1111,26 +1194,38 @@ export class WorldStream {
     await this.pumpTo(Math.min(radius, effectiveLoadRadius()), core);
     let r = Math.min(radius, effectiveLoadRadius());
     let dumped = false;
+    let sawOuter = isOuterUnlocked();
 
     for (;;) {
       this.publishRemain();
       const remain = this.computeFocusRemain();
       const cap = effectiveLoadRadius();
-      // Clamp ring cursor to fixed preset / Guardian cap.
+      // Clamp ring cursor when playCore re-locks on cell change, or outer unlocks.
       if (r > cap) r = cap;
+      if (isOuterUnlocked() && !sawOuter) {
+        sawOuter = true;
+        // Do not dump the whole outer ring in one pump — step from playCore.
+        r = Math.min(r, playCoreRadius());
+      }
+      if (!isOuterUnlocked()) sawOuter = false;
 
-      // Nothing left in residency — close phases, do not expand.
+      // playCore Fila empty — step outer rings after unlock; else close phases at cap.
       if (remain.total === 0) {
-        this.endIdleCorePhases(cap, core);
-        if (!dumped) {
-          dumpLoadLog();
-          dumped = true;
+        if (isOuterUnlocked() && r < cap && memoryGuardian.wantsLoad) {
+          r = Math.min(r + STREAM_STEP, cap);
+          await this.pumpTo(r, core);
+        } else {
+          this.endIdleCorePhases(cap, core);
+          if (!dumped) {
+            dumpLoadLog();
+            dumped = true;
+          }
         }
         await yieldToMain();
         continue;
       }
 
-      // Expand toward fixed cap while wantsLoad; end idle phases under soft-cap.
+      // Expand toward playCore (or full R once unlocked) while wantsLoad.
       if (memoryGuardian.wantsLoad) {
         if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);

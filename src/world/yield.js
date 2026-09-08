@@ -1,10 +1,13 @@
 /**
  * Cooperative yields for streaming — NO FPS HOLD / pauseDraw valve.
- * Hard per-frame stream CPU budget (preset budgetMs). throughValve / createBudget
- * spend against a shared frame budget and yield when spent.
+ * Hard per-frame stream CPU budget (preset budgetMs) PLUS play-frame leftover
+ * admission: while interactive, do not start stream work when recent wall
+ * frameMs EMA is already >= PLAY_STREAM_HEADROOM_MS (~28ms). Observation-gated
+ * yield only — never pauseDraw HOLD / adaptive valve.
  */
 
-import { loadGovernor } from '../engine/LoadGovernor.js';
+import { loadGovernor, PLAY_STREAM_HEADROOM_MS } from "../engine/LoadGovernor.js";
+import { getInteractive } from "../engine/loadLog.js";
 
 /** Optional draw pause hooks (compileSubtree / legacy). Valve no longer uses them for FPS. */
 let drawPauseDepth = 0;
@@ -49,11 +52,24 @@ export function isStreamBudgetSpent() {
   return frameBudgetSpent >= loadGovernor.budgetMs;
 }
 
+/**
+ * Interactive leftover gate: recent frames already near the 30fps budget means
+ * no more stream CPU this display frame. Boot / pre-interactive always admits.
+ */
+export function isPlayLeftoverTight() {
+  if (!getInteractive()) return false;
+  return loadGovernor.frameMsEma >= PLAY_STREAM_HEADROOM_MS;
+}
+
+export function isStreamAdmissionClosed() {
+  return isStreamBudgetSpent() || isPlayLeftoverTight();
+}
+
 /** Attribute wall time since last mark into the shared spend, then yield if over. */
 export async function respectStreamBudget() {
   const wall = performance.now() - frameBudgetMark;
   if (wall > frameBudgetSpent) frameBudgetSpent = wall;
-  if (!isStreamBudgetSpent()) return;
+  if (!isStreamAdmissionClosed()) return;
   await yieldToMain();
 }
 
@@ -120,10 +136,13 @@ export function isValveHoldDeferred() {
 }
 
 /**
- * Stream admission — respect hard frame budget; never HOLD for FPS.
+ * Stream admission — hard budgetMs + interactive leftover headroom; never HOLD for FPS.
  */
 export async function throughValve(fn) {
-  await respectStreamBudget();
+  // Spin-yield until this display frame has leftover (or boot). Keeps presenting.
+  while (isStreamAdmissionClosed()) {
+    await yieldToMain();
+  }
   const t0 = performance.now();
   try {
     return await fn();
@@ -142,7 +161,7 @@ export function createSlice(budgetMs = 3) {
     async tick(force = false) {
       const spent = performance.now() - start;
       noteStreamSpend(spent);
-      if (!force && spent < budgetMs && !isStreamBudgetSpent()) return;
+      if (!force && spent < budgetMs && !isStreamAdmissionClosed()) return;
       await yieldToMain();
       start = performance.now();
     }

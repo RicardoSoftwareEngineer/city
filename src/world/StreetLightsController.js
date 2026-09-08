@@ -6,6 +6,7 @@
  *   down toward the roadway so asphalt/sidewalk get a warm wash cone.
  * - Lights never castShadow (poles may).
  * - Tunables via DEFAULT_PARAMS / setParams / window.__cityStreetLights.
+ * - Study HUD: enabledSpot / enabledPoint / enabledEmissive gate contributions.
  */
 
 import * as THREE from 'three';
@@ -18,6 +19,7 @@ import {
 const BULB_RAW = { x: -0.05, y: 79.05, z: 0 };
 
 const MAX_ACTIVE = 6;
+const SLOT_CAP = 8;
 const REFOCUS_EPS = 4;
 const REFOCUS_EPS_SQ = REFOCUS_EPS * REFOCUS_EPS;
 
@@ -40,7 +42,10 @@ export const DEFAULT_PARAMS = Object.freeze({
   /** Meters from bulb toward roadway (±X for N–S curb poles). */
   aimAlong: 6,
   groundY: -0.15,
-  maxLights: MAX_ACTIVE
+  maxLights: MAX_ACTIVE,
+  enabledSpot: true,
+  enabledPoint: true,
+  enabledEmissive: true
 });
 
 const _bulb = new THREE.Vector3();
@@ -52,9 +57,10 @@ export function createStreetLightsController(opts) {
   const scene = opts.scene;
   const params = { ...DEFAULT_PARAMS };
   if (opts.maxLights != null) {
-    params.maxLights = Math.max(1, Math.min(8, opts.maxLights | 0));
+    params.maxLights = Math.max(1, Math.min(SLOT_CAP, opts.maxLights | 0));
   }
-  const maxLights = params.maxLights;
+  // Always allocate SLOT_CAP so study HUD can raise maxLights live.
+  const slotCount = SLOT_CAP;
 
   /** @type {{ x: number, z: number, rot?: number, scale?: number, y?: number }[]} */
   let poses = [];
@@ -68,7 +74,7 @@ export function createStreetLightsController(opts) {
 
   /** @type {{ spot: THREE.SpotLight, point: THREE.PointLight }[]} */
   const slots = [];
-  for (let i = 0; i < maxLights; i++) {
+  for (let i = 0; i < slotCount; i++) {
     const spot = new THREE.SpotLight(
       params.color,
       0,
@@ -95,7 +101,7 @@ export function createStreetLightsController(opts) {
 
   function applyBulbEmissive() {
     const mats = getStreetlightBulbMaterials();
-    const mul = params.emissiveMul;
+    const mul = params.enabledEmissive ? params.emissiveMul : 0;
     for (let i = 0; i < mats.length; i++) {
       const mat = mats[i];
       const maxEi = mat.userData._streetBulbMaxEi ?? 1.25;
@@ -151,13 +157,27 @@ export function createStreetLightsController(opts) {
     }
     if (patch.aimAlong != null) params.aimAlong = Number(patch.aimAlong) || 0;
     if (patch.groundY != null) params.groundY = Number(patch.groundY) || 0;
+    if (patch.maxLights != null) {
+      const next = Math.max(1, Math.min(slots.length, patch.maxLights | 0));
+      if (next !== params.maxLights) {
+        params.maxLights = next;
+        forceRefocus = true;
+        if (hasFocus) {
+          pickNearest(lastFocusX, lastFocusZ);
+          forceRefocus = false;
+        }
+      }
+    }
+    if (patch.enabledSpot != null) params.enabledSpot = Boolean(patch.enabledSpot);
+    if (patch.enabledPoint != null) params.enabledPoint = Boolean(patch.enabledPoint);
+    if (patch.enabledEmissive != null) params.enabledEmissive = Boolean(patch.enabledEmissive);
     applyBulbEmissive();
     syncLights();
     return getParams();
   }
 
   function getParams() {
-    return { ...params, maxLights };
+    return { ...params };
   }
 
   function bulbWorld(pose, out) {
@@ -189,7 +209,7 @@ export function createStreetLightsController(opts) {
       scored[i] = { i, d: dx * dx + dz * dz };
     }
     scored.sort((a, b) => a.d - b.d);
-    const n = Math.min(maxLights, scored.length);
+    const n = Math.min(params.maxLights, slots.length, scored.length);
     activeIdx = new Array(n);
     for (let i = 0; i < n; i++) activeIdx[i] = scored[i].i;
   }
@@ -197,9 +217,9 @@ export function createStreetLightsController(opts) {
   function syncLights() {
     const on = nightFactor > 0.04;
     const col = params.color;
-    const spotI = params.intensity * nightFactor;
-    const pointI = params.pointIntensity * nightFactor;
-    const usePoint = params.pointIntensity > 0.01;
+    const spotI = (params.enabledSpot ? params.intensity : 0) * nightFactor;
+    const pointI = (params.enabledPoint ? params.pointIntensity : 0) * nightFactor;
+    const usePoint = params.enabledPoint && params.pointIntensity > 0.01;
 
     for (let i = 0; i < slots.length; i++) {
       const { spot, point } = slots[i];
@@ -220,7 +240,7 @@ export function createStreetLightsController(opts) {
       spot.penumbra = params.penumbra;
       spot.decay = params.decay;
       spot.intensity = spotI;
-      spot.visible = true;
+      spot.visible = params.enabledSpot && spotI > 0;
 
       // Aim down toward roadway (pole long axis faces street via pose.rot).
       const yaw = pose.rot ?? 0;
@@ -284,7 +304,7 @@ export function createStreetLightsController(opts) {
     update,
     dispose,
     get maxLights() {
-      return maxLights;
+      return params.maxLights;
     }
   };
 }

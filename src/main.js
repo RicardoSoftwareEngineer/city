@@ -40,6 +40,8 @@ import {
 import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
 import { createDayNightController } from './world/DayNightController.js';
+import { createStreetLightsController } from './world/StreetLightsController.js';
+import { bindCompassHud } from './engine/compassHud.js';
 import { ensureGroundAround, setTerrainPhysics, TERRAIN_TILE, GRID_OFFSET } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { ensureWhiteOrchardHeightmap } from './world/terrain/whiteOrchardHeight.js';
@@ -74,6 +76,9 @@ async function startGame() {
   });
   window.__cityDayNight = dayNight;
   const paintDayNightHud = bindDayNightHud(dayNight);
+  const streetLights = createStreetLightsController({ scene: renderer.scene, maxLights: 6 });
+  window.__cityStreetLights = streetLights;
+  const compassHud = bindCompassHud(renderer.camera);
 
   // ── Physics ─────────────────────────────────────────────────────────
   const physicsWorld = new PhysicsWorld();
@@ -242,6 +247,8 @@ async function startGame() {
   const gameLoop = new GameLoop((delta, elapsed) => {
     dayNight.tick(delta);
     if (dayNight.isPlaying()) paintDayNightHud();
+    streetLights.setNightFactor(dayNight.getNightFactor());
+    compassHud.update();
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
     apartmentDirector.update(delta);
@@ -256,6 +263,7 @@ async function startGame() {
     setFocusCellKey(focus.key);
     memoryGuardian.setFocus(focus.x, focus.z);
     memoryGuardian.tick();
+    streetLights.update(renderer.camera, focus);
     {
       const t0 = performance.now();
       const builtGround = ensureGroundAround(car.x, car.z);
@@ -455,6 +463,8 @@ async function startGame() {
 
     // Light jobs only — far veg/avenue/lakes wait for registerHeavyWorld.
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer, apartmentDirector);
+    streetLights.setPoses(stream.streetlightPoses || []);
+    streetLights.setNightFactor(dayNight.getNightFactor());
     await yieldToMain();
 
     // Progressive campo boot:

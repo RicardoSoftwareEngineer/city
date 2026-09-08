@@ -774,6 +774,87 @@ kbd {
   background: rgba(51, 65, 85, 0.95);
 }
 
+/* Compass — below Hora float; rose rotates, needle = look dir */
+#compass-hud.compass-hud {
+  position: fixed;
+  top: 318px;
+  right: 12px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  color: #e0f2fe;
+  background: rgba(12, 18, 28, 0.82);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  font: 600 10px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+#compass-hud .compass-ring {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: radial-gradient(circle at 50% 45%, rgba(30, 41, 59, 0.95), rgba(8, 12, 20, 0.98));
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.45);
+}
+#compass-hud .compass-rose {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+#compass-hud .compass-rose span {
+  position: absolute;
+  font: 700 11px/1 "Outfit", "Segoe UI", system-ui, sans-serif;
+  color: #94a3b8;
+}
+#compass-hud .compass-n {
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f87171;
+}
+#compass-hud .compass-s {
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#compass-hud .compass-l {
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+#compass-hud .compass-o {
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+#compass-hud .compass-needle {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 0;
+  height: 0;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 18px solid #f87171;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  z-index: 2;
+}
+#compass-hud .compass-deg {
+  font: 700 11px/1 "Outfit", "Segoe UI", system-ui, sans-serif;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
 
 #apts-house-hud {
   position: fixed;
@@ -953,6 +1034,7 @@ body.boot-idle #radius-rings-btn,
 body.boot-idle #clear-asset-cache-btn,
 body.boot-idle #quality-preset-float,
 body.boot-idle #day-night-float,
+body.boot-idle #compass-hud,
 body.boot-idle #apts-house-hud,
 body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,

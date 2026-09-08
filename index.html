@@ -44,6 +44,19 @@
     <button type="button" id="day-night-play" aria-pressed="false">Play</button>
   </div>
 
+  <div id="compass-hud" class="compass-hud" aria-label="Bússola">
+    <div class="compass-ring">
+      <div id="compass-rose" class="compass-rose">
+        <span class="compass-n" aria-hidden="true">N</span>
+        <span class="compass-s" aria-hidden="true">S</span>
+        <span class="compass-l" aria-hidden="true">L</span>
+        <span class="compass-o" aria-hidden="true">O</span>
+      </div>
+      <div class="compass-needle" aria-hidden="true"></div>
+    </div>
+    <span id="compass-deg" class="compass-deg">0°</span>
+  </div>
+
   <div id="quality-preset-float" class="quality-preset quality-preset-float" role="group" aria-label="Qualidade">
     <button type="button" class="quality-btn" data-quality-mirror="ultra" aria-pressed="true">Ultra</button>
     <button type="button" class="quality-btn" data-quality-mirror="simple" aria-pressed="false">Simples</button>

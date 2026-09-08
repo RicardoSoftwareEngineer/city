@@ -1,0 +1,10 @@
+lamp_post.glb
+------------
+Street lamp mesh used for downtown poles.
+
+Source: Quaternius-style / Sketchfab GLB supplied for this project.
+License: CC0 1.0 Universal (public domain dedication) — Quaternius assets are
+released as CC0; credit appreciated but not required.
+
+https://quaternius.com/
+https://creativecommons.org/publicdomain/zero/1.0/

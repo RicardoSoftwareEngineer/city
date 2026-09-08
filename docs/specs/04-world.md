@@ -27,7 +27,7 @@ Fence, orchard heightmap, biomes, vista tiles e downtown paved.
 World modules (biomes, terrain, city ground). Apartments → `05`.
 Sky / sun / moon / stars → `DayNightController` (product note in `01`; not a hitch knob). Moon disc uses NASA LROC 2k color map (`public/textures/moon/lroc_color_2k.jpg`). Ultra daytime shadows: light along `sunDir` at `LIGHT_DISTANCE` (not sky distance) so asphalt/sidewalk stay inside the ortho frustum.
 
-Starfield → `src/world/starfield.js`: embedded Yale BSC / Hipparcos bright-star subset (RA/Dec/mag/B−V), southern-heavy tilt (~23°S), spectral vertex colors, mag-based sizes, GPU twinkle via `PointsMaterial.onBeforeCompile` (no per-frame attribute writes), soft circular core + six diffraction spikes in the fragment (no square silhouette / no star texture), subtle constellation `LineSegments`, follows camera, fades with `nightFactor`, spins once per day with day/night `t` around the tilted NCP. **MUST NOT** Milky Way nebula texture / FPS HOLD cinema sky.
+Starfield → `src/world/starfield.js`: embedded Yale BSC / Hipparcos bright-star subset (RA/Dec/mag/B−V), southern-heavy tilt (~23°S), spectral vertex colors, mag-based sizes, GPU twinkle via `PointsMaterial.onBeforeCompile` (no per-frame attribute writes; `uTime` from `performance.now()`, stable uniform + min `gl_PointSize` so pan/aliasing does not blackout), soft circular core + six diffraction spikes in the fragment (no square silhouette / no star texture), subtle constellation `LineSegments`, follows camera, fades with `nightFactor`, spins once per day with day/night `t` around the tilted NCP. **MUST NOT** Milky Way nebula texture / FPS HOLD cinema sky.
 
 ## Same-PR rule
 

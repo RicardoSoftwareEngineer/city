@@ -1,6 +1,7 @@
 /**
  * Rich starfield — catalog Points (spectral color + size) + subtle constellation
- * lines + GPU twinkle. No Milky Way texture. Lean PointsMaterial + onBeforeCompile.
+ * lines + GPU twinkle (continuous clock, min point size, soft amp). No Milky Way.
+ * Lean PointsMaterial + onBeforeCompile; stable uTime across program rebuilds.
  *
  * Catalog: bright-star subset (BSC / Hipparcos-style RA/Dec/mag/B−V), southern-heavy
  * for Brazil (~23°S). Field stars fill the sphere (seeded, faint).
@@ -384,9 +385,13 @@ export function createStarfield(opts = {}) {
     blending: THREE.AdditiveBlending
   });
 
+  // Stable uniform object — rebind on every compile so stream program rebuilds
+  // do not drop uTime (looks like a full blackout + twinkle phase restart).
   const uTime = { value: 0 };
+  mat.userData.uTime = uTime;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uTime;
+    mat.userData.shader = shader;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -399,8 +404,9 @@ varying float vTwinkle;`
       )
       .replace(
         'gl_PointSize = size;',
-        /* glsl */ `vTwinkle = 0.72 + 0.28 * sin(uTime * aTwinkle + aPhase);
-gl_PointSize = size * aSize * (0.85 + 0.15 * vTwinkle);`
+        // Soft twinkle (never collapses) + min point size so pan/aliasing cannot drop stars.
+        /* glsl */ `vTwinkle = 0.88 + 0.12 * sin(uTime * aTwinkle + aPhase);
+gl_PointSize = max(size * aSize * (0.92 + 0.08 * vTwinkle), 2.0);`
       );
     // Soft circular core + 6 diffraction spikes (naked-eye style); kill square quad corners.
     shader.fragmentShader = shader.fragmentShader
@@ -421,7 +427,7 @@ if (shape < 0.01) discard;
 vec4 diffuseColor = vec4( diffuse, opacity * vTwinkle * shape );`
       );
   };
-  mat.customProgramCacheKey = () => 'starfield-twinkle-spikes6-v1';
+  mat.customProgramCacheKey = () => 'starfield-twinkle-spikes6-v2-stable';
 
   const points = new THREE.Points(geo, mat);
   points.name = 'starfieldPoints';
@@ -462,12 +468,19 @@ vec4 diffuseColor = vec4( diffuse, opacity * vTwinkle * shape );`
     catalogSource: 'Yale BSC / Hipparcos bright-star subset (embedded RA/Dec/mag/B−V)',
     setNightFactor(nf) {
       const o = Math.pow(THREE.MathUtils.clamp(nf, 0, 1), 1.35);
-      mat.opacity = o;
-      lineMat.opacity = o * 0.22;
+      // Avoid material churn every apply() when night factor is unchanged.
+      if (mat.opacity !== o) {
+        mat.opacity = o;
+        lineMat.opacity = o * 0.22;
+      }
       root.visible = nf > 0.02;
     },
     setTwinkleTime(t) {
       uTime.value = t;
+      const sh = mat.userData.shader;
+      if (sh && sh.uniforms && sh.uniforms.uTime) {
+        sh.uniforms.uTime.value = t;
+      }
     },
     /** Sidereal spin: one full turn per day around tilted NCP. */
     setSiderealTime(dayFraction) {

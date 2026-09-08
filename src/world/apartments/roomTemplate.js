@@ -4,8 +4,8 @@
  * emissive fill (no PointLight). ApartmentDirector stamps N instances → one
  * draw per material for all live rooms (≈10 draws total, not N meshes).
  *
- * Curtain: one shared PlaneGeometry + material for InstancedMesh (or thin mesh
- * warm). Visibility bar: bright emissive walls + near-glass silhouette.
+ * Curtain: one shared PlaneGeometry + Fabric 203 sheer material (InstancedMesh).
+ * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
 
 import * as THREE from 'three';
@@ -17,6 +17,15 @@ let baked = null;
 /** One curtain program for every slot (scaled per unit / instance). */
 let sharedCurtainMat = null;
 let sharedCurtainGeo = null;
+/** @type {boolean} */
+let curtainMapsStarted = false;
+
+const CURTAIN_MAP_URLS = {
+  color: '/textures/curtain/fabric203_color.png',
+  normal: '/textures/curtain/fabric203_normal.png',
+  rough: '/textures/curtain/fabric203_rough.png',
+  opacity: '/textures/curtain/fabric203_opacity.png'
+};
 
 function std(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
@@ -45,18 +54,86 @@ function pushBox(buckets, material, w, h, d, x, y, z) {
   buckets.get(material).push(geo);
 }
 
+/**
+ * Lazy-load ShareTextures Fabric 203 maps onto the shared curtain material.
+ * Non-blocking: solid cream fallback until maps arrive, then swap once.
+ */
+function ensureCurtainMaps() {
+  if (curtainMapsStarted || !sharedCurtainMat) return;
+  curtainMapsStarted = true;
+
+  const loader = new THREE.TextureLoader();
+  /** @type {{map?: THREE.Texture, normalMap?: THREE.Texture, roughnessMap?: THREE.Texture, alphaMap?: THREE.Texture}} */
+  const pending = {};
+  let remaining = 4;
+
+  const applyIfReady = () => {
+    remaining -= 1;
+    if (remaining > 0 || !sharedCurtainMat) return;
+    if (pending.map) {
+      pending.map.colorSpace = THREE.SRGBColorSpace;
+      sharedCurtainMat.map = pending.map;
+    }
+    if (pending.normalMap) {
+      pending.normalMap.colorSpace = THREE.NoColorSpace;
+      sharedCurtainMat.normalMap = pending.normalMap;
+      sharedCurtainMat.normalScale.set(0.55, 0.55);
+    }
+    if (pending.roughnessMap) {
+      pending.roughnessMap.colorSpace = THREE.NoColorSpace;
+      sharedCurtainMat.roughnessMap = pending.roughnessMap;
+    }
+    if (pending.alphaMap) {
+      pending.alphaMap.colorSpace = THREE.NoColorSpace;
+      sharedCurtainMat.alphaMap = pending.alphaMap;
+    }
+    sharedCurtainMat.needsUpdate = true;
+  };
+
+  const prep = (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    tex.anisotropy = 4;
+    return tex;
+  };
+
+  loader.load(CURTAIN_MAP_URLS.color, (tex) => {
+    pending.map = prep(tex);
+    applyIfReady();
+  }, undefined, applyIfReady);
+
+  loader.load(CURTAIN_MAP_URLS.normal, (tex) => {
+    pending.normalMap = prep(tex);
+    applyIfReady();
+  }, undefined, applyIfReady);
+
+  loader.load(CURTAIN_MAP_URLS.rough, (tex) => {
+    pending.roughnessMap = prep(tex);
+    applyIfReady();
+  }, undefined, applyIfReady);
+
+  loader.load(CURTAIN_MAP_URLS.opacity, (tex) => {
+    pending.alphaMap = prep(tex);
+    applyIfReady();
+  }, undefined, applyIfReady);
+}
+
 export function getSharedCurtainMaterial() {
   if (!sharedCurtainMat) {
+    // Warm cream tint — map color drives look once Fabric 203 loads.
     sharedCurtainMat = new THREE.MeshStandardMaterial({
-      color: 0x5b21b6,
-      roughness: 0.95,
+      color: 0xf3ebe0,
+      roughness: 0.88,
       metalness: 0,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.97,
+      opacity: 1,
+      alphaTest: 0.05,
       depthTest: true,
-      depthWrite: true
+      depthWrite: false
     });
+    ensureCurtainMaps();
   }
   return sharedCurtainMat;
 }

@@ -110,7 +110,7 @@ export function createDayNightController(opts) {
   scene.add(moonLight.target);
 
   const moonDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(18, 64, 48),
+    new THREE.SphereGeometry(18, 128, 96),
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
       fog: false,

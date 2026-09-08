@@ -2,15 +2,18 @@
  * Countryside tree LODs (Passo 14).
  * THREE.LOD per pose: full MegaKit near, simpler/far species beyond.
  * Streamed in budgeted chunks — never one giant InstancedMesh.
+ * loadGltf uses streamIntent.mayAdmitStreamWork(NATURE) + shouldAbort so
+ * mid-drive does not gltf:parse tree kits (same policy as Bush_* urlJobs).
  */
 
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
 import { castOpts, noCastOpts } from '../shadowPolicy.js';
-import { beginLoad } from '../../engine/loadLog.js';
+import { beginLoad, clearLoadTag } from '../../engine/loadLog.js';
 import { chebyshev } from '../instancing.js';
 import { yieldAfterWork, waitIfSlow } from '../yield.js';
 import { kitUrl, NATURE } from './kitUrls.js';
+import { mayAdmitStreamWork, STREAM_LANE } from '../../engine/streamIntent.js';
 
 const NEAR_DIST = 48;
 const FAR_DIST = 140;
@@ -52,6 +55,17 @@ function placeClone(template, pose, scaleMul = 1, cast = true) {
   return root;
 }
 
+async function loadNatureGltf(url, options) {
+  if (!mayAdmitStreamWork(STREAM_LANE.NATURE)) {
+    clearLoadTag();
+    return null;
+  }
+  return loadGltf(url, {
+    ...options,
+    shouldAbort: () => !mayAdmitStreamWork(STREAM_LANE.NATURE)
+  });
+}
+
 /**
  * Register tree LOD stream tasks (priority 4).
  * @param {import('../WorldStream.js').WorldStream} stream
@@ -82,11 +96,17 @@ export function registerTreeLods(stream, parentGroup, ox, oz, poses) {
       dist,
       priority: 4,
       run: async () => {
+        // false → WorldStream leaves task.done unset so we retry when parked.
+        if (!mayAdmitStreamWork(STREAM_LANE.NATURE)) return false;
         beginLoad('veg', `treeLod ${nearUrl.split('/').pop()}`);
         await waitIfSlow();
-        const nearTpl = await loadGltf(nearUrl, castOpts());
-        const farTpl = await loadGltf(farUrl, noCastOpts());
-        if (!nearTpl && !farTpl) return;
+        if (!mayAdmitStreamWork(STREAM_LANE.NATURE)) {
+          clearLoadTag();
+          return false;
+        }
+        const nearTpl = await loadNatureGltf(nearUrl, castOpts());
+        const farTpl = await loadNatureGltf(farUrl, noCastOpts());
+        if (!nearTpl && !farTpl) return false;
 
         for (let i = 0; i < bucket.length; i++) {
           const pose = bucket[i];

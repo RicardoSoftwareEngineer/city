@@ -4,15 +4,17 @@
  * Personas temporarily own the shared Valve budget — not an FPS HOLD / adaptive valve.
  *
  * 1) Apartment live-intent — defer nature + carpet (prio ≥4).
- * 2) Drive-moving — defer furniture / bank / buildings / nature / carpet (prio ≥1).
- *    Admit only prio 0 streets (+ terrain on its independent background pump).
- *    Blocks mid-drive Prop_Sign_* gltf:parse hitches. Smoothness > filling Fila.
+ * 2) Drive-moving — defer furniture / bank / buildings / nature / carpet (prio ≥1)
+ *    AND new countryside **terrain visual meshes** + nature glTF (bushes/trees).
+ *    Admit only prio 0 streets. Terrain **phys** stays on-demand via
+ *    ensureGroundAround (outside this policy). Prefer already-resident meshes /
+ *    placeholders while moving — smoothness > filling Fila / vista.
  *
  * WorldStream / yield / pumps ask these helpers; do not re-encode thresholds elsewhere.
  *
- * Admit is re-checked per urlJob (and before glTF parse after fetch/yield), not only
- * once at pumpTo entry — otherwise a drive that starts mid-pump still finishes
- * Prop_Sign_* gltf:parse on already-admitted furniture jobs.
+ * Admit is re-checked per urlJob / terrain tile (and before glTF parse after
+ * fetch/yield), not only once at pumpTo entry — otherwise a drive that starts
+ * mid-pump still finishes Prop_Sign_* / Bush_* gltf:parse on already-admitted jobs.
  */
 
 let apartmentLiveIntentDepth = 0;
@@ -35,9 +37,23 @@ export const APARTMENT_DEFER_PRIORITY = 4;
 
 /**
  * Drive-moving defers everything at or above this priority.
- * Only prio 0 streets (+ terrain bg) may run while moving.
+ * Only prio 0 streets may run on the ring pump while moving.
  */
 export const DRIVE_DEFER_PRIORITY = 1;
+
+/**
+ * Named stream lanes for mayAdmitStreamWork (single policy, not scattered flags).
+ * Numeric priorities still work; lanes cover work outside the prio ladder
+ * (terrain visual mesh bg) and make call sites self-describing.
+ */
+export const STREAM_LANE = Object.freeze({
+  STREETS: 0,
+  /** New countryside visual tiles (pumpTerrainSlice). Not phys colliders. */
+  TERRAIN_MESH: 'terrainMesh',
+  /** Base veg / trees / bushes (prio 4) + treeLod tasks. */
+  NATURE: 4,
+  CARPET: 5
+});
 
 /** Enter/exit hysteresis (m/s): ~4 km/h enter / ~1.4 km/h exit. */
 export const DRIVE_MOVE_ENTER_MPS = 1.2;
@@ -82,13 +98,37 @@ export function shouldDeferLowPrioStream(priority = DRIVE_DEFER_PRIORITY) {
   return priority >= deferredPriorityFloor();
 }
 
+function resolveAdmitPriority(priorityOrLane) {
+  if (typeof priorityOrLane === 'number' && Number.isFinite(priorityOrLane)) {
+    return priorityOrLane;
+  }
+  if (priorityOrLane === STREAM_LANE.NATURE || priorityOrLane === 'nature') {
+    return 4;
+  }
+  if (priorityOrLane === STREAM_LANE.CARPET || priorityOrLane === 'carpet') {
+    return 5;
+  }
+  if (priorityOrLane === STREAM_LANE.STREETS || priorityOrLane === 'streets') {
+    return 0;
+  }
+  return 0;
+}
+
 /**
- * Single positive admit gate for stream work at `priority`.
- * Use before starting urlJob/template/task/building loads and again after
- * cooperative yields (fetch → parse) so deferred lanes never begin gltf:parse.
+ * Single positive admit gate for stream work.
+ * @param {number|string} [priorityOrLane=0] ring priority, or STREAM_LANE.* /
+ *   'terrainMesh' | 'nature' | 'carpet' | 'streets'
+ * Use before starting urlJob/template/task/building/terrain-mesh loads and again
+ * after cooperative yields (fetch → parse) so deferred lanes never begin gltf:parse.
+ *
+ * `terrainMesh`: new visual countryside tiles — deferred while drive-moving only
+ * (apartment may still fill vista). Phys colliders are outside this gate.
  */
-export function mayAdmitStreamWork(priority = 0) {
-  return !shouldDeferLowPrioStream(priority);
+export function mayAdmitStreamWork(priorityOrLane = 0) {
+  if (priorityOrLane === STREAM_LANE.TERRAIN_MESH || priorityOrLane === 'terrainMesh') {
+    return !isDriveMovingActive();
+  }
+  return !shouldDeferLowPrioStream(resolveAdmitPriority(priorityOrLane));
 }
 
 /**
@@ -122,7 +162,7 @@ export function driveTinyAdmit() {
  */
 export function streamDeferDecisionLabel() {
   if (isDriveMovingActive()) {
-    return `defer prio≥${DRIVE_DEFER_PRIORITY} (drive moving)`;
+    return `defer prio≥${DRIVE_DEFER_PRIORITY}+terrainMesh (drive moving)`;
   }
   if (isApartmentLiveIntentActive()) {
     return `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`;

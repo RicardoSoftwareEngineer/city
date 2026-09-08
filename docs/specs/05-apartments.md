@@ -13,6 +13,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 - **MUST** `applyWindowGlass` (~0.09 Physical) + `stripKitInteriorShell` antes de `mergeBuilding`.
 - **MUST** slots pré-merge de `MI_FakeInterior*` → `userData.apartmentSlots`; opening faces local −Z.
 - **MUST** cortinas fora do vidro (−Z); open/close via instance **scale** (0 = hidden) — nunca mutar opacity shared.
+- **MUST** closed / curtain-only shells = shared InstancedMesh sheer (ShareTextures Fabric 203, CC0) with color+normal+roughness+**alphaMap** (opacity) — translucency for light/silhouettes; one material for all instances.
 - **MUST** sem per-room `PointLight` (emissive baked); compile `pause: false`; warm room+curtain **uma vez**.
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
 - **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique furniture por unit; dispose shared curtain geo/mat no teardown.
@@ -24,7 +25,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 |------|-------|-------|
 | `liveTarget` | `number` \| `'all'` (default) | HUD `#apts-budget` |
 | Glass opacity | ~0.09 | Shared Physical |
-| Curtain | idle → loading (closed) → ready (snap-hide) → open | Scale only |
+| Curtain | idle → loading (closed) → ready (snap-hide) → open | Scale only; Fabric 203 sheer + alphaMap |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.

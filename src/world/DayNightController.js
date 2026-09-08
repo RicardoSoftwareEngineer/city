@@ -9,14 +9,15 @@
  *   1.00 = midnight again
  *
  * Elevation = sin((t − 0.25) · 2π) · 90° — matches the labels above.
- * Owns Sky dome, sun/moon DirectionalLights, HemisphereLight, star Points,
- * toneMappingExposure. No PMREM. No @takram/three-atmosphere.
+ * Owns Sky dome, sun/moon DirectionalLights, HemisphereLight, rich starfield
+ * (catalog Points + constellation lines), toneMappingExposure. No PMREM.
+ * No @takram/three-atmosphere. No Milky Way nebula.
  */
 
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { createStarfield } from './starfield.js';
 
-const STAR_COUNT = 3000;
 const SKY_SCALE = 4500;
 /** Sky dome sunPosition distance (visual only). */
 const SUN_DISTANCE = 400;
@@ -132,8 +133,10 @@ export function createDayNightController(opts) {
     }
   );
 
-  const stars = buildStarfield(STAR_COUNT);
+  const starfield = createStarfield({ radius: SKY_SCALE * 0.42 });
+  const stars = starfield.root;
   scene.add(stars);
+  let twinkleTime = 0;
 
   let t = DEFAULT_T;
   let playing = false;
@@ -164,6 +167,10 @@ export function createDayNightController(opts) {
   function tick(dt) {
     if (playing && dt > 0 && Number.isFinite(dt)) {
       t = (t + dt / daySeconds) % 1;
+    }
+    if (dt > 0 && Number.isFinite(dt)) {
+      twinkleTime += dt;
+      starfield.setTwinkleTime(twinkleTime);
     }
     apply();
   }
@@ -255,11 +262,8 @@ export function createDayNightController(opts) {
     moonDisc.visible = nightFactor > 0.05;
     moonDisc.material.opacity = Math.min(1, nightFactor * 1.2);
 
-    if (stars.material) {
-      stars.material.opacity = Math.pow(nightFactor, 1.35);
-      stars.visible = nightFactor > 0.02;
-    }
-    if (camera) stars.position.copy(camera.position);
+    starfield.setNightFactor(nightFactor);
+    if (camera) starfield.followCamera(camera);
 
     // Exposure: brighter noon, darker night (ACES kept on renderer).
     renderer.toneMappingExposure = 0.55 + dayFactor * 0.55;
@@ -275,6 +279,7 @@ export function createDayNightController(opts) {
     moonLight,
     hemi,
     stars,
+    starfield,
     setTime,
     getTime,
     tick,
@@ -294,34 +299,3 @@ export function createDayNightController(opts) {
   };
 }
 
-function buildStarfield(count) {
-  const positions = new Float32Array(count * 3);
-  const radius = SKY_SCALE * 0.42;
-  for (let i = 0; i < count; i++) {
-    // Upper hemisphere bias — few stars near the ground ring.
-    const u = Math.random();
-    const v = Math.random();
-    const theta = u * Math.PI * 2;
-    const phi = Math.acos(1 - v * 0.92);
-    const r = radius * (0.92 + Math.random() * 0.08);
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi);
-    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({
-    color: 0xdbeafe,
-    size: 2.2,
-    sizeAttenuation: false,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    fog: false
-  });
-  const points = new THREE.Points(geo, mat);
-  points.name = 'starfield';
-  points.frustumCulled = false;
-  points.renderOrder = -1;
-  return points;
-}

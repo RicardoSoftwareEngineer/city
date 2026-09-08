@@ -1,7 +1,13 @@
 /**
  * On-demand apartment interiors + curtain overlays for downtown facades.
  * Buildings stay InstancedMesh; live rooms/curtains are InstancedMesh too
- * (one draw per room material + one curtain draw for all live slots).
+ * (one draw per room material + one curtain draw for all slots).
+ *
+ * Intent:
+ * - Shell: every registered facade slot has a closed sheer curtain instance
+ *   until a full interior is ready (then curtain snap-hides via scale 0).
+ * - Live: stream pump upgrades shells → rooms up to liveTarget / heap cap;
+ *   demotion strips back to curtain-only (never blank glass).
  */
 
 import * as THREE from 'three';
@@ -22,7 +28,7 @@ import { noteDecision } from '../../engine/personaLog.js';
 /** Spec 05 — numeric fallback / heap demotion floor (HUD can change liveTarget). */
 export const MAX_LOADED = 3;
 /** Absolute fallback when facade length unknown. */
-const ALL_CEILING = 256;
+const ALL_CEILING = 2048;
 /** Heap pressure → demote live full-interior cap (MemoryGuardian-friendly). */
 const HEAP_DEMOTE = 0.72;
 const HEAP_SOFT_DEMOTE = 0.6;
@@ -245,6 +251,8 @@ export class ApartmentDirector {
     this._roomInstancers = null;
     /** @type {THREE.InstancedMesh|null} */
     this._curtainInstancer = null;
+    /** @type {Promise<void>|null} serializes first instancer create (many registerFacade). */
+    this._instancersReady = null;
     this._instanceCapacity = ALL_CEILING;
     /** @type {number[]} */
     this._freeInstanceIds = [];
@@ -268,6 +276,8 @@ export class ApartmentDirector {
       height,
       centerZ
     });
+    // Closed sheer shells ASAP so reveal never leaves blank glass holes.
+    void this._ensureFacadeShells(facadeId).catch(() => {});
     // Auto-mark first Large so the house appears without waiting for the Interiores HUD.
     if (!this._houseFacadeId && /Large/i.test(facadeId)) {
       this.markFacadeHouse(facadeId);
@@ -333,7 +343,7 @@ export class ApartmentDirector {
   /**
    * Stream-owned full-interior cap for the active intent.
    * `'all'` / Todos → every window slot (ranked.length), then MemoryGuardian
-   * heap demotion may temporarily shrink (unload farthest — not curtain shells).
+   * heap demotion may temporarily shrink (strip farthest rooms → curtain shells).
    */
   _effectiveLiveCap(facadeId = null) {
     const f = facadeId ? this.facades.get(facadeId) : null;
@@ -356,7 +366,9 @@ export class ApartmentDirector {
    * Set live-interior **intent** for a facade. Does not slam every slot on the
    * click — a stream pump applies with LoadGovernor frame budget + yields
    * (same persona as streets/nature). `'all'` / Todos = every slot a full
-   * open interior (stream-paced); heap demotion unloads farthest if needed.
+   * open interior (stream-paced); waiting / demoted slots keep closed sheer
+   * curtain shells (never blank glass). Heap demotion strips farthest to
+   * curtain-only.
    * @param {string} facadeId
    * @param {number|'all'} count
    */
@@ -391,7 +403,7 @@ export class ApartmentDirector {
   /**
    * Apply current liveTarget on facadeId with hard ms/frame budget between units.
    * Progressive: rooms appear as each unit finishes; canvas stays drawing
-   * (compile pause:false). Under heap pressure, unload farthest (full dispose).
+   * (compile pause:false). Under heap pressure, strip farthest to curtain-only.
    */
   async _pumpLiveIntent(facadeId, intentEpoch, facadeEpoch) {
     const facade = this.facades.get(facadeId);
@@ -406,13 +418,14 @@ export class ApartmentDirector {
     try {
       const ranked = facade.slots.slice().sort((a, b) => scoreSlot(b) - scoreSlot(a));
 
-      // Free full interiors on other facades so global budget stays honest.
+      // Demote full interiors on other facades to closed sheer shells (keep capacity
+      // honest without blank glass on previously live buildings).
       for (const key of [...this.units.keys()]) {
         if (key.startsWith(`${facadeId}#`)) continue;
         const unit = this.units.get(key);
         if (!unit) continue;
         if (unit.hasRoom || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
-          this._disposeUnit(key);
+          this._stripToCurtainOnly(unit);
         }
       }
       await yieldToMain();
@@ -426,27 +439,40 @@ export class ApartmentDirector {
       if (this._intentEpoch !== intentEpoch) return;
       if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
 
+      // Shell intent first: every slot on this facade gets a closed curtain so
+      // waiting / not-yet-live windows never read as white/black holes.
+      await this._ensureFacadeShells(facadeId);
+      await yieldToMain();
+      if (this._intentEpoch !== intentEpoch) return;
+      if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+      noteDecision('Carregador', 'apts curtain shells stamped');
+
       // Recompute cap each step (MemoryGuardian pressure may rise mid-pump).
       const liveCap = () => {
         this._refreshMaxLoaded(facadeId);
         return this.maxLoaded;
       };
 
-      // Unload excess full rooms when cap shrinks (heap demotion / numeric drop).
-      // Prefer dispose farthest / lowest-ranked — closed curtain-only is not “Todos”.
-      const unloadAboveCap = (cap) => {
+      // Strip excess full rooms when cap shrinks (heap demotion / numeric drop).
+      // Leave closed sheer shells — never blank glass.
+      const demoteAboveCap = (cap) => {
         const keepIds = new Set(ranked.slice(0, cap).map((s) => s.id));
         for (const slot of facade.slots) {
           if (keepIds.has(slot.id)) continue;
           const key = `${facadeId}#${slot.id}`;
-          if (this.units.has(key)) this._disposeUnit(key);
+          const unit = this.units.get(key);
+          if (!unit) continue;
+          if (unit.hasRoom || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+            this._stripToCurtainOnly(unit);
+          }
         }
       };
 
       let cap = liveCap();
-      unloadAboveCap(cap);
+      demoteAboveCap(cap);
 
       // Full interiors up to stream-owned cap (budgeted). `'all'` → want = ranked.length.
+      // Slots beyond cap keep their closed curtain shells from _ensureFacadeShells.
       for (let i = 0; i < ranked.length; i++) {
         if (this._intentEpoch !== intentEpoch) return;
         if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
@@ -462,16 +488,17 @@ export class ApartmentDirector {
           if (!unit) {
             await this._ensureBudget();
             if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
-            unit = this._spawnUnit(facade, slot, key);
+            unit = this._spawnCurtainOnly(facade, slot, key);
             this.units.set(key, unit);
-            this._loadOrder.push(key);
-            await this._finishLoad(unit);
-          } else if (!unit.hasRoom || unit.state === 'curtain-only') {
-            this._resetCurtainClosed(unit);
-            unit.state = 'loading';
-            unit.openT = 0;
-            await this._finishLoad(unit);
           }
+          if (unit.hasRoom && unit.state !== 'curtain-only') return;
+          await this._ensureBudget();
+          if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
+          this._resetCurtainClosed(unit);
+          unit.state = 'loading';
+          unit.openT = 0;
+          if (!this._loadOrder.includes(key)) this._loadOrder.push(key);
+          await this._finishLoad(unit);
         });
 
         if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
@@ -482,9 +509,9 @@ export class ApartmentDirector {
       if (this._intentEpoch !== intentEpoch) return;
       if ((this._facadeEpoch.get(facadeId) || 0) !== facadeEpoch) return;
 
-      // Final trim: heap demotion or numeric target — unload, never Phase-B curtain shells.
+      // Final trim: heap demotion or numeric target — strip to curtain shells.
       cap = liveCap();
-      unloadAboveCap(cap);
+      demoteAboveCap(cap);
 
       if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
     } finally {
@@ -500,43 +527,55 @@ export class ApartmentDirector {
    */
   async _ensureInstancers() {
     if (this._roomInstancers) return;
-    const baked = await ensureApartmentRoomBaked();
-    const cap = this._instanceCapacity;
-    const root = new THREE.Group();
-    root.name = 'apartment-instancers';
-    root.frustumCulled = false;
-    this.parent.add(root);
-    this._instancerRoot = root;
+    if (this._instancersReady) {
+      await this._instancersReady;
+      return;
+    }
+    this._instancersReady = (async () => {
+      const baked = await ensureApartmentRoomBaked();
+      if (this._roomInstancers) return;
+      const cap = this._instanceCapacity;
+      const root = new THREE.Group();
+      root.name = 'apartment-instancers';
+      root.frustumCulled = false;
+      this.parent.add(root);
+      this._instancerRoot = root;
 
-    this._roomInstancers = baked.roomSpecs.map((spec, i) => {
-      const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
-      mesh.name = `apartment-room-im-${i}`;
-      mesh.count = 0;
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
-      mesh.renderOrder = 30;
-      for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
-      mesh.instanceMatrix.needsUpdate = true;
-      root.add(mesh);
-      return mesh;
-    });
+      this._roomInstancers = baked.roomSpecs.map((spec, i) => {
+        const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
+        mesh.name = `apartment-room-im-${i}`;
+        mesh.count = 0;
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 30;
+        for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
+        mesh.instanceMatrix.needsUpdate = true;
+        root.add(mesh);
+        return mesh;
+      });
 
-    const curtain = new THREE.InstancedMesh(
-      getSharedCurtainGeometry(),
-      getSharedCurtainMaterial(),
-      cap
-    );
-    curtain.name = 'apartment-curtain-im';
-    curtain.count = 0;
-    curtain.castShadow = false;
-    curtain.receiveShadow = false;
-    curtain.frustumCulled = false;
-    curtain.renderOrder = 40;
-    for (let j = 0; j < cap; j++) curtain.setMatrixAt(j, _hideMat);
-    curtain.instanceMatrix.needsUpdate = true;
-    root.add(curtain);
-    this._curtainInstancer = curtain;
+      const curtain = new THREE.InstancedMesh(
+        getSharedCurtainGeometry(),
+        getSharedCurtainMaterial(),
+        cap
+      );
+      curtain.name = 'apartment-curtain-im';
+      curtain.count = 0;
+      curtain.castShadow = false;
+      curtain.receiveShadow = false;
+      curtain.frustumCulled = false;
+      curtain.renderOrder = 40;
+      for (let j = 0; j < cap; j++) curtain.setMatrixAt(j, _hideMat);
+      curtain.instanceMatrix.needsUpdate = true;
+      root.add(curtain);
+      this._curtainInstancer = curtain;
+    })();
+    try {
+      await this._instancersReady;
+    } finally {
+      this._instancersReady = null;
+    }
   }
 
   _allocInstanceId() {
@@ -633,6 +672,7 @@ export class ApartmentDirector {
   /**
    * One-shot GPU warm for shared curtain + room InstancedMesh programs (pause:false).
    * Subsequent unit stamps skip warmed programs (Renderer mat flags).
+   * Allocates a temp instance id so we never clobber a live curtain shell on id 0.
    */
   async _warmApartmentPrograms() {
     if (this._gpuWarmed || !this.renderer?.compileSubtree) {
@@ -640,16 +680,15 @@ export class ApartmentDirector {
       return;
     }
     await this._ensureInstancers();
-    // Stamp instance 0 briefly so compile sees InstancedMesh paths.
+    let warmId = -1;
     if (this._roomInstancers?.length) {
+      warmId = this._allocInstanceId();
       _dummy.position.set(0, -5000, 0);
       _dummy.scale.set(0.001, 0.001, 0.001);
       _dummy.quaternion.identity();
       _dummy.updateMatrix();
-      this._writeRoomMatrix(0, _dummy.matrix);
-      this._writeCurtainMatrix(0, _dummy.matrix);
-      for (const mesh of this._roomInstancers) mesh.count = Math.max(mesh.count, 1);
-      if (this._curtainInstancer) this._curtainInstancer.count = Math.max(this._curtainInstancer.count, 1);
+      this._writeRoomMatrix(warmId, _dummy.matrix);
+      this._writeCurtainMatrix(warmId, _dummy.matrix);
       this._flushInstanceMatrices();
     }
     try {
@@ -660,20 +699,19 @@ export class ApartmentDirector {
     } catch (_) {
       /* compile optional */
     } finally {
-      this._writeRoomHidden(0);
-      this._writeCurtainHidden(0);
+      if (warmId >= 0) this._releaseInstanceId(warmId);
       this._flushInstanceMatrices();
     }
   }
 
   /**
-   * Load specific slot ids on a facade.
+   * Load specific slot ids on a facade (upgrades curtain-only shells).
    * @returns {Promise<string[]>} unit keys that started loading
    */
   async load(facadeId, slotIds) {
     const facade = this.facades.get(facadeId);
     if (!facade) return [];
-    await this._ensureInstancers();
+    await this._ensureFacadeShells(facadeId);
     const epoch = this._facadeEpoch.get(facadeId) || 0;
     const ids = (Array.isArray(slotIds) ? slotIds : [slotIds])
       .map((n) => Number(n))
@@ -682,14 +720,20 @@ export class ApartmentDirector {
     for (const slotId of ids) {
       if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
       const key = `${facadeId}#${slotId}`;
-      if (this.units.has(key)) continue;
       const slot = facade.slots.find((s) => s.id === slotId);
       if (!slot) continue;
+      let unit = this.units.get(key);
+      if (unit?.hasRoom && unit.state !== 'curtain-only') continue;
       await this._ensureBudget();
       if ((this._facadeEpoch.get(facadeId) || 0) !== epoch) break;
-      const unit = this._spawnUnit(facade, slot, key);
-      this.units.set(key, unit);
-      this._loadOrder.push(key);
+      if (!unit) {
+        unit = this._spawnCurtainOnly(facade, slot, key);
+        this.units.set(key, unit);
+      }
+      this._resetCurtainClosed(unit);
+      unit.state = 'loading';
+      unit.openT = 0;
+      if (!this._loadOrder.includes(key)) this._loadOrder.push(key);
       started.push(key);
       await throughValve(() => this._finishLoad(unit));
       if (this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
@@ -699,13 +743,16 @@ export class ApartmentDirector {
   }
 
   /**
-   * Pick up to `n` best idle slots: mid-height (y≈3–20), largest, street-facing.
+   * Pick up to `n` best slots without a full interior (curtain-only / missing).
    */
   pickBestSlotIds(facadeId, n = 1) {
     const facade = this.facades.get(facadeId);
     if (!facade) return [];
     const want = Math.max(0, Math.floor(n));
-    const idle = facade.slots.filter((s) => !this.units.has(`${facadeId}#${s.id}`));
+    const idle = facade.slots.filter((s) => {
+      const u = this.units.get(`${facadeId}#${s.id}`);
+      return !u || !u.hasRoom || u.state === 'curtain-only';
+    });
     idle.sort((a, b) => scoreSlot(b) - scoreSlot(a));
     return idle.slice(0, want).map((s) => s.id);
   }
@@ -737,7 +784,14 @@ export class ApartmentDirector {
         this._autoLoadPending.clear();
       }
     }
-    for (const key of keys) this._disposeUnit(key);
+    // Strip rooms → closed sheer shells (never blank glass holes).
+    for (const key of keys) {
+      const unit = this.units.get(key);
+      if (!unit) continue;
+      if (unit.hasRoom || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+        this._stripToCurtainOnly(unit);
+      }
+    }
     if (facadeId && this._houseFacadeId === facadeId) this._syncHouseHud(true, facadeId);
   }
 
@@ -883,14 +937,35 @@ export class ApartmentDirector {
     while (this.loadedCount() >= this.maxLoaded && this._loadOrder.length) {
       const oldest = this._loadOrder.shift();
       if (!oldest || !this.units.has(oldest)) continue;
+      const unit = this.units.get(oldest);
       // Curtain-only shells do not count toward the live budget — skip eviction.
-      if (!this.units.get(oldest).hasRoom) continue;
-      this._disposeUnit(oldest);
+      if (!unit.hasRoom) continue;
+      this._stripToCurtainOnly(unit);
     }
   }
 
-  _spawnUnit(facade, slot, key) {
-    // No per-slot Group/Mesh — stamp into global InstancedMeshes.
+  /**
+   * Stamp closed sheer curtains for every slot on a facade that lacks a unit.
+   * Shared InstancedMesh only — no per-slot materials.
+   */
+  async _ensureFacadeShells(facadeId) {
+    const facade = this.facades.get(facadeId);
+    if (!facade?.slots?.length) return;
+    await this._ensureInstancers();
+    let added = 0;
+    for (const slot of facade.slots) {
+      const key = `${facadeId}#${slot.id}`;
+      if (this.units.has(key)) continue;
+      this.units.set(key, this._spawnCurtainOnly(facade, slot, key));
+      added += 1;
+    }
+    if (added) this._flushInstanceMatrices();
+  }
+
+  /**
+   * Curtain-only shell (closed sheer). Room hidden; visible until upgraded to ready.
+   */
+  _spawnCurtainOnly(facade, slot, key) {
     const slotWorld = this._slotWorldMatrix(facade, slot, new THREE.Matrix4());
     const instanceId = this._allocInstanceId();
 
@@ -911,10 +986,17 @@ export class ApartmentDirector {
       curtain: null,
       reveal: null,
       curtainVisible: true,
-      state: 'loading',
+      state: 'curtain-only',
       openT: 0,
       host: facade.parent || this.parent
     };
+  }
+
+  /** @deprecated Prefer _spawnCurtainOnly then upgrade via _finishLoad. */
+  _spawnUnit(facade, slot, key) {
+    const unit = this._spawnCurtainOnly(facade, slot, key);
+    unit.state = 'loading';
+    return unit;
   }
 
   async _finishLoad(unit) {
@@ -973,6 +1055,7 @@ export class ApartmentDirector {
     unit.reveal = null;
     this._resetCurtainClosed(unit);
     unit.state = 'curtain-only';
+    this._loadOrder = this._loadOrder.filter((k) => k !== unit.key);
   }
 
   _disposeUnit(key) {

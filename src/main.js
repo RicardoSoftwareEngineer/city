@@ -29,6 +29,7 @@ import { bindValveDraw, waitUntilSmooth, yieldToMain, throughValve } from './wor
 import { memoryGuardian, PHYS_PIN_RADIUS } from './engine/memoryGuardian.js';
 import { createFocusGrid } from './engine/focusGrid.js';
 import { setFocusCellKey, armFocusRemain } from './engine/focusRemain.js';
+import { noteDriveSpeed } from './engine/streamIntent.js';
 import { loadGovernor } from './engine/LoadGovernor.js';
 import {
   isInsideCity,
@@ -214,6 +215,8 @@ async function startGame() {
     vehicleController.enabled = !camera.isFreeFlight;
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
+    // Drive-moving intent: defer nature/carpet + tighten leftover while moving.
+    noteDriveSpeed(speedMetersPerSecond);
     camera.update(porscheModel.chassisGroup, mouse, delta);
     renderer.render();
 

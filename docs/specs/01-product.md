@@ -14,6 +14,7 @@ Jogador em **português** (HUD, boot gate, Fila do foco). IDs técnicos em ingl�
 - **Jogável antes do mundo terminar** — idle com phys + shell; após *Começar*, o mundo sobe em streaming (sem exigir tela preta).
 - Presets fixos: **Ultra** (padrão) e **Simples**. Sem adaptação contínua por FPS.
 - **Stable FPS > high FPS** — meta de play: célula focusGrid → próxima a ≥30 FPS estável (ver `02-loading.md` / `03-performance.md`).
+- **Dirigir deve ser suave e gostoso** — FPS estável com o carro em movimento; nature/carpet podem esperar até quase parar.
 
 ## Não-objetivos
 

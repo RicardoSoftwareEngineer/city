@@ -6,8 +6,9 @@ Market-style open-world load. Fixed Ultra/Simples knobs. **No FPS-driven throttl
 
 - **Stable FPS > high FPS.** Only raise FPS targets when already stable.
 - Near-term play goal: **fully load one focus/load tile → drive the car into the next tile at ≥30 FPS with no Travamentos hitches** (no multi-100ms / multi-second freezes; ideally frames ≤~33ms while streaming the next cell).
+- **Drive smoothness is first-class:** while the car is **moving**, display frames must stay stable (~≥30 FPS, no multi-100ms / multi-second Travamentos). Filling nature poses / carpet is **secondary** to a lovely drive.
 - Conscious, sustainable, **simple** code; MemoryGuardian-friendly; may use GPU memory / GPU time aggressively if it keeps the **CPU main/display frame stable**.
-- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget — **not** FPS HOLD / adaptive pauseDraw valve.
+- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget, **drive-moving defer of nature/carpet** — **not** FPS HOLD / adaptive pauseDraw valve.
 
 ## Idle
 
@@ -59,8 +60,17 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
 
 - Orçamento **duro** de CPU de stream por frame de display (valor do preset).
 - **Leftover (play):** enquanto interactive, `throughValve` / pumps só gastam stream se o wall `frameMs` recente (EMA) estiver **&lt; ~28 ms**; senão **yield** (continua apresentando). Meta: não empurrar o frame acima de ~33 ms.
+- **Leftover (drive):** com o carro em movimento, gate mais apertado (**&lt; ~22 ms**) — só stream crítico entra.
 - Observation-gated admission — **não** é pauseDraw HOLD / adaptive valve.
 - `throughValve` / pumps / `createBudget` respeitam budget + leftover e yield quando fechados.
+
+## Drive-moving defer (prio ≥4)
+
+- Enquanto velocidade planar &gt; limiar (~1.2 m/s enter / ~0.4 m/s exit histerese), `streamIntent.isDriveMovingActive`:
+  - **Defere nature + carpet (prio ≥4)** — mesmo espírito do defer de apartment live-intent.
+  - Só admite stream **crítico** sob leftover: phys pin (já no carro real), streets / terrain / buildings leves na célula prevista; `maxLoads` / reveal **mínimos**.
+  - **Não** expande anéis externos nem despeja batches de nature em mudança de focus-cell mid-drive.
+- Ao quase parar / estacionar: retoma nature/carpet normalmente. Dirigir &gt; encher poses natureza.
 
 ## Two-stage assets (Pareto)
 

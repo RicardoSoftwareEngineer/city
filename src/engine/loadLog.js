@@ -23,7 +23,7 @@ let lastDraw = {
 };
 let prevPrograms = 0;
 let phase = 'boot';
-/** Once true, every felt hitch is listed under Travamentos — FPS. */
+/** Once true, every felt hitch is listed under Hitches — FPS. */
 let interactive = false;
 let streamLabel = '';
 let hitchRevision = 0;
@@ -41,6 +41,26 @@ const sessionStats = {
 
 const TAB_AWAY_MS = 45000;
 const RECENT_CAP = 8;
+
+/** Ideal drive frame (≤33ms ≈ ≥30fps). Listed hitches start above soft threshold; sub-33ms not required in HUD. */
+export const HITCH_IDEAL_MS = 33;
+/** Soft / aceitável ceiling — occasional spike still OK. */
+export const HITCH_OK_MS = 100;
+/** Above this and ≤1000ms → MITIGAR. */
+export const HITCH_MITIGATE_MS = 100;
+/** >1000ms → BUG (spec 03-performance). */
+export const HITCH_BUG_MS = 1000;
+
+/**
+ * Taxonomy: ok (≤100ms ACEITÁVEL), mitigate (>100…≤1000 MITIGAR), bug (>1000 BUG).
+ * @returns {'ok'|'mitigate'|'bug'}
+ */
+export function hitchTierForMs(frameMs) {
+  const ms = Number(frameMs) || 0;
+  if (ms > HITCH_BUG_MS) return 'bug';
+  if (ms > HITCH_MITIGATE_MS) return 'mitigate';
+  return 'ok';
+}
 
 function heapMb() {
   const m = typeof performance !== 'undefined' ? performance.memory : null;
@@ -164,7 +184,7 @@ export function lastOpHasTag() {
 export function noteHitch(frameMs) {
   if (frameMs >= TAB_AWAY_MS) return;
   // Valve HOLD / WorldStream pauseDraw skip WebGL; wall-clock gaps between rAFs
-  // while paused are not playable freezes — do not pollute Travamentos.
+  // while paused are not playable freezes — do not pollute Hitches.
   if (lastDraw.tag === 'paused' || govSnap.holding) return;
 
   const now = performance.now();
@@ -223,7 +243,8 @@ export function noteHitch(frameMs) {
     heapMb: heap,
     recent: recentWork.slice(-4).join(' ← ')
   };
-  row.bug = row.frameMs > 1000; // spec: hitch >1000ms = bug
+  row.tier = hitchTierForMs(row.frameMs); // ok | mitigate | bug
+  row.bug = row.tier === 'bug'; // keep for older HUD / dumps
   hitchEntries.push(row);
   hitchRevision++;
   sessionStats.hitchCount += 1;
@@ -235,6 +256,8 @@ export function noteHitch(frameMs) {
 
   if (row.bug) {
     console.error(`[hitch-bug] ${row.frameMs}ms >1000 — treat as bug (spec 03-performance)`, row.cause, row.work);
+  } else if (row.tier === 'mitigate') {
+    console.warn(`[hitch-mitigate] ${row.frameMs}ms — work down (esp. while driving)`, row.cause, row.work);
   }
 
   console.warn(
@@ -365,7 +388,7 @@ export function dumpLoadLog() {
     `  compile ${sessionStats.compileCount} / ${Math.round(sessionStats.compileMs)}ms` +
     `  hitches ${sessionStats.hitchCount}  worst ${sessionStats.worstFrameMs}ms (${sessionStats.worstCause})`
   );
-  console.log('[opt] hitch threshold: frame > 1/(TARGET_FPS-2) ≈ under 58fps; see Travamentos — FPS');
+  console.log('[opt] hitch threshold: frame > 1/(TARGET_FPS-2) ≈ under 58fps; see Hitches — FPS');
 }
 
 if (typeof window !== 'undefined') {

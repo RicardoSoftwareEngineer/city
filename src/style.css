@@ -976,3 +976,27 @@ body.boot-idle .hud-min-toggle {
   font-weight: 700;
   font-size: 10px;
 }
+.hitch-mitigate {
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 10px;
+}
+.hitch-ok {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 10px;
+  opacity: 0.85;
+}
+.hitch-list li.hitch-tier-bug .hitch-ms {
+  color: #ff6b6b;
+}
+.hitch-list li.hitch-tier-mitigate .hitch-ms {
+  color: #fbbf24;
+}
+.hitch-list li.hitch-tier-ok .hitch-ms {
+  color: #94a3b8;
+  font-weight: 500;
+}
+.hitch-list li.hitch-tier-ok {
+  opacity: 0.72;
+}

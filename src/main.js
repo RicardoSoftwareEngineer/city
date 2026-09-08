@@ -176,8 +176,14 @@ async function startGame() {
         const recent = h.recent
           ? ` · <span class="hitch-recent" title="${h.recent}">…${h.recent.split(' ← ').pop()}</span>`
           : '';
-        const bug = h.bug || h.frameMs > 1000 ? ' <span class="hitch-bug">BUG</span>' : '';
-        return `<li><span class="hitch-ms">${h.frameMs}ms</span>${bug} <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
+        const tier = h.tier || (h.bug || h.frameMs > 1000 ? 'bug' : h.frameMs > 100 ? 'mitigate' : 'ok');
+        const tierBadge =
+          tier === 'bug'
+            ? ' <span class="hitch-bug">BUG</span>'
+            : tier === 'mitigate'
+              ? ' <span class="hitch-mitigate">MITIGAR</span>'
+              : ' <span class="hitch-ok">ACEITÁVEL</span>';
+        return `<li class="hitch-tier-${tier}"><span class="hitch-ms">${h.frameMs}ms</span>${tierBadge} <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }

@@ -42,6 +42,7 @@ import { tickWater } from './world/water/registerLakes.js';
 import { createDayNightController } from './world/DayNightController.js';
 import { createStreetLightsController } from './world/StreetLightsController.js';
 import { bindCompassHud } from './engine/compassHud.js';
+import { initStreetLightsHud } from './engine/streetLightsHud.js';
 import { ensureGroundAround, setTerrainPhysics, TERRAIN_TILE, GRID_OFFSET } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { ensureWhiteOrchardHeightmap } from './world/terrain/whiteOrchardHeight.js';
@@ -161,8 +162,9 @@ async function startGame() {
       void renderer.resumeShadows();
     }
   });
-  // Persona panels must exist in the DOM before minimizableHud binds them.
+  // Persona / street-lights panels must exist in the DOM before minimizableHud binds them.
   const paintPersona = initPersonaHud({ getQuality: () => quality });
+  initStreetLightsHud(streetLights);
   initMinimizableHud();
   const tickRadiusDebug = initRadiusDebug(renderer.scene);
   const fpsSacredStats = document.getElementById('fps-sacred-stats');

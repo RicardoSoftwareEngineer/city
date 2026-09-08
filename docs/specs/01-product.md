@@ -13,7 +13,7 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 - Cidade **dirigível**; downtown **visível** no cold open (mínimo jogável).
 - **Guerra de hitch no drive** ainda ativa — stable drive é a war em curso.
 - Ship bar: célula→célula ≥30 FPS estável → `03-performance.md`.
-- **Day/night (fases 1–2):** `DayNightController` owns Sky + sun orbit + hemi/sun/moon + stars; HUD **Hora** scrub 0–24h. Sem PMREM/frame, sem `@takram/three-atmosphere`, sem FPS HOLD. Postes GLB acendem à noite (`nightFactor` + pool ≤6 SpotLights + soft Point fill, wash no asfalto/calçada). Bússola HUD (N/S/L/O) após Começar.
+- **Day/night (fases 1–2):** `DayNightController` owns Sky + sun orbit + hemi/sun/moon + stars; HUD **Hora** scrub 0–24h. Sem PMREM/frame, sem `@takram/three-atmosphere`, sem FPS HOLD. Postes GLB acendem à noite (`nightFactor` + pool ≤6 SpotLights + soft Point fill, wash no asfalto/calçada). HUD estudo **Iluminação** (minimizable) tweaka `setParams` ao vivo. Bússola HUD (N/S/L/O) após Começar.
 
 ## Invariants / MUST / MUST NOT
 

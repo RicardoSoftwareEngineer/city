@@ -265,6 +265,7 @@ kbd {
 }
 #car-visual-btn:hover { background: rgba(44, 28, 20, 0.92); }
 #car-visual-btn[data-mode="porsche"] { border-color: #ffb03a; color: #ffb03a; }
+#car-visual-btn[data-mode="defender"] { border-color: #6db38a; color: #9fd4b0; }
 #car-visual-btn[data-mode="box"] { border-color: rgba(255, 176, 58, 0.55); }
 
 #terrain-debug-readout {

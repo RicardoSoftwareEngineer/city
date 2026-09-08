@@ -5,6 +5,11 @@
  * The model is scaled to PORSCHE_TARGET_LENGTH and centered.
  * Wheel nodes are re-parented into steer → spin pivot hierarchies so that
  * VehicleController can rotate them independently.
+ *
+ * Visual modes (HUD): 'porsche' | 'defender' | 'box'
+ * - porsche: glTF (when ready)
+ * - defender: procedural Land Rover Defender 90 (Box/Cylinder/Plane)
+ * - box: crude placeholder
  */
 
 import * as THREE from 'three';
@@ -15,6 +20,7 @@ import {
   PORSCHE_TARGET_LENGTH,
   PORSCHE_ROOT_OFFSET_Y
 } from '../world/RoadDimensions.js';
+import { createProceduralDefender } from './ProceduralDefender.js';
 
 // Wheel and hub node names inside porsche.glb (no dots — Godot export names)
 const WHEEL_PARTS = [
@@ -30,7 +36,8 @@ export class PorscheModel {
     this.wheelPivots = {};                  // { frontLeft: { steerPivot, spinPivot, isFront }, ... }
     this._placeholder = null;
     this._gltfRoot = null;
-    this._visualMode = 'box';              // 'porsche' | 'box'
+    this._defender = null;
+    this._visualMode = 'box';              // 'porsche' | 'defender' | 'box'
     this.ready = false;
   }
 
@@ -69,6 +76,14 @@ export class PorscheModel {
 
     this._placeholder = group;
     this.chassisGroup.add(group);
+  }
+
+  /** Lazy-build procedural Defender; kept parented for instant HUD toggles. */
+  attachDefender() {
+    if (this._defender) return;
+    this._defender = createProceduralDefender();
+    this._defender.visible = false;
+    this.chassisGroup.add(this._defender);
   }
 
   /** Dispose placeholder for good — prefer hide via setVisualMode for toggles. */
@@ -192,6 +207,7 @@ export class PorscheModel {
     this.ready = true;
     this._visualMode = 'porsche';
     root.visible = true;
+    if (this._defender) this._defender.visible = false;
   }
 
   /**
@@ -239,29 +255,38 @@ export class PorscheModel {
   }
 
   /**
-   * Toggle between loaded glTF and procedural box placeholder.
-   * @param {'porsche'|'box'} mode
+   * Show one of: loaded glTF, procedural Defender, or crude box.
+   * @param {'porsche'|'defender'|'box'} mode
    */
   setVisualMode(mode) {
     if (mode === 'porsche') {
       if (!this.ready || !this._gltfRoot) {
         // Stay on box until glTF is ready.
-        this._visualMode = 'box';
-        if (this._placeholder) this._placeholder.visible = true;
-        else this.attachPlaceholder();
+        this._applyVisibility('box');
         return;
       }
-      this._visualMode = 'porsche';
-      this._gltfRoot.visible = true;
-      if (this._placeholder) this._placeholder.visible = false;
+      this._applyVisibility('porsche');
+      return;
+    }
+
+    if (mode === 'defender') {
+      this.attachDefender();
+      this._applyVisibility('defender');
       return;
     }
 
     // mode === 'box'
-    this._visualMode = 'box';
-    if (this._gltfRoot) this._gltfRoot.visible = false;
-    if (this._placeholder) this._placeholder.visible = true;
-    else this.attachPlaceholder();
+    if (!this._placeholder) this.attachPlaceholder();
+    this._applyVisibility('box');
+  }
+
+  /** @param {'porsche'|'defender'|'box'} mode */
+  _applyVisibility(mode) {
+    this._visualMode = mode;
+    if (this._gltfRoot) this._gltfRoot.visible = mode === 'porsche';
+    if (this._defender) this._defender.visible = mode === 'defender';
+    if (this._placeholder) this._placeholder.visible = mode === 'box';
+    else if (mode === 'box') this.attachPlaceholder();
   }
 
   /**

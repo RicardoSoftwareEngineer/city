@@ -263,6 +263,7 @@ export function createDayNightController(opts) {
     moonDisc.material.opacity = Math.min(1, nightFactor * 1.2);
 
     starfield.setNightFactor(nightFactor);
+    starfield.setSiderealTime(t);
     if (camera) starfield.followCamera(camera);
 
     // Exposure: brighter noon, darker night (ACES kept on renderer).

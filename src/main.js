@@ -221,7 +221,7 @@ async function startGame() {
     vehicleController.enabled = !camera.isFreeFlight;
     physicsWorld.step(delta);
     const speedMetersPerSecond = vehicleController.update(delta);
-    // Drive-moving intent: defer nature/carpet + tighten leftover while moving.
+    // Drive-moving intent (gated on playableMin inside streamIntent).
     noteDriveSpeed(speedMetersPerSecond);
     camera.update(porscheModel.chassisGroup, mouse, delta);
     renderer.render();

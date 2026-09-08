@@ -6,8 +6,9 @@
  * Dense carpet (prio 5) is background-only — never blocks radius expansion
  * or Foco pronto (optional HUD line only).
  * Foco completo = playCore disk (load tile); outer rings unlock after that.
- * While the car is moving: admit only streets (prio 0); defer furniture+ /
- * nature / carpet / new terrainMesh tiles; no outer expand; leftover critical.
+ * After playableMin, while the car is moving: admit only streets (prio 0);
+ * defer furniture+ / nature / carpet / new terrainMesh tiles; no outer expand;
+ * leftover critical. Before playableMin boot admits normally (city must appear).
  * Admit re-checked per urlJob / terrain tile; in-flight glTF aborts before
  * parse after fetch/yield (streamIntent.mayAdmitStreamWork).
  */

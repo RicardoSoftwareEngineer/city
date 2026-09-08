@@ -88,16 +88,60 @@ function posesCentroid(poses) {
   return { x: sx / n, z: sz / n };
 }
 
-/** Outer zone: drop castShadow if it was on (subtle low-quality intent). */
+/**
+ * CityGrid trees are one InstancedMesh per species across the whole 4×4 —
+ * centroid ≈ city center. Keep castShadow if ANY pose (or nearest-to-focus)
+ * is inner, or for small near-focus batches. Skip only when the whole batch
+ * is outer.
+ */
+function posesWantCastShadow(poses) {
+  if (!Array.isArray(poses) || poses.length === 0) return false;
+  const focus = memoryGuardian.focus;
+  let nearestD = Infinity;
+  for (const p of poses) {
+    if (memoryGuardian.isInnerZone(p.x, p.z)) return true;
+    const d = chebyshev(p.x, p.z, focus.x, focus.z);
+    if (d < nearestD) nearestD = d;
+  }
+  // Small near-focus batches (≤48, same as resident pose keep): 2× inner ring.
+  if (poses.length <= 48 && nearestD <= memoryGuardian.innerRadius * 2 + 0.01) {
+    return true;
+  }
+  return false;
+}
+
+/** Outer zone: drop castShadow only when no pose wants it (subtle low-quality intent). */
 function zoneAwareOptions(options, poses) {
-  const c = posesCentroid(poses);
-  noteZonePolicy(c.x, c.z);
-  if (memoryGuardian.isInnerZone(c.x, c.z)) return options || {};
-  if (options && options.castShadow === true) {
+  const focus = memoryGuardian.focus;
+  let nx = 0;
+  let nz = 0;
+  let best = Infinity;
+  if (Array.isArray(poses) && poses.length) {
+    for (const p of poses) {
+      const d = chebyshev(p.x, p.z, focus.x, focus.z);
+      if (d < best) {
+        best = d;
+        nx = p.x;
+        nz = p.z;
+      }
+    }
+  } else {
+    const c = posesCentroid(poses);
+    nx = c.x;
+    nz = c.z;
+  }
+  noteZonePolicy(nx, nz);
+  if (options && options.castShadow === true && !posesWantCastShadow(poses)) {
     noteDecision('QualityAdapter', 'outer zone: skip castShadow');
     return { ...options, castShadow: false };
   }
   return options || {};
+}
+
+/** autoUpdate=false: rebake when a casting grower first reveals instances. */
+function maybeRequestShadowBake(renderer, grower, added) {
+  if (!added || !grower?.castsShadow || !renderer?.requestShadowBake) return;
+  renderer.requestShadowBake();
 }
 
 
@@ -705,6 +749,7 @@ export class WorldStream {
               await budget.tick();
             }
           }
+          if (added) maybeRequestShadowBake(this.renderer, job.grower, added);
           if (added && this.renderer) {
             driveRevealPasses += 1;
             await this._compileReveal(`compile urls r${radius} p${priority}`, priority);
@@ -731,6 +776,7 @@ export class WorldStream {
               await budget.tick();
             }
           }
+          if (added) maybeRequestShadowBake(this.renderer, job.grower, added);
           if (added && this.renderer) {
             driveRevealPasses += 1;
             await this._compileReveal(`compile templates r${radius} p${priority}`, priority);
@@ -860,6 +906,7 @@ export class WorldStream {
         }
       }
       if (added) driveBuildingWork += 1;
+      if (added) maybeRequestShadowBake(this.renderer, b.grower, added);
       if (added && this.renderer) {
         await this._compileReveal(`compile building r${radius}`, 3);
         if (!keepDrawing) this.renderer.resumeDraw();
@@ -1156,6 +1203,7 @@ export class WorldStream {
           await budget.tick();
         }
         if (added) {
+          maybeRequestShadowBake(this.renderer, job.grower, added);
           passes += 1;
           work += added;
           if (this.renderer) {
@@ -1299,6 +1347,7 @@ export class WorldStream {
           await budget.tick();
         }
         if (added) {
+          maybeRequestShadowBake(this.renderer, job.grower, added);
           passes += 1;
           work += added;
           if (this.renderer) {

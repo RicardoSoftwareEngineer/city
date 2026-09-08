@@ -151,6 +151,7 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
       get revealed() { return 0; },
       get total() { return 0; },
       get warmed() { return true; },
+      get castsShadow() { return false; },
       async warmup() {},
       maxDist: 0,
       dispose() {}
@@ -205,8 +206,13 @@ export function createGrowingInstancedGltf(parent, template, poses, ox, oz, opti
   let warmed = false;
   const maxDist = chebyshev(sorted[sorted.length - 1].x, sorted[sorted.length - 1].z, ox, oz);
 
+  const castsShadow = specs.some((s) => s.castShadow);
+
   return {
     maxDist,
+    get castsShadow() {
+      return castsShadow;
+    },
     dispose() {
       for (const batch of batches) {
         if (!batch) continue;

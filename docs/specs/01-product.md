@@ -13,6 +13,7 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 - Cidade **dirigível**; downtown **visível** no cold open (mínimo jogável).
 - **Guerra de hitch no drive** ainda ativa — stable drive é a war em curso.
 - Ship bar: célula→célula ≥30 FPS estável → `03-performance.md`.
+- **Day/night (fases 1–2):** `DayNightController` owns Sky + sun orbit + hemi/sun/moon + stars; HUD **Hora** scrub 0–24h. Sem PMREM/frame, sem `@takram/three-atmosphere`, sem FPS HOLD.
 
 ## Invariants / MUST / MUST NOT
 
@@ -25,7 +26,7 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 
 ## Ownership
 
-Pitch/milestone: este arquivo. Knobs: `02`–`05`. Presets: `qualityPresets`.
+Pitch/milestone: este arquivo. Knobs: `02`–`05`. Presets: `qualityPresets`. Sky/sun cycle: `DayNightController` (`src/world/DayNightController.js`).
 
 ## Same-PR rule
 

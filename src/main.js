@@ -103,7 +103,7 @@ async function startGame() {
     endGroundPhysPhase();
   }
 
-  // Placeholder chassis so the player can move before porsche.glb arrives.
+  // Placeholder chassis so the player can move before the Porsche glTF arrives.
   const porscheModel = new PorscheModel();
   porscheModel.attachPlaceholder();
   renderer.scene.add(porscheModel.chassisGroup);

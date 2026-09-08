@@ -22,13 +22,20 @@ import {
 } from '../world/RoadDimensions.js';
 import { createProceduralDefender } from './ProceduralDefender.js';
 
-// Wheel and hub node names inside porsche.glb (no dots — Godot export names)
+const PORSCHE_GLB_URL = '/models/porsche/porsche_911_with_interior.glb';
+const PORSCHE_GLB_TAG = 'porsche_911_with_interior.glb';
+
+// Legacy named wheels (porsche.glb / Godot export). New Sketchfab asset merges
+// all tires/rims into one mesh — see discoverWheelObjects().
 const WHEEL_PARTS = [
   { wheel: 'wheel_lrchild001_6', hub: 'hub_lr_2' },
   { wheel: 'wheel_lrchild003_8', hub: 'hub_rr_1' },
   { wheel: 'wheel_lrchild_5',    hub: 'hub_lf_3' },
   { wheel: 'wheel_lrchild002_7', hub: 'hub_rf_4' }
 ];
+
+/** Meshes that should spin with each corner wheel on the merged Sketchfab asset. */
+const MERGED_SPIN_RE = /^(AO_tire_main|wheel_rim|discs_Discs|metal_parts_rim)/i;
 
 export class PorscheModel {
   constructor() {
@@ -114,14 +121,14 @@ export class PorscheModel {
    * Safe to call after GameLoop is already running (placeholder stays until then).
    */
   async load() {
-    const url = '/models/porsche/porsche.glb';
+    const url = PORSCHE_GLB_URL;
     const loader = new GLTFLoader();
     const dir = url.slice(0, url.lastIndexOf('/') + 1);
     const res = await cachedFetch(url);
     if (!res.ok) throw new Error(`porsche fetch ${res.status}`);
     const buf = await res.arrayBuffer();
     return new Promise((resolve, reject) => {
-      beginLoad('gltf:parse', 'porsche.glb');
+      beginLoad('gltf:parse', PORSCHE_GLB_TAG);
       loader.parse(
         buf,
         dir,
@@ -129,7 +136,7 @@ export class PorscheModel {
           const t0 = performance.now();
           const root = gltf.scene || gltf.scenes[0];
           this.setupModel(root);
-          loadMark('gltf:parse', 'porsche.glb', performance.now() - t0);
+          loadMark('gltf:parse', PORSCHE_GLB_TAG, performance.now() - t0);
           resolve();
         },
         reject
@@ -137,38 +144,53 @@ export class PorscheModel {
     });
   }
 
-  setupModel(root) {
+  setupModel(sceneRoot) {
     // Keep placeholder parented — hide it; HUD can toggle back without recreate.
     if (this._placeholder) this._placeholder.visible = false;
-    // Measure and center
-    const boundingBox = new THREE.Box3().setFromObject(root);
+
+    const model = sceneRoot;
+    const boundingBox = new THREE.Box3().setFromObject(model);
     const size = boundingBox.getSize(new THREE.Vector3());
     const center = boundingBox.getCenter(new THREE.Vector3());
 
-    root.position.x -= center.x;
-    root.position.y = PORSCHE_ROOT_OFFSET_Y;
-    root.position.z -= center.z;
+    // Center geometry on local origin BEFORE scale/rotate so scale does not drift
+    // the Sketchfab FBX pivot (bbox center is far from node origin).
+    model.position.set(-center.x, -center.y, -center.z);
 
-    // Scale to target length
+    const wrap = new THREE.Group();
+    wrap.name = 'porsche-gltf';
+    wrap.add(model);
+
     const currentLength = Math.max(size.z, size.x);
     const scale = PORSCHE_TARGET_LENGTH / currentLength;
-    root.scale.set(scale, scale, scale);
+    wrap.scale.set(scale, scale, scale);
 
     // Orient correctly (faces +Z forward)
     if (size.x > size.z) {
-      root.rotation.y = -Math.PI / 2;
+      wrap.rotation.y = -Math.PI / 2;
     } else {
-      root.rotation.y = Math.PI;
+      wrap.rotation.y = Math.PI;
+    }
+    wrap.position.y = PORSCHE_ROOT_OFFSET_Y;
+    wrap.updateMatrixWorld(true);
+
+    const wheelObjects = this.discoverWheelObjects(wrap);
+    // Nudge so axle midpoint sits on chassis X/Z (body bbox can be asymmetric).
+    if (wheelObjects.length >= 4) {
+      const mid = new THREE.Vector3();
+      for (const w of wheelObjects) mid.add(w.worldCenter);
+      mid.multiplyScalar(1 / wheelObjects.length);
+      wrap.position.x -= mid.x;
+      wrap.position.z -= mid.z;
+      wrap.updateMatrixWorld(true);
+      for (const w of wheelObjects) {
+        w.object.getWorldPosition(w.worldCenter);
+      }
     }
 
-    // After orientation, pick front/rear by world Z (+Z = forward), not GLB names.
-    root.updateMatrixWorld(true);
-    const measured = WHEEL_PARTS.map((part) => {
-      const wheelObject = root.getObjectByName(part.wheel);
-      const pos = new THREE.Vector3();
-      if (wheelObject) wheelObject.getWorldPosition(pos);
-      return { ...part, x: pos.x, z: pos.z };
-    }).filter((part) => root.getObjectByName(part.wheel));
+    const measured = wheelObjects
+      .map((w) => ({ ...w, x: w.worldCenter.x, z: w.worldCenter.z }))
+      .filter((w) => w.object);
 
     measured.sort((a, b) => b.z - a.z);
     const frontPair = measured.slice(0, 2);
@@ -177,16 +199,16 @@ export class PorscheModel {
       pair.slice().sort((a, b) => a.x - b.x)[wantRight ? 1 : 0];
 
     this.wheelPivots = {
-      frontLeft:  this.createWheelPivot(root, pick(frontPair, false), true, false),
-      frontRight: this.createWheelPivot(root, pick(frontPair, true),  true, true),
-      rearLeft:   this.createWheelPivot(root, pick(rearPair, false),  false, false),
-      rearRight:  this.createWheelPivot(root, pick(rearPair, true),   false, true)
+      frontLeft:  this.createWheelPivot(pick(frontPair, false), true, false),
+      frontRight: this.createWheelPivot(pick(frontPair, true),  true, true),
+      rearLeft:   this.createWheelPivot(pick(rearPair, false),  false, false),
+      rearRight:  this.createWheelPivot(pick(rearPair, true),   false, true)
     };
 
     // Keep Source materials + maps (textures first; optimize later).
     // Still drop tiny badges/emblems that only add noise.
     const drop = [];
-    root.traverse((child) => {
+    wrap.traverse((child) => {
       if (!child.isMesh) return;
       child.castShadow = true;
       child.receiveShadow = false;
@@ -202,21 +224,110 @@ export class PorscheModel {
     });
     for (const mesh of drop) mesh.removeFromParent();
 
-    this.chassisGroup.add(root);
-    this._gltfRoot = root;
+    this.chassisGroup.add(wrap);
+    this._gltfRoot = wrap;
     this.ready = true;
     this._visualMode = 'porsche';
-    root.visible = true;
+    wrap.visible = true;
     if (this._defender) this._defender.visible = false;
   }
 
   /**
-   * Create steer → spin pivot hierarchy for a single wheel.
+   * Resolve four corner wheel Object3Ds.
+   * Prefers legacy named nodes; otherwise splits merged tire/rim meshes by
+   * world XZ clusters (Sketchfab porsche_911_with_interior.glb).
    */
-  createWheelPivot(root, nodeNames, isFront, isRight) {
-    const wheelObject = root.getObjectByName(nodeNames.wheel);
-    const hubObject = nodeNames.hub ? root.getObjectByName(nodeNames.hub) : null;
-    if (!wheelObject) return null;
+  discoverWheelObjects(wrap) {
+    const legacy = [];
+    for (const part of WHEEL_PARTS) {
+      const wheelObject = wrap.getObjectByName(part.wheel);
+      if (!wheelObject) continue;
+      const worldCenter = new THREE.Vector3();
+      wheelObject.getWorldPosition(worldCenter);
+      const hubObject = part.hub ? wrap.getObjectByName(part.hub) : null;
+      legacy.push({ object: wheelObject, hub: hubObject, worldCenter });
+    }
+    if (legacy.length >= 4) return legacy.slice(0, 4);
+
+    return this.splitMergedWheels(wrap);
+  }
+
+  /**
+   * Sketchfab export packs all four tires (and rims/discs) into single meshes.
+   * Cluster tire verts in XZ, split spin meshes into four corner groups.
+   */
+  splitMergedWheels(wrap) {
+    let tireMesh = null;
+    wrap.traverse((obj) => {
+      if (tireMesh || !obj.isMesh) return;
+      if (/tires/i.test(obj.name) || /^AO_tire_main/i.test(obj.name)) {
+        tireMesh = obj;
+      }
+    });
+    if (!tireMesh?.geometry?.attributes?.position) return [];
+
+    const worldCenters = clusterFourXZ(tireMesh);
+    if (worldCenters.length < 4) return [];
+
+    const spinMeshes = [];
+    wrap.traverse((obj) => {
+      if (!obj.isMesh) return;
+      if (MERGED_SPIN_RE.test(obj.name)) spinMeshes.push(obj);
+    });
+
+    const groups = worldCenters.map((wc, i) => {
+      const g = new THREE.Group();
+      g.name = `wheel_split_${i}`;
+      // Place group in wrap-local space at the cluster center.
+      const local = wc.clone();
+      wrap.worldToLocal(local);
+      g.position.copy(local);
+      wrap.add(g);
+      return g;
+    });
+
+    for (const mesh of spinMeshes) {
+      const geos = splitMeshByWorldCenters(mesh, worldCenters);
+      const mat = mesh.material;
+      for (let i = 0; i < 4; i++) {
+        if (!geos[i]) continue;
+        // Geometry was baked into wrap-local space; shift into group space.
+        const localCenter = groups[i].position;
+        const pos = geos[i].attributes.position;
+        for (let v = 0; v < pos.count; v++) {
+          pos.setXYZ(
+            v,
+            pos.getX(v) - localCenter.x,
+            pos.getY(v) - localCenter.y,
+            pos.getZ(v) - localCenter.z
+          );
+        }
+        pos.needsUpdate = true;
+        const part = new THREE.Mesh(geos[i], mat);
+        part.name = `${mesh.name}__${i}`;
+        part.castShadow = true;
+        part.receiveShadow = false;
+        groups[i].add(part);
+      }
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+    }
+
+    return groups.map((g) => {
+      const worldCenter = new THREE.Vector3();
+      g.getWorldPosition(worldCenter);
+      return { object: g, hub: null, worldCenter };
+    });
+  }
+
+  /**
+   * Create steer → spin pivot hierarchy for a single wheel.
+   * @param {{ object: THREE.Object3D, hub?: THREE.Object3D|null }|null} part
+   */
+  createWheelPivot(part, isFront, isRight) {
+    if (!part?.object) return null;
+    const wheelObject = part.object;
+    const hubObject = part.hub || null;
 
     const originalPosition = wheelObject.position.clone();
     const parent = wheelObject.parent;
@@ -234,7 +345,7 @@ export class PorscheModel {
     wheelObject.position.set(0, 0, 0);
     spinPivot.add(wheelObject);
 
-    // Re-parent hub into steer pivot
+    // Re-parent hub into steer pivot (legacy models only)
     if (hubObject) {
       hubObject.position.x -= originalPosition.x;
       hubObject.position.y -= originalPosition.y;
@@ -311,4 +422,153 @@ export class PorscheModel {
       }
     }
   }
+}
+
+/** K-means (k=4) on mesh vertex world XZ — returns 4 world-space centroids. */
+function clusterFourXZ(mesh) {
+  const pos = mesh.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  const pts = [];
+  const stride = Math.max(1, Math.floor(pos.count / 1500));
+  for (let i = 0; i < pos.count; i += stride) {
+    v.fromBufferAttribute(pos, i);
+    mesh.localToWorld(v);
+    pts.push(v.clone());
+  }
+  if (pts.length < 4) return [];
+
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, sy = 0;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minZ = Math.min(minZ, p.z);
+    maxZ = Math.max(maxZ, p.z);
+    sy += p.y;
+  }
+  const meanY = sy / pts.length;
+  const cents = [
+    new THREE.Vector3(minX, meanY, minZ),
+    new THREE.Vector3(minX, meanY, maxZ),
+    new THREE.Vector3(maxX, meanY, minZ),
+    new THREE.Vector3(maxX, meanY, maxZ)
+  ];
+
+  for (let iter = 0; iter < 12; iter++) {
+    const buckets = [[], [], [], []];
+    for (const p of pts) {
+      let bi = 0;
+      let bd = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = (p.x - cents[i].x) ** 2 + (p.z - cents[i].z) ** 2;
+        if (d < bd) {
+          bd = d;
+          bi = i;
+        }
+      }
+      buckets[bi].push(p);
+    }
+    for (let i = 0; i < 4; i++) {
+      if (!buckets[i].length) continue;
+      const c = new THREE.Vector3();
+      for (const p of buckets[i]) c.add(p);
+      c.multiplyScalar(1 / buckets[i].length);
+      cents[i] = c;
+    }
+  }
+  return cents;
+}
+
+/**
+ * Split one mesh into up to 4 BufferGeometries (wrap-local baked positions),
+ * assigning each triangle to the nearest world XZ cluster center.
+ */
+function splitMeshByWorldCenters(mesh, worldCenters) {
+  const geometry = mesh.geometry;
+  const srcPos = geometry.attributes.position;
+  if (!srcPos) return [null, null, null, null];
+
+  // Walk up to the porsche-gltf wrap so we can bake into wrap-local space.
+  let wrap = mesh.parent;
+  while (wrap && wrap.name !== 'porsche-gltf') wrap = wrap.parent;
+  const wrapInv = new THREE.Matrix4();
+  if (wrap) wrapInv.copy(wrap.matrixWorld).invert();
+  const bake = new THREE.Matrix4().multiplyMatrices(wrapInv, mesh.matrixWorld);
+  const normalMat = new THREE.Matrix3().getNormalMatrix(bake);
+
+  const localCenters = worldCenters.map((wc) => {
+    const c = wc.clone();
+    if (wrap) wrap.worldToLocal(c);
+    return c;
+  });
+
+  const idx = geometry.index;
+  const triCount = idx ? idx.count / 3 : srcPos.count / 3;
+  const buckets = [[], [], [], []];
+
+  const c = new THREE.Vector3();
+  for (let t = 0; t < triCount; t++) {
+    let i0;
+    let i1;
+    let i2;
+    if (idx) {
+      i0 = idx.getX(t * 3);
+      i1 = idx.getX(t * 3 + 1);
+      i2 = idx.getX(t * 3 + 2);
+    } else {
+      i0 = t * 3;
+      i1 = t * 3 + 1;
+      i2 = t * 3 + 2;
+    }
+    c.set(
+      (srcPos.getX(i0) + srcPos.getX(i1) + srcPos.getX(i2)) / 3,
+      (srcPos.getY(i0) + srcPos.getY(i1) + srcPos.getY(i2)) / 3,
+      (srcPos.getZ(i0) + srcPos.getZ(i1) + srcPos.getZ(i2)) / 3
+    );
+    c.applyMatrix4(bake);
+    let bi = 0;
+    let bd = Infinity;
+    for (let i = 0; i < 4; i++) {
+      const d =
+        (c.x - localCenters[i].x) ** 2 + (c.z - localCenters[i].z) ** 2;
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    }
+    buckets[bi].push(i0, i1, i2);
+  }
+
+  const attrNames = Object.keys(geometry.attributes);
+  return buckets.map((tris) => {
+    if (!tris.length) return null;
+    const out = new THREE.BufferGeometry();
+    const vertCount = tris.length;
+    for (const name of attrNames) {
+      const attr = geometry.attributes[name];
+      const itemSize = attr.itemSize;
+      const arr = new Float32Array(vertCount * itemSize);
+      const tmp = new THREE.Vector3();
+      for (let i = 0; i < vertCount; i++) {
+        const src = tris[i];
+        for (let k = 0; k < itemSize; k++) {
+          arr[i * itemSize + k] = attr.getComponent(src, k);
+        }
+        if (name === 'position' && itemSize >= 3) {
+          tmp.fromArray(arr, i * itemSize);
+          tmp.applyMatrix4(bake);
+          arr[i * itemSize] = tmp.x;
+          arr[i * itemSize + 1] = tmp.y;
+          arr[i * itemSize + 2] = tmp.z;
+        } else if (name === 'normal' && itemSize >= 3) {
+          tmp.fromArray(arr, i * itemSize);
+          tmp.applyMatrix3(normalMat).normalize();
+          arr[i * itemSize] = tmp.x;
+          arr[i * itemSize + 1] = tmp.y;
+          arr[i * itemSize + 2] = tmp.z;
+        }
+      }
+      out.setAttribute(name, new THREE.BufferAttribute(arr, itemSize));
+    }
+    return out;
+  });
 }

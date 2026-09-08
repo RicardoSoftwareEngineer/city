@@ -1,10 +1,15 @@
 /**
  * On-demand apartment interiors + curtain overlays for downtown facades.
- * Buildings stay InstancedMesh; rooms/curtains are separate scene objects.
+ * Buildings stay InstancedMesh; live rooms/curtains are InstancedMesh too
+ * (one draw per room material + one curtain draw for all live slots).
  */
 
 import * as THREE from 'three';
-import { createApartmentRoom, createCurtain } from './roomTemplate.js';
+import {
+  ensureApartmentRoomBaked,
+  getSharedCurtainGeometry,
+  getSharedCurtainMaterial
+} from './roomTemplate.js';
 import { throughValve, yieldToMain } from '../yield.js';
 import { memoryGuardian } from '../../engine/memoryGuardian.js';
 import {
@@ -33,6 +38,8 @@ const _dummy = new THREE.Object3D();
 const _slotMat = new THREE.Matrix4();
 const _buildingMat = new THREE.Matrix4();
 const _worldMat = new THREE.Matrix4();
+const _roomLocal = new THREE.Matrix4();
+const _hideMat = new THREE.Matrix4().makeScale(0, 0, 0);
 const _inward = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _right = new THREE.Vector3();
@@ -232,6 +239,19 @@ export class ApartmentDirector {
     this._pumpRunning = false;
     /** Shared curtain/room GPU programs warmed once. */
     this._gpuWarmed = false;
+    /** @type {THREE.Group|null} */
+    this._instancerRoot = null;
+    /** @type {THREE.InstancedMesh[]|null} one InstancedMesh per room material */
+    this._roomInstancers = null;
+    /** @type {THREE.InstancedMesh|null} */
+    this._curtainInstancer = null;
+    this._instanceCapacity = ALL_CEILING;
+    /** @type {number[]} */
+    this._freeInstanceIds = [];
+    this._nextInstanceId = 0;
+    /** Dirty flags so we batch instanceMatrix.needsUpdate once per frame when possible. */
+    this._roomMatricesDirty = false;
+    this._curtainMatricesDirty = false;
   }
 
   static facadeId(typeName, x, z) {
@@ -275,7 +295,7 @@ export class ApartmentDirector {
   loadedCount() {
     let n = 0;
     for (const u of this.units.values()) {
-      if (u.room) n++;
+      if (u.hasRoom) n++;
     }
     return n;
   }
@@ -292,7 +312,7 @@ export class ApartmentDirector {
     if (!facadeId) return 0;
     let n = 0;
     for (const [key, u] of this.units) {
-      if (key.startsWith(`${facadeId}#`) && u.room) n++;
+      if (key.startsWith(`${facadeId}#`) && u.hasRoom) n++;
     }
     return n;
   }
@@ -391,7 +411,7 @@ export class ApartmentDirector {
         if (key.startsWith(`${facadeId}#`)) continue;
         const unit = this.units.get(key);
         if (!unit) continue;
-        if (unit.room || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
+        if (unit.hasRoom || unit.state === 'loading' || unit.state === 'ready' || unit.state === 'open') {
           this._disposeUnit(key);
         }
       }
@@ -446,7 +466,7 @@ export class ApartmentDirector {
             this.units.set(key, unit);
             this._loadOrder.push(key);
             await this._finishLoad(unit);
-          } else if (!unit.room || unit.state === 'curtain-only') {
+          } else if (!unit.hasRoom || unit.state === 'curtain-only') {
             this._resetCurtainClosed(unit);
             unit.state = 'loading';
             unit.openT = 0;
@@ -475,33 +495,174 @@ export class ApartmentDirector {
   }
 
   /**
-   * One-shot GPU warm for shared curtain + room materials (pause:false).
-   * Subsequent unit compiles skip warmed programs (Renderer mat flags).
+   * Ensure global room/curtain InstancedMeshes exist (capacity = ALL_CEILING).
+   * Bake template once; one InstancedMesh per room material + one curtain mesh.
+   */
+  async _ensureInstancers() {
+    if (this._roomInstancers) return;
+    const baked = await ensureApartmentRoomBaked();
+    const cap = this._instanceCapacity;
+    const root = new THREE.Group();
+    root.name = 'apartment-instancers';
+    root.frustumCulled = false;
+    this.parent.add(root);
+    this._instancerRoot = root;
+
+    this._roomInstancers = baked.roomSpecs.map((spec, i) => {
+      const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
+      mesh.name = `apartment-room-im-${i}`;
+      mesh.count = 0;
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 30;
+      for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
+      mesh.instanceMatrix.needsUpdate = true;
+      root.add(mesh);
+      return mesh;
+    });
+
+    const curtain = new THREE.InstancedMesh(
+      getSharedCurtainGeometry(),
+      getSharedCurtainMaterial(),
+      cap
+    );
+    curtain.name = 'apartment-curtain-im';
+    curtain.count = 0;
+    curtain.castShadow = false;
+    curtain.receiveShadow = false;
+    curtain.frustumCulled = false;
+    curtain.renderOrder = 40;
+    for (let j = 0; j < cap; j++) curtain.setMatrixAt(j, _hideMat);
+    curtain.instanceMatrix.needsUpdate = true;
+    root.add(curtain);
+    this._curtainInstancer = curtain;
+  }
+
+  _allocInstanceId() {
+    if (this._freeInstanceIds.length) return this._freeInstanceIds.pop();
+    if (this._nextInstanceId >= this._instanceCapacity) {
+      // Should not happen under ALL_CEILING + live budget; reuse a free hole if any.
+      console.warn('[apartments] instance capacity exhausted', this._instanceCapacity);
+      return this._freeInstanceIds.length ? this._freeInstanceIds.pop() : 0;
+    }
+    const id = this._nextInstanceId++;
+    const count = id + 1;
+    for (const mesh of this._roomInstancers || []) {
+      mesh.count = count;
+    }
+    if (this._curtainInstancer) this._curtainInstancer.count = count;
+    return id;
+  }
+
+  _releaseInstanceId(id) {
+    if (id == null || id < 0) return;
+    this._writeRoomHidden(id);
+    this._writeCurtainHidden(id);
+    this._freeInstanceIds.push(id);
+  }
+
+  _writeRoomMatrix(id, matrix) {
+    for (const mesh of this._roomInstancers || []) {
+      mesh.setMatrixAt(id, matrix);
+    }
+    this._roomMatricesDirty = true;
+  }
+
+  _writeRoomHidden(id) {
+    this._writeRoomMatrix(id, _hideMat);
+  }
+
+  _writeCurtainMatrix(id, matrix) {
+    if (!this._curtainInstancer) return;
+    this._curtainInstancer.setMatrixAt(id, matrix);
+    this._curtainMatricesDirty = true;
+  }
+
+  _writeCurtainHidden(id) {
+    this._writeCurtainMatrix(id, _hideMat);
+  }
+
+  _flushInstanceMatrices() {
+    if (this._roomMatricesDirty) {
+      for (const mesh of this._roomInstancers || []) {
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+      this._roomMatricesDirty = false;
+    }
+    if (this._curtainMatricesDirty && this._curtainInstancer) {
+      this._curtainInstancer.instanceMatrix.needsUpdate = true;
+      this._curtainMatricesDirty = false;
+    }
+  }
+
+  /** Slot group world matrix (building × slot local). */
+  _slotWorldMatrix(facade, slot, out = _worldMat) {
+    const bMat = buildingMatrix(facade.pose);
+    const sMat = slotLocalMatrix(slot);
+    return out.multiplyMatrices(bMat, sMat);
+  }
+
+  /** Room instance matrix = slotWorld × local TRS (near-glass offset + window scale). */
+  _composeRoomMatrix(slotWorld, slot, out = _worldMat) {
+    const h = slot.height;
+    const sx = Math.max(0.65, slot.width / 2.8);
+    const sy = Math.max(0.65, slot.height / 2.35);
+    const sz = Math.max(sx, sy);
+    _dummy.position.set(0, -h * 0.42, 0.04);
+    _dummy.quaternion.identity();
+    _dummy.scale.set(sx, sy, sz);
+    _dummy.updateMatrix();
+    return out.multiplyMatrices(slotWorld, _dummy.matrix);
+  }
+
+  /**
+   * Curtain instance matrix outside glass (−Z). openScaleY in (0,1] shrinks open.
+   */
+  _composeCurtainMatrix(slotWorld, slot, openScaleY = 1, out = _worldMat) {
+    const w = Math.max(slot.width, 0.5) * 1.12;
+    const h = Math.max(slot.height, 0.5) * 1.12;
+    const baseH = Math.max(slot.height, 0.5);
+    _dummy.position.set(0, baseH * 0.5, CURTAIN_OUT_Z);
+    _dummy.quaternion.identity();
+    _dummy.scale.set(w, Math.max(0.02, h * openScaleY), 1);
+    _dummy.updateMatrix();
+    return out.multiplyMatrices(slotWorld, _dummy.matrix);
+  }
+
+  /**
+   * One-shot GPU warm for shared curtain + room InstancedMesh programs (pause:false).
+   * Subsequent unit stamps skip warmed programs (Renderer mat flags).
    */
   async _warmApartmentPrograms() {
-    if (this._gpuWarmed || !this.renderer?.compileSubtree) return;
-    const group = new THREE.Group();
-    group.name = 'apt-warm';
-    group.visible = false;
-    group.frustumCulled = false;
-    group.add(createCurtain(2, 2));
-    try {
-      const room = await createApartmentRoom();
-      group.add(room);
-    } catch (_) {
-      /* room template optional for curtain-only warm */
+    if (this._gpuWarmed || !this.renderer?.compileSubtree) {
+      await this._ensureInstancers();
+      return;
     }
-    const host = this.parent;
-    host.add(group);
+    await this._ensureInstancers();
+    // Stamp instance 0 briefly so compile sees InstancedMesh paths.
+    if (this._roomInstancers?.length) {
+      _dummy.position.set(0, -5000, 0);
+      _dummy.scale.set(0.001, 0.001, 0.001);
+      _dummy.quaternion.identity();
+      _dummy.updateMatrix();
+      this._writeRoomMatrix(0, _dummy.matrix);
+      this._writeCurtainMatrix(0, _dummy.matrix);
+      for (const mesh of this._roomInstancers) mesh.count = Math.max(mesh.count, 1);
+      if (this._curtainInstancer) this._curtainInstancer.count = Math.max(this._curtainInstancer.count, 1);
+      this._flushInstanceMatrices();
+    }
     try {
       await throughValve(() =>
-        this.renderer.compileSubtree(group, { instancersOnly: false, pause: false })
+        this.renderer.compileSubtree(this._instancerRoot, { instancersOnly: false, pause: false })
       );
       this._gpuWarmed = true;
     } catch (_) {
       /* compile optional */
     } finally {
-      host.remove(group);
+      this._writeRoomHidden(0);
+      this._writeCurtainHidden(0);
+      this._flushInstanceMatrices();
     }
   }
 
@@ -512,6 +673,7 @@ export class ApartmentDirector {
   async load(facadeId, slotIds) {
     const facade = this.facades.get(facadeId);
     if (!facade) return [];
+    await this._ensureInstancers();
     const epoch = this._facadeEpoch.get(facadeId) || 0;
     const ids = (Array.isArray(slotIds) ? slotIds : [slotIds])
       .map((n) => Number(n))
@@ -581,23 +743,33 @@ export class ApartmentDirector {
 
   update(dt) {
     const step = Math.max(0, dt);
+    let curtainDirty = false;
     for (const unit of this.units.values()) {
       if (unit.state !== 'open' && unit.state !== 'ready') continue;
       if (unit.state === 'ready') unit.state = 'open';
       if (unit.openT >= 1) {
-        unit.curtain.visible = false;
+        if (unit.curtainVisible) {
+          this._writeCurtainHidden(unit.instanceId);
+          unit.curtainVisible = false;
+          curtainDirty = true;
+        }
         continue;
       }
       unit.openT = Math.min(1, unit.openT + step / OPEN_DURATION);
       const t = unit.openT * unit.openT * (3 - 2 * unit.openT);
-      // Shared curtain mat — open via scale/visibility only (never opacity).
-      const bx = unit.curtain.userData.baseScaleX ?? 1;
-      const by = unit.curtain.userData.baseScaleY ?? 1;
       const sy = Math.max(0.02, 1 - t);
-      unit.curtain.scale.set(bx, by * sy, 1);
+      const facade = this.facades.get(unit.facadeId);
+      if (!facade) continue;
+      this._composeCurtainMatrix(unit.slotWorld, unit.slot, sy, _roomLocal);
+      this._writeCurtainMatrix(unit.instanceId, _roomLocal);
+      curtainDirty = true;
       if (unit.openT >= 1) {
-        unit.curtain.visible = false;
+        this._writeCurtainHidden(unit.instanceId);
+        unit.curtainVisible = false;
       }
+    }
+    if (curtainDirty || this._roomMatricesDirty || this._curtainMatricesDirty) {
+      this._flushInstanceMatrices();
     }
   }
 
@@ -712,76 +884,60 @@ export class ApartmentDirector {
       const oldest = this._loadOrder.shift();
       if (!oldest || !this.units.has(oldest)) continue;
       // Curtain-only shells do not count toward the live budget — skip eviction.
-      if (!this.units.get(oldest).room) continue;
+      if (!this.units.get(oldest).hasRoom) continue;
       this._disposeUnit(oldest);
     }
   }
 
   _spawnUnit(facade, slot, key) {
-    const group = new THREE.Group();
-    group.name = `apt:${key}`;
-    group.frustumCulled = false;
+    // No per-slot Group/Mesh — stamp into global InstancedMeshes.
+    const slotWorld = this._slotWorldMatrix(facade, slot, new THREE.Matrix4());
+    const instanceId = this._allocInstanceId();
 
-    const curtain = createCurtain(slot.width, slot.height);
-    curtain.userData.baseScaleX = curtain.scale.x;
-    curtain.userData.baseScaleY = curtain.scale.y;
-    // OUTSIDE the glass along local −Z (toward street) so it reads on the facade.
-    curtain.position.z = CURTAIN_OUT_Z;
-    curtain.renderOrder = 40;
-    group.add(curtain);
-
-    const bMat = buildingMatrix(facade.pose);
-    const sMat = slotLocalMatrix(slot);
-    _worldMat.multiplyMatrices(bMat, sMat);
-    _worldMat.decompose(group.position, group.quaternion, group.scale);
-
-    const host = facade.parent || this.parent;
-    host.add(group);
+    this._composeCurtainMatrix(slotWorld, slot, 1, _roomLocal);
+    this._writeCurtainMatrix(instanceId, _roomLocal);
+    this._writeRoomHidden(instanceId);
+    this._flushInstanceMatrices();
 
     return {
       key,
       facadeId: facade.id,
       slotId: slot.id,
       slot,
-      group,
-      curtain,
-      reveal: null,
+      instanceId,
+      slotWorld,
+      hasRoom: false,
       room: null,
+      curtain: null,
+      reveal: null,
+      curtainVisible: true,
       state: 'loading',
       openT: 0,
-      host
+      host: facade.parent || this.parent
     };
   }
 
   async _finishLoad(unit) {
     if (unit.state !== 'loading') return;
 
-    // Phase 1: no opaque reveal plane — transparent glass + real 3D room behind.
-    const room = await createApartmentRoom();
-    const h = unit.slot.height;
-    // Closer to glass (−Z opening) so near-window props read from the street.
-    room.position.set(0, -h * 0.42, 0.04);
-    const sx = Math.max(0.65, unit.slot.width / 2.8);
-    const sy = Math.max(0.65, unit.slot.height / 2.35);
-    room.scale.set(sx, sy, Math.max(sx, sy));
-    room.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.renderOrder = 30;
-        obj.frustumCulled = false;
-      }
-    });
-    unit.group.add(room);
-    unit.room = room;
+    await this._ensureInstancers();
+
+    // Phase 1: transparent glass + instanced 3D room (emissive, no PointLight).
+    this._composeRoomMatrix(unit.slotWorld, unit.slot, _roomLocal);
+    this._writeRoomMatrix(unit.instanceId, _roomLocal);
+    unit.hasRoom = true;
+    unit.room = true; // legacy truthy for any external checks
     unit.reveal = null;
 
-    // pause:false — do not freeze the canvas for the whole apartment batch;
-    // game loop keeps drawing so curtains open and rooms show through glass.
-    if (this.renderer?.compileSubtree) {
+    // pause:false — do not freeze the canvas for the whole apartment batch.
+    // Programs warmed once on InstancedMesh root; per-unit compile is a no-op after.
+    if (this.renderer?.compileSubtree && !this._gpuWarmed) {
       try {
-        await this.renderer.compileSubtree(unit.group, {
+        await this.renderer.compileSubtree(this._instancerRoot, {
           instancersOnly: false,
           pause: false
         });
+        this._gpuWarmed = true;
       } catch (_) {
         /* compile optional */
       }
@@ -790,38 +946,31 @@ export class ApartmentDirector {
     unit.state = 'ready';
     // Snap-hide curtain so a closed plane never sits over the lit room.
     unit.openT = 1;
-    unit.curtain.visible = false;
+    this._writeCurtainHidden(unit.instanceId);
+    unit.curtainVisible = false;
+    this._flushInstanceMatrices();
     // One painted frame per room even when compile is a no-op (warmed mats).
     await new Promise((r) => requestAnimationFrame(r));
   }
 
   _resetCurtainClosed(unit) {
-    if (!unit?.curtain) return;
-    unit.curtain.visible = true;
-    const bx = unit.curtain.userData.baseScaleX ?? 1;
-    const by = unit.curtain.userData.baseScaleY ?? 1;
-    unit.curtain.scale.set(bx, by, 1);
-    // Shared material — do not poke opacity.
+    if (!unit || unit.instanceId == null) return;
+    this._composeCurtainMatrix(unit.slotWorld, unit.slot, 1, _roomLocal);
+    this._writeCurtainMatrix(unit.instanceId, _roomLocal);
+    unit.curtainVisible = true;
     unit.openT = 0;
+    this._flushInstanceMatrices();
   }
 
   /**
-   * Drop the room mesh (shared template geos/mats kept) and leave a closed curtain.
+   * Drop the room instance (shared geos/mats kept) and leave a closed curtain.
    */
   _stripToCurtainOnly(unit) {
     if (!unit) return;
-    if (unit.room) {
-      unit.group.remove(unit.room);
-      // Clones share template geometry/materials — do not dispose them.
-      unit.room = null;
-    }
-    if (unit.reveal) {
-      unit.group.remove(unit.reveal);
-      unit.reveal.geometry?.dispose?.();
-      if (unit.reveal.material?.map) unit.reveal.material.map.dispose?.();
-      unit.reveal.material?.dispose?.();
-      unit.reveal = null;
-    }
+    this._writeRoomHidden(unit.instanceId);
+    unit.hasRoom = false;
+    unit.room = null;
+    unit.reveal = null;
     this._resetCurtainClosed(unit);
     unit.state = 'curtain-only';
   }
@@ -829,16 +978,8 @@ export class ApartmentDirector {
   _disposeUnit(key) {
     const unit = this.units.get(key);
     if (!unit) return;
-    unit.host?.remove(unit.group);
-    unit.group.traverse((obj) => {
-      // Curtain geo/mat are shared across units — never dispose them.
-      if (obj.name === 'apartment-reveal') {
-        obj.geometry?.dispose?.();
-        if (obj.material?.map) obj.material.map.dispose?.();
-        obj.material?.dispose?.();
-      }
-      // Shared room geometries stay cached on the template.
-    });
+    this._releaseInstanceId(unit.instanceId);
+    this._flushInstanceMatrices();
     this.units.delete(key);
     this._loadOrder = this._loadOrder.filter((k) => k !== key);
   }

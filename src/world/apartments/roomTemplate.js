@@ -1,20 +1,20 @@
 /**
- * Apartment interior template — phase 1 (spec 05):
- * transparent glass view + bright emissive fill. **One merged mesh** (material
- * groups) baked into a cached template; each unit `clone(true)` shares
- * geometry + materials. One PointLight per unit for glass readability.
+ * Apartment interior template — InstancedMesh-ready (spec 05):
+ * bake **once** into per-material geometries + shared Standard materials with
+ * emissive fill (no PointLight). ApartmentDirector stamps N instances → one
+ * draw per material for all live rooms (≈10 draws total, not N meshes).
  *
- * Visibility bar: from the street you must instantly read “tem quarto”
- * (bright walls/emissive fill + large near-glass silhouette). Shared curtain
- * material+geometry so GPU compile warms once for all slots.
+ * Curtain: one shared PlaneGeometry + material for InstancedMesh (or thin mesh
+ * warm). Visibility bar: bright emissive walls + near-glass silhouette.
  */
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-let cached = null;
+/** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
+let baked = null;
 
-/** One curtain program for every slot (scaled per unit). */
+/** One curtain program for every slot (scaled per unit / instance). */
 let sharedCurtainMat = null;
 let sharedCurtainGeo = null;
 
@@ -45,7 +45,7 @@ function pushBox(buckets, material, w, h, d, x, y, z) {
   buckets.get(material).push(geo);
 }
 
-function getSharedCurtainMaterial() {
+export function getSharedCurtainMaterial() {
   if (!sharedCurtainMat) {
     sharedCurtainMat = new THREE.MeshStandardMaterial({
       color: 0x5b21b6,
@@ -61,8 +61,8 @@ function getSharedCurtainMaterial() {
   return sharedCurtainMat;
 }
 
-/** Unit plane centered; mesh scale = window size. */
-function getSharedCurtainGeometry() {
+/** Unit plane centered; mesh/instance scale = window size. */
+export function getSharedCurtainGeometry() {
   if (!sharedCurtainGeo) {
     // Origin at top edge so scale.y shrink opens upward (curtain rises).
     sharedCurtainGeo = new THREE.PlaneGeometry(1, 1);
@@ -72,48 +72,38 @@ function getSharedCurtainGeometry() {
 }
 
 /**
- * Bake every room box into **one** multi-material Mesh (mergeGeometries + groups).
- * Clones share that geometry and the material list — one asset, fewer draws/programs.
+ * Merge each material bucket into one geometry (InstancedMesh = 1 mat each).
+ * @param {Map<object, THREE.BufferGeometry[]>} buckets
+ * @returns {{geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[]}
  */
-function bakeMergedRoomMesh(buckets) {
-  const materials = [];
-  const geoms = [];
+function bakeRoomSpecs(buckets) {
+  /** @type {{geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[]} */
+  const specs = [];
+  let i = 0;
   for (const [material, list] of buckets) {
     if (!list.length) continue;
-    // One merge per material so groups stay 1:1 with materials[].
     const merged = list.length === 1 ? list[0] : mergeGeometries(list, false);
     if (!merged) continue;
     for (const g of list) {
       if (g !== merged) g.dispose();
     }
-    materials.push(material);
-    geoms.push(merged);
+    merged.computeBoundingBox();
+    merged.computeBoundingSphere();
+    specs.push({
+      geometry: merged,
+      material,
+      name: `apartment-room-part-${i++}`
+    });
   }
-  if (!geoms.length) return null;
-  const geometry = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, true);
-  if (geoms.length > 1) {
-    for (const g of geoms) g.dispose();
-  }
-  if (!geometry) return null;
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geometry, materials.length === 1 ? materials[0] : materials);
-  mesh.name = 'apartment-room-merged';
-  mesh.castShadow = false;
-  mesh.receiveShadow = true;
-  mesh.frustumCulled = false;
-  return mesh;
+  return specs;
 }
 
 /**
- * Room local space: opening faces −Z (street / glass). Depth into +Z.
- * Sync bake — no kit glTF wall (lean single asset; plaster back wall).
+ * Bake shared room geometries + materials once. No PointLight — emissive carry
+ * street readability under ACES so InstancedMesh stays cheap.
  */
-export async function createApartmentRoom() {
-  if (cached) return cached.clone(true);
-
-  const room = new THREE.Group();
-  room.name = 'apartment-room';
+export async function ensureApartmentRoomBaked() {
+  if (baked) return baked;
 
   // Shallower depth keeps furniture readable through the pane.
   const depth = 3.2;
@@ -121,29 +111,29 @@ export async function createApartmentRoom() {
   const height = 2.75;
   const wallT = 0.07;
 
-  // Bright plaster + emissive so ACES outdoor exposure still reads “lit room”.
-  const floorMat = std(0xa89070, { roughness: 0.85, emissive: 0x3a3020, emissiveIntensity: 0.25 });
-  const ceilMat = std(0xfffaf3, { roughness: 0.95, emissive: 0xfff5e8, emissiveIntensity: 0.35 });
+  // Bright plaster + stronger emissive (replaces former per-room PointLight).
+  const floorMat = std(0xa89070, { roughness: 0.85, emissive: 0x3a3020, emissiveIntensity: 0.4 });
+  const ceilMat = std(0xfffaf3, { roughness: 0.95, emissive: 0xfff5e8, emissiveIntensity: 0.55 });
   const plaster = std(0xfff6ea, {
     roughness: 0.88,
     emissive: 0xffe8c8,
-    emissiveIntensity: 0.55
+    emissiveIntensity: 0.75
   });
   const fabric = std(0x4a6fa5, {
     roughness: 0.85,
     emissive: 0x1a2a44,
-    emissiveIntensity: 0.35
+    emissiveIntensity: 0.45
   });
-  const wood = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.2 });
-  const lampShade = std(0xfff4d6, { roughness: 0.55, emissive: 0xffe4a8, emissiveIntensity: 1.2 });
-  const plant = std(0x3d9a4a, { roughness: 0.8, emissive: 0x145022, emissiveIntensity: 0.45 });
-  const pot = std(0x9a7a60, { roughness: 0.8, emissive: 0x2a2018, emissiveIntensity: 0.2 });
+  const wood = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
+  const lampShade = std(0xfff4d6, { roughness: 0.55, emissive: 0xffe4a8, emissiveIntensity: 1.45 });
+  const plant = std(0x3d9a4a, { roughness: 0.8, emissive: 0x145022, emissiveIntensity: 0.55 });
+  const pot = std(0x9a7a60, { roughness: 0.8, emissive: 0x2a2018, emissiveIntensity: 0.3 });
   const cushion = std(0xd4784a, {
     roughness: 0.8,
     emissive: 0x4a2810,
-    emissiveIntensity: 0.4
+    emissiveIntensity: 0.5
   });
-  const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.5 });
+  const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.65 });
 
   /** @type {Map<object, THREE.BufferGeometry[]>} */
   const buckets = new Map();
@@ -152,7 +142,7 @@ export async function createApartmentRoom() {
   pushBox(buckets, ceilMat, width, wallT, depth, 0, height, depth * 0.5);
   pushBox(buckets, plaster, wallT, height, depth, -width * 0.5, height * 0.5, depth * 0.5);
   pushBox(buckets, plaster, wallT, height, depth, width * 0.5, height * 0.5, depth * 0.5);
-  // Back wall (lean plaster — no Brick_InteriorWall glTF; keeps 1 merged asset).
+  // Back wall (lean plaster — no Brick_InteriorWall glTF; keeps few shared geos).
   pushBox(buckets, plaster, width, height, wallT, 0, height * 0.5, depth);
 
   // ——— Near-glass silhouette (small Z) so street view instantly reads “room” ———
@@ -174,25 +164,45 @@ export async function createApartmentRoom() {
   pushBox(buckets, wood, 0.02, 0.5, 0.6, -width * 0.5 + 0.06, 1.55, 1.2);
   pushBox(buckets, art, 0.01, 0.42, 0.52, -width * 0.5 + 0.08, 1.55, 1.2);
 
-  const merged = bakeMergedRoomMesh(buckets);
-  if (merged) room.add(merged);
+  const roomSpecs = bakeRoomSpecs(buckets);
+  baked = {
+    roomSpecs,
+    phase: 1,
+    kitWall: false,
+    mergedAsset: true,
+    instanced: true,
+    noPointLight: true
+  };
+  return baked;
+}
 
-  // One PointLight per room — Todos on Large (~77) must not spawn hundreds of lights.
-  // Walls/furniture already carry emissive fill for street readability under ACES.
-  const fill = new THREE.PointLight(0xfff2e0, 5.5, 9, 1.35);
-  fill.position.set(0, height * 0.72, 0.85);
-  room.add(fill);
-
+/**
+ * Warm / debug: non-instanced group sharing baked geos/mats (no PointLight).
+ * Prefer InstancedMesh in ApartmentDirector for live facades.
+ */
+export async function createApartmentRoom() {
+  const { roomSpecs } = await ensureApartmentRoomBaked();
+  const room = new THREE.Group();
+  room.name = 'apartment-room';
+  for (const spec of roomSpecs) {
+    const mesh = new THREE.Mesh(spec.geometry, spec.material);
+    mesh.name = spec.name;
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    room.add(mesh);
+  }
   room.userData.phase = 1;
   room.userData.kitWall = false;
   room.userData.mergedAsset = true;
-  cached = room;
-  return room.clone(true);
+  room.userData.instanced = true;
+  room.userData.noPointLight = true;
+  return room;
 }
 
 /**
  * Fabric curtain outside glass. Shared material + unit geometry (scaled per
- * slot) so compileAsync warms one program for the whole facade — not 26.
+ * slot / instance) so compileAsync warms one program for the whole facade.
  * Do not mutate material.opacity (shared); open via scale/visibility only.
  */
 export function createCurtain(width, height) {

@@ -46,7 +46,7 @@ Ideal drive ≤~33 ms (sub-33 fora da lista). Top ~50 HUD; dump: `hitchEntries` 
 
 ## Compile notes (curto)
 
-Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first shadowed draw = `draw frame+shadows`). Shadow bake: `autoUpdate=false`; defer first `needsUpdate` ~1.5 s após `resumeShadows`. Personas admit: `streamIntent` (`02` / `05`).
+Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first shadowed draw = `draw frame+shadows`). Shadow bake: `autoUpdate=false`; defer first `needsUpdate` ~1.5 s após `resumeShadows`. DayNight: sky `sunPosition` stays far; shadow DirectionalLight closer (`LIGHT_DISTANCE`) + `shadow.camera.far` headroom; Hora scrub / play pose changes set `needsUpdate` (throttled while playing). Personas admit: `streamIntent` (`02` / `05`).
 
 ## Ownership
 

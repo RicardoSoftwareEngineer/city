@@ -1,79 +1,60 @@
 # 03 — Performance
 
-## Product law
+## Purpose
 
-- **Stable FPS > high FPS.** Só subir meta de FPS quando já está estável.
-- Ship bar de play: **célula → célula a ≥30 FPS estável** (frames ≤~33 ms) enquanto o próximo tile streama — sem Hitches multi-100ms / multi-segundo.
-- **Drive smoothness first-class:** com o carro **em movimento**, FPS estável (~≥30) e Hitches raros/ausentes — mesmo que a Fila ainda mostre props/nature pendentes.
-- Preferir CPU main/display estável; GPU memory/time podem ser agressivos se isso proteger o frame.
-- Alavancas: leftover budget (mais apertado ao dirigir), playCore / raio menor, placeholder→upgrade, predicted focus, **drive-moving defer prio ≥1 + terrainMesh** (streets only; phys on-demand). **Não** FPS HOLD / adaptive pauseDraw.
+Budgets Ultra/Simples, hitch taxonomy e ship bar. Drive-defer / admit completo: **`02-loading.md`**.
 
-## Budgets (o que controlamos)
+## Invariants / MUST / MUST NOT
+
+- **MUST** Stable FPS > high FPS; ship bar tile→tile ≥30 FPS (ideal ≤~33 ms).
+- **MUST** Drive smoothness first-class após playableMin (Fila pendente não autoriza hitch).
+- **MUST** Preferir CPU main/display estável; GPU pode ser agressivo se protege o frame.
+- **MUST** Hitches no HUD = observação — **não** disparam HOLD nem mudam raio.
+- **MUST NOT** FPS HOLD / adaptive pauseDraw / ladder ao vivo por FPS.
+
+## Knobs
 
 | Knob | Ultra | Simples | Notas |
 |------|-------|---------|-------|
-| Stream CPU ms / frame (play) | 4–6 | 2–3 | Hard budget; yield quando esgota |
-| Play leftover admit | frameMs EMA &lt; ~28 ms | idem | Só gasta stream com headroom; meta wall ≤~33 ms |
-| Drive leftover admit | frameMs EMA &lt; ~22 ms | idem | Enquanto `isDriveMovingActive` (após playableMin); crítico só |
-| playCore (load tile) | ~160 m | ~100 m | Foco completo / Fila; anéis externos depois |
-| Residency radius | ~480 m | ~220 m | Fixo no preset (círculo menor permitido) |
-| Soft-cap (não-terrain) | ~280 | ~140 | Heap ainda pode bloquear |
-| instanceBatch / chunk | 32 / 16 | 12 / 4 | Preset |
-| Shadows | on (após bake) | off | |
-| pixelRatio cap | 2 | 1 | |
+| Stream CPU ms/frame | 4–6 | 2–3 | Hard; yield |
+| Leftover play / drive | EMA &lt; ~28 / ~22 ms | idem | Drive: após playableMin |
+| playCore / residency | ~160 / ~480 m | ~100 / ~220 m | |
+| Soft-cap | ~280 | ~140 | Heap ainda bloqueia |
+| instanceBatch / chunk | 32 / 16 | 12 / 4 | |
+| Shadows / pixelRatio | on (pós-bake) / 2 | off / 1 | |
 
-Sem ladder ao vivo por FPS. Leftover é **admission** observacional (yield), não HOLD.
+HUD preset: `#quality-preset-float` + boot + painel FPS.
 
-**HUD:** Ultra / Simples também no float `#quality-preset-float` (canto superior direito, sempre visível em play) além do boot gate e do painel FPS.
+## Hitch taxonomy
 
-## Hitch taxonomy (definição)
+**hitch** = frame spike. HUD: **Hitches** (carga + FPS).
 
-Official name: **hitch** = frame spike / stutter. HUD lists are labeled **Hitches** (carga + FPS).
+| Tier | frameMs | Badge |
+|------|---------|-------|
+| **ok** | ≤ 100 ms | ACEITÁVEL |
+| **mitigate** | &gt; 100 … ≤ 1000 ms | MITIGAR |
+| **bug** | &gt; 1000 ms | BUG |
 
-| Tier | frameMs | Badge | Meaning |
-|------|---------|-------|---------|
-| **ok** / aceitável | ≤ 100 ms | ACEITÁVEL (muted) | Occasional soft spike; may still appear if above list threshold |
-| **mitigate** | &gt; 100 ms and ≤ 1000 ms | MITIGAR | Must work down — especially while driving |
-| **bug** | &gt; 1000 ms | BUG | Max priority; not an “acceptable load cost” |
+Ideal drive ≤~33 ms (sub-33 fora da lista). Top ~50 HUD; dump: `hitchEntries` / `__cityHitches` / `dumpLoadLog()`.
 
-- Ideal **drive** target remains **≤ ~33 ms** (≥30 FPS stable). Sub-33 ms frames are **not** required in the Hitches list.
-- Hitches no HUD são **observação**; não disparam HOLD nem mudam raio.
-- HUD mostra top **~50** hitches (carga e FPS), listas scrolláveis (`#hitch-load-hud` / `#play-hitch-hud`); memória guarda todos em `hitchEntries` com `tier: 'ok'|'mitigate'|'bug'` (`window.__cityHitches` / `dumpLoadLog()`).
+## Ship bar
 
-### Ship bar (play)
+- **Primário:** focusGrid cell→cell ≥30 FPS estável, sem freezes multi-100ms / multi-segundo.
+- **Drive:** após playableMin, streets-only — ver **`02-loading.md`**. Cold open → mínimo jogável com cidade visível.
+- &gt;1 s = BUG; &gt;100…≤1 s = MITIGAR. “Worst &lt;10 s” = diagnóstico boot, não barra primária.
 
-- **Primário:** tile→tile ≥30 FPS estável (sem freezes multi-100ms / multi-segundo ao cruzar focusGrid; ideal frames ≤~33 ms com stream do próximo cell).
-- **Drive:** depois de playableMin, enquanto o carro se move, mesma barra — **prio ≥1 + terrainMesh deferred** (só streets; phys on-demand); Fila “faltam N props/nature” **não** autoriza hitch. Cold open deve chegar a mínimo jogável com cidade visível sem precisar ficar parado para sempre.
-- Frames **&gt;1 s** marcam **BUG**; **&gt;100 ms…≤1 s** marcam **MITIGAR**.
-- A meta interim “worst Hitches &lt; 10 s” **deixa de ser** a barra primária de ship para play (pode permanecer como diagnóstico histórico de boot).
+## Compile notes (curto)
 
-## O que medimos vs o que controlamos
+Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first shadowed draw = `draw frame+shadows`). Shadow bake: `autoUpdate=false`; defer first `needsUpdate` ~1.5 s após `resumeShadows`. Personas admit: `streamIntent` (`02` / `05`).
 
-| Medimos (HUD) | Controlamos (código/preset) |
-|---------------|-----------------------------|
-| Hitches — carga / FPS (+ tier) | `budgetMs`, leftover headroom, batch, chunk, playCore / radius |
-| FPS instantâneo / EMA / frameMs EMA | Yield + hard stream budget + leftover admit |
-| heap / ktri (diagnóstico) | Soft-cap, wantsTerrain/NatureLoad, demote maps |
-| Fila do foco restante | Prioridades + predicted focus + playCore |
+## Ownership
 
-## Técnicas preferidas
+`loadLog` (tiers) · `LoadGovernor` (budget/leftover) · `qualityPresets` · `streamIntent` (admit — contrato em `02`/`05`).
 
-- Time-slice + yield (`throughValve`, `createBudget`) + **leftover admission**
-- Warmup GPU antes de reveal (scoped to the new batch, not the whole city parent)
-- Two-stage maps (placeholder → upgrade; demote sob pressão)
-- Dedupe / merge urlJobs by glTF URL (awnings, shared props)
-- Clone with shared materials so `_gpu*ProgramWarmed` sticks
-- Predicted focus + phys pin real + focusGrid load tile
-- playCore primeiro; anel externo só após Foco completo
-- Drive-moving (após playableMin): defer prio ≥1 + terrainMesh (streets only) + per-job admit / pre-parse abort + leftover ~22 ms + sem expand outer mid-drive
-- Deletar leftovers de FPS-adapt em vez de novas personas
+## Same-PR rule
 
-## pauseDraw + stream ownership
+Budgets, hitch thresholds, ship bar, leftover → este arquivo. **Quando** deferir stream → `02-loading.md`.
 
-- **Boot (pre-interactive):** WorldStream may still `pauseDraw()` around ring / building compiles (avoid compile-via-draw on the first programs).
-- While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
-- While **drive-moving** is active (`streamIntent.isDriveMovingActive` = speed hysteresis **and** `playableMin`), **prio ≥1** (furniture / bank / buildings / nature / carpet) **and new terrain visual meshes** (`STREAM_LANE.TERRAIN_MESH`) are deferred; only **prio 0 streets** may stream on the ring pump; terrain **phys** stays on-demand (`ensureGroundAround`); outer rings do not expand; leftover ~22 ms. **Before playableMin**, boot admits terrainMesh + normal priorities so cold open reaches mínimo jogável with visible city. Speed enter ~2.5 m/s (≈9 km/h HUD), exit ~0.8 m/s — not crawl ~4 km/h. Resume props / nature / terrainMesh when nearly stopped. **Per-job / per-tile** `mayAdmitStreamWork(priority|lane)` + `loadGltf({ shouldAbort })` so already-admitted furniture/nature jobs abort **before** `gltf:parse` after fetch/yield (do not finish Prop_Sign / Bush_* parse mid-drive). Skip warmup/compile/reveal for deferred lanes until parked.
-- When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet, **terrain**) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Hitches freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
-- **Terrain caveat:** tiles are plain `Mesh` (shared `terrainLambert`). Compiles must pass `instancersOnly: false` or the first shadowed `render()` compiles programs via draw (BUG LOAD `draw frame+shadows +Nprog`).
-- **Shadow bake:** `shadowMap.autoUpdate = false`; after `resumeShadows`, defer the first `needsUpdate` bake by ~1.5s so it does not stack on first-draw program compiles (`loadGovernor.streaming` stays true all session — do not gate on it). `resumeShadows` keeps drawing (no pauseDraw) and budgets `compileAsync` with `clearLoadTag` / yields.
-- Hitch law: &gt;1000 ms = BUG; &gt;100…≤1000 = MITIGAR; ≤100 = ACEITÁVEL (Hitches observation only; no HOLD). Ideal drive ≤~33 ms. Play ship bar = stable ≥30 FPS tile→tile.
+## Out of scope
+
+Essay de drive-defer / per-job abort → `02`. Adaptive FPS / HOLD.

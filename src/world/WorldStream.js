@@ -7,7 +7,8 @@
  * Foco completo = playCore disk (load tile); outer rings unlock after that.
  * While the car is moving: defer furniture+ (prio ≥1; streets prio 0 + terrain
  * bg only), no outer expand, critical-only pump under leftover — drive
- * smoothness first-class.
+ * smoothness first-class. Admit is re-checked per urlJob; in-flight furniture
+ * aborts before gltf:parse after fetch/yield (streamIntent.mayAdmitStreamWork).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -36,12 +37,20 @@ import { noteDecision } from '../engine/personaLog.js';
 import { noteZonePolicy } from '../engine/qualityAdapter.js';
 import {
   shouldDeferLowPrioStream,
+  mayAdmitStreamWork,
   clampStreamMaxPriority,
   clampStreamLoadRadius,
   allowOuterRingExpand,
   driveTinyAdmit,
   streamDeferDecisionLabel
 } from '../engine/streamIntent.js';
+
+/** Returned by _loadStreamTemplate when drive/apt defer aborts before parse. */
+const STREAM_LOAD_DEFERRED = Symbol('streamLoadDeferred');
+
+function emptyGrower() {
+  return { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
+}
 
 export const STREAM_STEP = 10;
 /** Max priority that may gate ring expansion (streets…base veg). */
@@ -480,10 +489,21 @@ export class WorldStream {
     return publishFocusRemain(this.computeFocusRemain());
   }
 
-  /** Load glTF, demote maps to shared placeholder when textured (Pareto two-stage). */
-  async _loadStreamTemplate(url, options) {
-    const template = await loadGltf(url, options);
-    if (template && !options?.useLambert) demoteMaps(template);
+  /**
+   * Load glTF under streamIntent admit. Passes shouldAbort so a drive that
+   * starts after fetch/yield skips gltf:parse; returns STREAM_LOAD_DEFERRED
+   * so the urlJob stays unloadable for a later parked pump (no empty grower).
+   */
+  async _loadStreamTemplate(url, options, priority = 0) {
+    if (!mayAdmitStreamWork(priority)) return STREAM_LOAD_DEFERRED;
+    const template = await loadGltf(url, {
+      ...options,
+      shouldAbort: () => !mayAdmitStreamWork(priority)
+    });
+    if (!template) {
+      return mayAdmitStreamWork(priority) ? null : STREAM_LOAD_DEFERRED;
+    }
+    if (!options?.useLambert) demoteMaps(template);
     return template;
   }
 
@@ -500,7 +520,6 @@ export class WorldStream {
     const admit = this._admitForPump(maxPriority, effectiveLoadRadius());
     maxPriority = admit.maxPriority;
     const loadR = admit.loadR;
-    const driving = admit.tiny;
     // Soft-cap full: still drain in-radius remaining so Fila do foco can reach 0.
     let forceFocusDrain = false;
     if (!memoryGuardian.wantsLoad && this.computeFocusRemain().total > 0) {
@@ -564,32 +583,47 @@ export class WorldStream {
         ensureLoadPhase(phaseId, `r${radius}`);
       }
 
+      // Re-read tiny admit each priority — drive may have started since pumpTo entry.
+      const drivingNow = driveTinyAdmit();
       // Driving: tiny admission — at most one url template per priority per pump.
-      const loadJobs = driving ? toLoad.slice(0, 1) : toLoad;
+      const loadJobs = drivingNow ? toLoad.slice(0, 1) : toLoad;
       for (const job of loadJobs) {
+        // Per-job admit: do not continue furniture loads mid-drive.
+        if (this._shouldDeferLowPrioStream(priority)) break;
         if (job.grower || job.loading) continue;
         job.loading = true;
         try {
           const template = await measureRingItem(job.url, () =>
-            throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
+            throughValve(() =>
+              this._loadStreamTemplate(
+                job.url,
+                zoneAwareOptions(job.options, job.poses),
+                priority
+              )
+            )
           );
-          if (template && typeof job.options.prepare === 'function') {
+          if (template === STREAM_LOAD_DEFERRED) continue;
+          if (!template) {
+            job.grower = emptyGrower();
+            registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+            continue;
+          }
+          if (typeof job.options.prepare === 'function') {
             await throughValve(async () => { job.options.prepare(template); });
           }
           const tGrow = performance.now();
-          if (template) job._streamTemplate = template;
-          job.grower = template
-            ? createGrowingInstancedGltf(
-              this.parent,
-              template,
-              job.poses,
-              this.ox,
-              this.oz,
-              zoneAwareOptions(job.options, job.poses)
-            )
-            : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
-          if (template) recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
-          if (template && this.renderer && job.grower.warmup) {
+          job._streamTemplate = template;
+          job.grower = createGrowingInstancedGltf(
+            this.parent,
+            template,
+            job.poses,
+            this.ox,
+            this.oz,
+            zoneAwareOptions(job.options, job.poses)
+          );
+          recordRingItem(`instancer ${job.url}`, performance.now() - tGrow);
+          // Warmup/compile can hitch — skip while deferred; reveal later when parked.
+          if (this.renderer && job.grower.warmup && mayAdmitStreamWork(priority)) {
             await measureRingItem(`warmup ${job.url.split('/').pop() || 'url'}`, () =>
               throughValve(() => job.grower.warmup(this.renderer))
             );
@@ -604,10 +638,11 @@ export class WorldStream {
 
       let driveTplLoads = 0;
       for (const job of this.templateJobs) {
+        if (this._shouldDeferLowPrioStream(priority)) break;
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
         if (minPoseDist(job.poses, focus.x, focus.z) > loadR) continue;
-        if (driving && driveTplLoads >= 1) break;
+        if (drivingNow && driveTplLoads >= 1) break;
         if (job.template && !job._streamTemplate) {
           demoteMaps(job.template);
           job._streamTemplate = job.template;
@@ -624,7 +659,7 @@ export class WorldStream {
             );
           });
         });
-        if (this.renderer && job.grower.warmup) {
+        if (this.renderer && job.grower.warmup && mayAdmitStreamWork(priority)) {
           await measureRingItem('warmup template', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );
@@ -643,19 +678,20 @@ export class WorldStream {
         await yieldAfterWork();
       }
 
-      {
+      if (!this._shouldDeferLowPrioStream(priority)) {
         const keepDrawing = this._keepDrawingForPrio(priority);
         if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
         let driveRevealPasses = 0;
         const maxDriveReveal = 1;
         for (const job of this.urlJobs) {
+          if (this._shouldDeferLowPrioStream(priority)) break;
           if (!job.grower || job.priority !== priority) continue;
-          if (driving && driveRevealPasses >= maxDriveReveal) break;
+          if (drivingNow && driveRevealPasses >= maxDriveReveal) break;
           await ensureGrowerWarmed(job.grower, this.renderer, `warmup ${job.url?.split('/').pop() || 'url'}`);
           let added = 0;
-          const chunk = driving ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
+          const chunk = drivingNow ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
           // Driving: one reveal tick per job; parked: drain under leftover/budget.
-          if (driving) {
+          if (drivingNow) {
             if (job.grower.reveal(radius, chunk) > 0) {
               added += 1;
               await budget.tick();
@@ -675,12 +711,13 @@ export class WorldStream {
           }
         }
         for (const job of this.templateJobs) {
+          if (this._shouldDeferLowPrioStream(priority)) break;
           if (!job.grower || job.priority !== priority) continue;
-          if (driving && driveRevealPasses >= maxDriveReveal) break;
+          if (drivingNow && driveRevealPasses >= maxDriveReveal) break;
           await ensureGrowerWarmed(job.grower, this.renderer, 'warmup template');
           let added = 0;
-          const chunk = driving ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
-          if (driving) {
+          const chunk = drivingNow ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
+          if (drivingNow) {
             if (job.grower.reveal(radius, chunk) > 0) {
               added += 1;
               await budget.tick();
@@ -709,8 +746,9 @@ export class WorldStream {
           task.priority === priority &&
           task.dist <= radius
       );
-      const taskSlice = driving ? tasks.slice(0, 1) : tasks;
+      const taskSlice = drivingNow ? tasks.slice(0, 1) : tasks;
       for (const task of taskSlice) {
+        if (this._shouldDeferLowPrioStream(priority)) break;
         await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () =>
           throughValve(() => task.run())
         );
@@ -718,7 +756,9 @@ export class WorldStream {
         await yieldAfterWork();
       }
 
-      await this.revealBuildings(radius, priority, budget);
+      if (!this._shouldDeferLowPrioStream(priority)) {
+        await this.revealBuildings(radius, priority, budget);
+      }
 
       // End phase when this priority has nothing left in-radius (do not keep
       // running forever just because growers still exist).
@@ -733,10 +773,12 @@ export class WorldStream {
 
   async revealBuildings(radius, priority, budget) {
     if (priority !== 3) return;
+    if (this._shouldDeferLowPrioStream(priority)) return;
     const driving = driveTinyAdmit();
     let driveBuildingWork = 0;
 
     for (const b of this.buildings) {
+      if (this._shouldDeferLowPrioStream(priority)) break;
       if (!b.sorted.length) continue;
       if (chebyshev(b.sorted[0].x, b.sorted[0].z, this.ox, this.oz) > radius) continue;
       if (!memoryGuardian.allowsAt(b.sorted[0].x, b.sorted[0].z)) continue;
@@ -1030,27 +1072,38 @@ export class WorldStream {
     const budget = createBudget();
 
     for (const job of pendingLoad.slice(0, maxLoads)) {
+      if (this._shouldDeferLowPrioStream(priority)) break;
       if (job.grower || job.loading) continue;
       job.loading = true;
       try {
         const template = await measureRingItem(job.url, () =>
-          throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
+          throughValve(() =>
+            this._loadStreamTemplate(
+              job.url,
+              zoneAwareOptions(job.options, job.poses),
+              priority
+            )
+          )
         );
-        if (template && typeof job.options.prepare === 'function') {
+        if (template === STREAM_LOAD_DEFERRED) continue;
+        if (!template) {
+          job.grower = emptyGrower();
+          registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+          continue;
+        }
+        if (typeof job.options.prepare === 'function') {
           await throughValve(async () => { job.options.prepare(template); });
         }
-        if (template) job._streamTemplate = template;
-        job.grower = template
-          ? createGrowingInstancedGltf(
-            this.parent,
-            template,
-            job.poses,
-            this.ox,
-            this.oz,
-            zoneAwareOptions(job.options, job.poses)
-          )
-          : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
-        if (template && this.renderer && job.grower.warmup) {
+        job._streamTemplate = template;
+        job.grower = createGrowingInstancedGltf(
+          this.parent,
+          template,
+          job.poses,
+          this.ox,
+          this.oz,
+          zoneAwareOptions(job.options, job.poses)
+        );
+        if (this.renderer && job.grower.warmup && mayAdmitStreamWork(priority)) {
           await measureRingItem('warmup nature', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );
@@ -1156,13 +1209,26 @@ export class WorldStream {
     const budget = createBudget();
 
     for (const job of pendingLoad.slice(0, maxLoads)) {
+      if (this._shouldDeferLowPrioStream(priority)) break;
       if (job.grower || job.loading) continue;
       job.loading = true;
       try {
         const template = await measureRingItem(job.url, () =>
-          throughValve(() => this._loadStreamTemplate(job.url, zoneAwareOptions(job.options, job.poses)))
+          throughValve(() =>
+            this._loadStreamTemplate(
+              job.url,
+              zoneAwareOptions(job.options, job.poses),
+              priority
+            )
+          )
         );
-        if (template && typeof job.options.prepare === 'function') {
+        if (template === STREAM_LOAD_DEFERRED) continue;
+        if (!template) {
+          job.grower = emptyGrower();
+          registerGrowerResident(`url:${job.uid || job.url}`, 'world', job.poses, job);
+          continue;
+        }
+        if (typeof job.options.prepare === 'function') {
           await throughValve(async () => { job.options.prepare(template); });
         }
         // Dense grass: first InstancedMesh capacity 1–4 (not x19/x24) — grow later with yields.
@@ -1171,18 +1237,16 @@ export class WorldStream {
           firstBatchSize: 2,
           maxBatchSize: 4
         };
-        if (template) job._streamTemplate = template;
-        job.grower = template
-          ? createGrowingInstancedGltf(
-            this.parent,
-            template,
-            job.poses,
-            this.ox,
-            this.oz,
-            carpetOpts
-          )
-          : { reveal() { return 0; }, get warmed() { return true; }, async warmup() {} };
-        if (template && this.renderer && job.grower.warmup) {
+        job._streamTemplate = template;
+        job.grower = createGrowingInstancedGltf(
+          this.parent,
+          template,
+          job.poses,
+          this.ox,
+          this.oz,
+          carpetOpts
+        );
+        if (this.renderer && job.grower.warmup && mayAdmitStreamWork(priority)) {
           await measureRingItem('warmup carpet', () =>
             throughValve(() => job.grower.warmup(this.renderer))
           );

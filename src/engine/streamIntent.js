@@ -9,6 +9,10 @@
  *    Blocks mid-drive Prop_Sign_* gltf:parse hitches. Smoothness > filling Fila.
  *
  * WorldStream / yield / pumps ask these helpers; do not re-encode thresholds elsewhere.
+ *
+ * Admit is re-checked per urlJob (and before glTF parse after fetch/yield), not only
+ * once at pumpTo entry — otherwise a drive that starts mid-pump still finishes
+ * Prop_Sign_* gltf:parse on already-admitted furniture jobs.
  */
 
 let apartmentLiveIntentDepth = 0;
@@ -76,6 +80,15 @@ export function deferredPriorityFloor() {
 /** True if this ring/bg priority must wait for the active persona. */
 export function shouldDeferLowPrioStream(priority = DRIVE_DEFER_PRIORITY) {
   return priority >= deferredPriorityFloor();
+}
+
+/**
+ * Single positive admit gate for stream work at `priority`.
+ * Use before starting urlJob/template/task/building loads and again after
+ * cooperative yields (fetch → parse) so deferred lanes never begin gltf:parse.
+ */
+export function mayAdmitStreamWork(priority = 0) {
+  return !shouldDeferLowPrioStream(priority);
 }
 
 /**

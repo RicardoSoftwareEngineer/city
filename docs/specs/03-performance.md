@@ -65,14 +65,14 @@ Official name: **hitch** = frame spike / stutter. HUD lists are labeled **Hitche
 - Clone with shared materials so `_gpu*ProgramWarmed` sticks
 - Predicted focus + phys pin real + focusGrid load tile
 - playCore primeiro; anel externo só após Foco completo
-- Drive-moving: defer prio ≥1 (streets+terrain only) + leftover ~22 ms + sem expand outer mid-drive
+- Drive-moving: defer prio ≥1 (streets+terrain only) + per-job admit / pre-parse abort + leftover ~22 ms + sem expand outer mid-drive
 - Deletar leftovers de FPS-adapt em vez de novas personas
 
 ## pauseDraw + stream ownership
 
 - **Boot (pre-interactive):** WorldStream may still `pauseDraw()` around ring / building compiles (avoid compile-via-draw on the first programs).
 - While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
-- While **drive-moving** is active (`streamIntent.isDriveMovingActive`, speed hysteresis), **prio ≥1** (furniture / bank / buildings / nature / carpet) is deferred; only **prio 0 streets** + **terrain** (independent bg) may stream; outer rings do not expand; leftover ~22 ms. Resume props when nearly stopped. Blocks mid-drive `Prop_Sign_*` `gltf:parse` hitches.
+- While **drive-moving** is active (`streamIntent.isDriveMovingActive`, speed hysteresis), **prio ≥1** (furniture / bank / buildings / nature / carpet) is deferred; only **prio 0 streets** + **terrain** (independent bg) may stream; outer rings do not expand; leftover ~22 ms. Resume props when nearly stopped. **Per-job** `mayAdmitStreamWork` + `loadGltf({ shouldAbort })` so already-admitted furniture jobs abort **before** `gltf:parse` after fetch/yield (do not finish Prop_Sign parse mid-drive). Skip warmup/compile/reveal for deferred lanes until parked.
 - When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet, **terrain**) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Hitches freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
 - **Terrain caveat:** tiles are plain `Mesh` (shared `terrainLambert`). Compiles must pass `instancersOnly: false` or the first shadowed `render()` compiles programs via draw (BUG LOAD `draw frame+shadows +Nprog`).
 - **Shadow bake:** `shadowMap.autoUpdate = false`; after `resumeShadows`, defer the first `needsUpdate` bake by ~1.5s so it does not stack on first-draw program compiles (`loadGovernor.streaming` stays true all session — do not gate on it). `resumeShadows` keeps drawing (no pauseDraw) and budgets `compileAsync` with `clearLoadTag` / yields.

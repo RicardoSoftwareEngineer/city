@@ -13,7 +13,9 @@
  * for Nature Pack foliage and Source Downtown wear (COLOR_0).
  *
  * Parse: yield before sync work; clearLoadTag across async bin/texture waits so
- * Travamentos does not attribute multi-second rAF gaps to one sticky gltf:parse.
+ * Hitches does not attribute multi-second rAF gaps to one sticky gltf:parse.
+ * Optional options.shouldAbort() after yield skips parse (drive-deferred lanes) and
+ * drops the inflight entry so WorldStream can retry when parked.
  */
 
 import * as THREE from 'three';
@@ -141,8 +143,19 @@ function parseGltfAsync(data, dir, url) {
   });
 }
 
-function loadGltfPayload(url, keepVertexColors, useLambert) {
+/**
+ * @param {() => boolean} [shouldAbort] — after fetch/yield, skip gltf:parse when true
+ *   (drive-moving deferred lane). Deletes `key` from inflight so the next pump retries.
+ */
+function loadGltfPayload(url, keepVertexColors, useLambert, shouldAbort, key) {
   const dir = url.slice(0, url.lastIndexOf('/') + 1);
+
+  const abortIfNeeded = () => {
+    if (!shouldAbort?.()) return false;
+    inflight.delete(key);
+    clearLoadTag();
+    return true;
+  };
 
   return cachedFetch(url)
     .then(async (res) => {
@@ -151,6 +164,8 @@ function loadGltfPayload(url, keepVertexColors, useLambert) {
         const json = await res.json();
         stripGltfTextures(json);
         await yieldToMain();
+        // Abort only before CPU parse — once parse starts, finish and cache.
+        if (abortIfNeeded()) return null;
         const gltf = await parseGltfAsync(json, dir, url);
         if (!gltf) return null;
         beginLoad('gltf:parse', url);
@@ -158,6 +173,7 @@ function loadGltfPayload(url, keepVertexColors, useLambert) {
       }
       const buf = await res.arrayBuffer();
       await yieldToMain();
+      if (abortIfNeeded()) return null;
       const gltf = await parseGltfAsync(buf, dir, url);
       if (!gltf) return null;
       beginLoad('gltf:parse', url);
@@ -176,9 +192,10 @@ export function loadGltf(url, options = {}) {
   const keepVertexColors = options.keepVertexColors === true;
   const useLambert = options.useLambert === true;
   const key = cacheKey(url, keepVertexColors, useLambert);
+  const shouldAbort = typeof options.shouldAbort === 'function' ? options.shouldAbort : null;
 
   if (!inflight.has(key)) {
-    inflight.set(key, loadGltfPayload(url, keepVertexColors, useLambert));
+    inflight.set(key, loadGltfPayload(url, keepVertexColors, useLambert, shouldAbort, key));
   }
 
   return inflight.get(key).then((root) => {

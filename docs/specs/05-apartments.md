@@ -4,7 +4,7 @@
 
 - Downtown MegaKit windows are **real transparent glass** (not FakeInterior emissive textures).
 - **Um template; todas as janelas são slots; budget de interiores vivos é HUD-driven.**
-- One reusable **apartment room template**; every window slot *can* use that same template (cloned).
+- One reusable **apartment room template**; every window slot *can* use that same template (**InstancedMesh** stamps, not Mesh clones).
 - Interiors are **on-demand only**. Buildings do not preload all apartments.
 - Budget: **`liveTarget`** (number or `'all'`, default **`'all'`**) — HUD/ApartmentDirector **intent** for how many **full interiors** should stay live on the active facade. On mark/start (first Large auto-`markFacadeHouse` with `autoLoad`), intent `'all'` is applied via the stream pump. The **stream pump** (LoadGovernor frame budget + `yieldToMain` / `throughValve`) owns pacing — never a click-time for-loop that builds every room on the main thread.
 - **`'all'` / Todos = every window slot:** `want = ranked.length` — **every** slot gets a **full interior with curtain OPEN**. Closed curtain-only shells are **not** the product look for Todos (the old soft ceiling 16 + curtain overflow was wrong). Still stream-paced — never sync-slam ~77 rooms on click.
@@ -20,10 +20,10 @@
 
 - Extracted **before** `mergeBuilding` from `MI_FakeInterior*` triangle centroids, clustered into window-sized slots.
 - Stored on the merged template as `userData.apartmentSlots` (local space of the prepared template).
-- Curtains + room are **scene overlays** (not InstancedMesh). Curtains sit **outside** glass (local −Z). **No opaque reveal plane** — glass stays transparent; the 3D room is visible through it. Auto-load applies `liveTarget` on mark.
-- **Interior quality (phased):** phase 1 = clear glass + **one merged room mesh** (procedural Standard furniture/walls baked via `BufferGeometryUtils.mergeGeometries` + material groups) + one `PointLight`. No per-box meshes and no kit `Brick_InteriorWall` glTF in the live template (lean plaster back wall) — fewer geometries/programs/clones at 128 vivos. Later phases may add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
-- **One asset:** `createApartmentRoom()` bakes once into a cached `apartment-room` group (`apartment-room-merged` mesh + light). Units `clone(true)` sharing geometry + materials (Three Mesh clone). Answer to “1 asset lighter?”: **YES** for apartments at scale — not a substitute for fixing `draw frame+shadows` / Large glTF / terrain hitches (those dominate Travamentos).
-- **Phase-1 visibility bar:** from the street you must instantly see “tem quarto” — bright/emissive walls + fill lights strong enough under ACES outdoor exposure, and a **large near-glass silhouette** (sofa / plant) pushed toward the −Z opening. Furniture buried deep in the room is not enough.
+- Curtains + rooms are **InstancedMesh overlays** (not per-slot Mesh clones). Curtains sit **outside** glass (local −Z). **No opaque reveal plane** — glass stays transparent; the 3D room is visible through it. Auto-load applies `liveTarget` on mark.
+- **Interior quality (phased):** phase 1 = clear glass + **baked room template** (procedural Standard furniture/walls via `BufferGeometryUtils.mergeGeometries` **per material**) rendered as **few InstancedMeshes** (one draw per material for all live rooms) + **shared curtain InstancedMesh**. **No per-room `PointLight`** — lighting is baked into stronger emissive on shared materials so instancing stays cheap. No per-box meshes and no kit `Brick_InteriorWall` glTF (lean plaster back wall). Later phases may add kit props / unique layouts. Same exterior MegaKit bar, built pouco a pouco.
+- **One asset, N instances:** `ensureApartmentRoomBaked()` runs once → shared geos/mats. `ApartmentDirector` stamps instance matrices (slot world × room local TRS). Draw-call impact: **before** N room meshes (× material groups) + N lights + N curtain meshes; **after** ≈#materials room InstancedMeshes + 1 curtain InstancedMesh for the whole live set (typically ~10 + 1 draws). Answer to “identical interiors load once, render many?”: **YES** via InstancedMesh. Not a substitute for fixing `draw frame+shadows` / Large glTF / terrain hitches (those dominate Travamentos).
+- **Phase-1 visibility bar:** from the street you must instantly see “tem quarto” — bright/emissive walls strong enough under ACES outdoor exposure (no fill lights), and a **large near-glass silhouette** (sofa / plant) pushed toward the −Z opening. Furniture buried deep in the room is not enough. Product: menos é mais; rooms still readable through glass.
 
 ## Command API (`ApartmentDirector`)
 
@@ -39,7 +39,7 @@ Exposed as `window.__cityApartments` (`liveTarget` default `'all'`).
 | `load(facadeId, slotIds)` | Load one or more apartments on that facade |
 | `loadCount(facadeId, n)` | Load `n` best idle slots (mid-height street-facing, largest first) |
 | `unload(facadeId?, slotIds?)` | Remove interiors + curtains |
-| `update(dt)` | Animate curtain open (scale only; shared mat) |
+| `update(dt)` | Animate curtain open (instance scale only; shared mat) |
 | `pickFacadeNear(x, z)` | Nearest registered facade to planar point |
 
 ## HUD (`#apts-budget`)
@@ -52,19 +52,19 @@ Exposed as `window.__cityApartments` (`liveTarget` default `'all'`).
 
 ## Curtain states (per apartment)
 
-`idle` → `loading` (curtain **closed**) → `ready` (interior in scene, optional `compileAsync`, **curtain snap-hidden**) → `open`.
+`idle` → `loading` (curtain instance **closed**) → `ready` (room instance stamped, optional `compileAsync` on instancer root, **curtain snap-hidden**) → `open`.
 
-Budget cut / heap demotion: prefer **full unload** of farthest slots (dispose unit). Legacy `curtain-only` state can still be reloaded to a full room if encountered. Raising the budget again loads missing rooms and opens curtains.
+Budget cut / heap demotion: prefer **full unload** of farthest slots (release instance id). Legacy `curtain-only` state can still be reloaded to a full room if encountered. Raising the budget again loads missing rooms and opens curtains.
 
-Curtain hides **as soon as** the interior is added and warmed (snap hide — no closed plane left over the glass). No FPS adapt.
+Curtain hides **as soon as** the interior instance is stamped (snap hide — no closed plane left over the glass). No FPS adapt.
 
-**Shared curtain:** one `MeshStandardMaterial` + one unit `PlaneGeometry`, scaled per slot. Compile warms **once**; do not create per-unit curtain materials (that caused ~11s `apartment-curtain` hitch spam × N). Never mutate shared `material.opacity` — open/close via `scale` + `visible` only. Do not dispose shared curtain geo/mat on unit teardown.
+**Shared curtain InstancedMesh:** one `MeshStandardMaterial` + one unit `PlaneGeometry`, instance matrix scaled per slot. Lean choice vs thin per-slot planes: **instanced** (same shared program, 1 draw). Compile warms **once** on the instancer root; do not create per-unit curtain materials (that caused ~11s `apartment-curtain` hitch spam × N). Never mutate shared `material.opacity` — open/close via instance `scale` (hidden = scale 0). Do not dispose shared curtain geo/mat on unit teardown.
 
-**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and rooms show through glass as each unit becomes `ready`. Shared room **and curtain** materials skip re-compile after the first warm. Nature/carpet (prio ≥4) while interactive also compile with `pause: false`. No FPS HOLD / adaptive pauseDraw for world streaming or apartments.
+**Draw during budget apply:** apartment `compileSubtree` uses `pause: false` so a long Todos batch does **not** hold `pauseDraw` / freeze the canvas. The game loop keeps presenting; curtains hide and room instances show through glass as each unit becomes `ready`. Shared room **and curtain** InstancedMesh programs skip re-compile after the first warm. Nature/carpet (prio ≥4) while interactive also compile with `pause: false`. No FPS HOLD / adaptive pauseDraw for world streaming or apartments.
 
-**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). No Phase-B curtain-only flood for `'all'`. Per-room cost stays lean: **one** `PointLight` + emissive materials (not 3 lights × N slots). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
+**Stream pacing (Todos / setLiveCount):** each full-room unit runs inside `throughValve` (LoadGovernor `budgetMs`) and is followed by `yieldToMain` (double-rAF, resets stream frame budget). No Phase-B curtain-only flood for `'all'`. Per-room cost stays lean: **instance matrix stamp only** + shared emissive materials (**no** per-room lights). Hitch law: apartment-driven Travamentos frames >1000ms are bugs — the pump must keep presenting under load (including coincident nature stream).
 
-**Stream ownership while intent pumps:** `_pumpLiveIntent` sets `streamIntent` (`isApartmentLiveIntentActive`). While active, WorldStream **defers** nature / water / carpet work at **prio ≥4** (ring `pumpTo` skip + `pumpNatureSlice` / `pumpCarpetSlice` early return) so their `pauseDraw` + multi-second `compileSubtree(parent)` cannot freeze the canvas mid-Todos. Resume when the intent finally-block releases. Shared curtain + room GPU programs are **warmed once** (`pause:false`) before the full-room pump. Not an FPS HOLD / adaptive valve. Separately: when **interactive**, nature/carpet reveals compile with `pause: false` (no multi-second `pauseDraw` freeze on `stream ring` / `nature bg`).
+**Stream ownership while intent pumps:** `_pumpLiveIntent` sets `streamIntent` (`isApartmentLiveIntentActive`). While active, WorldStream **defers** nature / water / carpet work at **prio ≥4** (ring `pumpTo` skip + `pumpNatureSlice` / `pumpCarpetSlice` early return) so their `pauseDraw` + multi-second `compileSubtree(parent)` cannot freeze the canvas mid-Todos. Resume when the intent finally-block releases. Shared curtain + room GPU programs are **warmed once** (`pause:false`) on the InstancedMesh root before the full-room pump. Not an FPS HOLD / adaptive valve. Separately: when **interactive**, nature/carpet reveals compile with `pause: false` (no multi-second `pauseDraw` freeze on `stream ring` / `nature bg`).
 
 ## Orientation
 

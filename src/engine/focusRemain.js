@@ -54,6 +54,11 @@ export function getFocusRemainSnapshot() {
   return snapshot;
 }
 
+/** True once phys + spawn streets + near terrain are ready (mínimo jogável). */
+export function isPlayableMinReady() {
+  return !!snapshot.playableMin;
+}
+
 /** Always false — fixed preset radius needs no park freeze. */
 export function isLoadRadiusFrozen() {
   return false;

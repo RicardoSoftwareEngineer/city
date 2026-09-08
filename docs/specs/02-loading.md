@@ -66,7 +66,8 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
 
 ## Drive-moving defer (prio ≥1 + terrainMesh)
 
-- Enquanto velocidade planar &gt; limiar (~1.2 m/s enter / ~0.4 m/s exit histerese), `streamIntent.isDriveMovingActive`:
+- **Boot gate:** drive-defer aplica-se só **depois** de **Mínimo jogável** (`focusRemain.playableMin` / `isPlayableMinReady`). Antes disso o stream de boot admite normal (streets + terrain mesh + o necessário para a cidade aparecer) — mesmo com o carro a rolar no limiar de crawl. Histerese de velocidade pode latchar cedo; a policy fica off até o gate.
+- **Depois** de playableMin, enquanto velocidade planar &gt; limiar (~2.5 m/s enter ≈ 9 km/h / ~0.8 m/s exit ≈ 2.9 km/h; HUD = m/s × 3.6), `streamIntent.isDriveMovingActive`:
   - **Defere furniture / bank / buildings / nature / carpet (prio ≥1)** e **novos tiles de terrain visual** (`STREAM_LANE.TERRAIN_MESH`) — só **prio 0 streets** entram no ring pump.
   - **Terrain phys** (height/collision) permanece on-demand via `ensureGroundAround` — fora desta policy; preferir meshes já residentes / placeholders para vista.
   - Street furniture (`Prop_Sign_HW_*`, planters, …) is prio 1 — must **not** `gltf:parse` mid-drive.
@@ -75,7 +76,7 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
   - Não continua warmup/compile/reveal de furniture/nature mid-drive; leftover drive (~22 ms) só para streets.
   - **Não** expande anéis externos nem despeja props/nature/terrainMesh em mudança de focus-cell mid-drive.
   - `pumpTerrainSlice` / `pumpNatureSlice` / `pumpCarpetSlice` early-return while drive-moving (via `mayAdmitStreamWork`).
-- Ao quase parar / estacionar: retoma props + nature/carpet + terrainMesh. Dirigir &gt; encher Fila.
+- Ao quase parar / estacionar: retoma props + nature/carpet + terrainMesh. Dirigir &gt; encher Fila (após playable).
 
 ## Two-stage assets (Pareto)
 

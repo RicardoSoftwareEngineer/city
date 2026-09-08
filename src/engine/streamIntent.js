@@ -4,11 +4,16 @@
  * Personas temporarily own the shared Valve budget — not an FPS HOLD / adaptive valve.
  *
  * 1) Apartment live-intent — defer nature + carpet (prio ≥4).
- * 2) Drive-moving — defer furniture / bank / buildings / nature / carpet (prio ≥1)
- *    AND new countryside **terrain visual meshes** + nature glTF (bushes/trees).
- *    Admit only prio 0 streets. Terrain **phys** stays on-demand via
- *    ensureGroundAround (outside this policy). Prefer already-resident meshes /
- *    placeholders while moving — smoothness > filling Fila / vista.
+ * 2) Drive-moving — only **after** mínimo jogável (playableMin). Then defer
+ *    furniture / bank / buildings / nature / carpet (prio ≥1) AND new countryside
+ *    **terrain visual meshes** + nature glTF (bushes/trees). Admit only prio 0
+ *    streets. Terrain **phys** stays on-demand via ensureGroundAround (outside
+ *    this policy). Prefer already-resident meshes / placeholders while moving —
+ *    smoothness > filling Fila / vista.
+ *
+ * Before playableMin: normal boot stream (streets + terrain mesh + enough for
+ * the city to appear). Speed hysteresis may latch early; policy stays off until
+ * the boot gate so crawl / Começar never freezes downtown black.
  *
  * WorldStream / yield / pumps ask these helpers; do not re-encode thresholds elsewhere.
  *
@@ -16,6 +21,8 @@
  * fetch/yield), not only once at pumpTo entry — otherwise a drive that starts
  * mid-pump still finishes Prop_Sign_* / Bush_* gltf:parse on already-admitted jobs.
  */
+
+import { isPlayableMinReady } from './focusRemain.js';
 
 let apartmentLiveIntentDepth = 0;
 
@@ -55,11 +62,16 @@ export const STREAM_LANE = Object.freeze({
   CARPET: 5
 });
 
-/** Enter/exit hysteresis (m/s): ~4 km/h enter / ~1.4 km/h exit. */
-export const DRIVE_MOVE_ENTER_MPS = 1.2;
-export const DRIVE_MOVE_EXIT_MPS = 0.4;
+/**
+ * Enter/exit hysteresis (m/s). HUD speed = m/s × 3.6 (km/h).
+ * Enter ~9 km/h / exit ~2.9 km/h — was 1.2/0.4 (~4.3/1.4 km/h), which latched
+ * on crawl near the drive-enter threshold during boot and starved terrainMesh.
+ */
+export const DRIVE_MOVE_ENTER_MPS = 2.5;
+export const DRIVE_MOVE_EXIT_MPS = 0.8;
 
 let driveSpeedMps = 0;
+/** Raw speed latch (hysteresis only). Policy uses isDriveMovingActive(). */
 let driveMoving = false;
 
 /** Call each play frame with planar chassis speed (m/s). */
@@ -73,8 +85,12 @@ export function noteDriveSpeed(mps) {
   }
 }
 
+/**
+ * True when drive-defer policy applies: speed latch AND mínimo jogável.
+ * Before playableMin, boot stream admits normally even if the car is rolling.
+ */
 export function isDriveMovingActive() {
-  return driveMoving;
+  return driveMoving && isPlayableMinReady();
 }
 
 export function getDriveSpeedMps() {

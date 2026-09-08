@@ -1,14 +1,14 @@
 /**
- * High-priority stream personas that temporarily own the shared Valve budget.
+ * Stream ownership personas + admit policy (single place).
  *
- * 1) Apartment live-intent (Interiores Todos / setLiveCount) defers nature + carpet
- *    (prio ≥4) so their compiles cannot freeze the canvas mid-pump.
- * 2) Drive-moving intent: while the car is above a small speed threshold, the same
- *    prio ≥4 lanes are deferred so focus retarget mid-drive cannot dump
- *    multi-second nature compile/reveal into the display frame. Resume when
- *    nearly stopped / parked. Driving smoothness > filling nature poses.
+ * Personas temporarily own the shared Valve budget — not an FPS HOLD / adaptive valve.
  *
- * Not an FPS HOLD / adaptive valve — cooperative ownership flags only.
+ * 1) Apartment live-intent — defer nature + carpet (prio ≥4).
+ * 2) Drive-moving — defer furniture / bank / buildings / nature / carpet (prio ≥1).
+ *    Admit only prio 0 streets (+ terrain on its independent background pump).
+ *    Blocks mid-drive Prop_Sign_* gltf:parse hitches. Smoothness > filling Fila.
+ *
+ * WorldStream / yield / pumps ask these helpers; do not re-encode thresholds elsewhere.
  */
 
 let apartmentLiveIntentDepth = 0;
@@ -26,18 +26,16 @@ export function isApartmentLiveIntentActive() {
   return apartmentLiveIntentDepth > 0;
 }
 
-/**
- * Priorities at or above this are deferred while apartment intent or drive-moving
- * owns the stream. 4 = natureza (base veg), 5 = dense carpet.
- */
+/** Apartment defers nature (4) + carpet (5). */
 export const APARTMENT_DEFER_PRIORITY = 4;
-/** Same threshold as apartment — nature + carpet defer while driving. */
-export const DRIVE_DEFER_PRIORITY = APARTMENT_DEFER_PRIORITY;
 
 /**
- * Enter/exit hysteresis (m/s). Enter ~4 km/h; exit ~1.4 km/h so brief slowdowns
- * do not thrash nature admission; resume only when nearly stopped / parked.
+ * Drive-moving defers everything at or above this priority.
+ * Only prio 0 streets (+ terrain bg) may run while moving.
  */
+export const DRIVE_DEFER_PRIORITY = 1;
+
+/** Enter/exit hysteresis (m/s): ~4 km/h enter / ~1.4 km/h exit. */
 export const DRIVE_MOVE_ENTER_MPS = 1.2;
 export const DRIVE_MOVE_EXIT_MPS = 0.4;
 
@@ -55,7 +53,6 @@ export function noteDriveSpeed(mps) {
   }
 }
 
-/** True while the car is moving fast enough that nature/carpet must wait. */
 export function isDriveMovingActive() {
   return driveMoving;
 }
@@ -64,8 +61,58 @@ export function getDriveSpeedMps() {
   return driveSpeedMps;
 }
 
-/** Nature / carpet should wait (apartment Todos or drive-moving). */
+// --- Admit policy (one place) -------------------------------------------------
+
+/**
+ * Lowest priority that must wait under the active persona.
+ * Infinity = nothing deferred. Drive wins when both active (tighter gate).
+ */
+export function deferredPriorityFloor() {
+  if (isDriveMovingActive()) return DRIVE_DEFER_PRIORITY;
+  if (isApartmentLiveIntentActive()) return APARTMENT_DEFER_PRIORITY;
+  return Number.POSITIVE_INFINITY;
+}
+
+/** True if this ring/bg priority must wait for the active persona. */
 export function shouldDeferLowPrioStream(priority = DRIVE_DEFER_PRIORITY) {
-  if (priority < DRIVE_DEFER_PRIORITY) return false;
-  return isApartmentLiveIntentActive() || isDriveMovingActive();
+  return priority >= deferredPriorityFloor();
+}
+
+/**
+ * Clamp ring-pump maxPriority under drive-moving.
+ * Drive → at most prio 0 (streets). Apartment does not clamp max (uses defer skip).
+ */
+export function clampStreamMaxPriority(defaultMax) {
+  if (!isDriveMovingActive()) return defaultMax;
+  return Math.min(defaultMax, DRIVE_DEFER_PRIORITY - 1);
+}
+
+/** While driving, keep pump radius at playCore (no outer annulus dump). */
+export function clampStreamLoadRadius(loadR, playCoreR) {
+  if (!isDriveMovingActive()) return loadR;
+  return Math.min(loadR, playCoreR);
+}
+
+/** Outer rings may expand only when not drive-moving. */
+export function allowOuterRingExpand() {
+  return !isDriveMovingActive();
+}
+
+/** Tiny admission while driving (url/template loads, reveal passes, tasks). */
+export function driveTinyAdmit() {
+  return isDriveMovingActive();
+}
+
+/**
+ * HUD / personaLog label for the active defer, or null.
+ * e.g. "defer prio≥1 (drive moving)"
+ */
+export function streamDeferDecisionLabel() {
+  if (isDriveMovingActive()) {
+    return `defer prio≥${DRIVE_DEFER_PRIORITY} (drive moving)`;
+  }
+  if (isApartmentLiveIntentActive()) {
+    return `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`;
+  }
+  return null;
 }

@@ -5,8 +5,9 @@
  * Dense carpet (prio 5) is background-only — never blocks radius expansion
  * or Foco pronto (optional HUD line only).
  * Foco completo = playCore disk (load tile); outer rings unlock after that.
- * While the car is moving: defer nature+carpet (prio ≥4), no outer expand,
- * critical-only pump under leftover — drive smoothness first-class.
+ * While the car is moving: defer furniture+ (prio ≥1; streets prio 0 + terrain
+ * bg only), no outer expand, critical-only pump under leftover — drive
+ * smoothness first-class.
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -34,11 +35,12 @@ import { castOpts } from './shadowPolicy.js';
 import { noteDecision } from '../engine/personaLog.js';
 import { noteZonePolicy } from '../engine/qualityAdapter.js';
 import {
-  isApartmentLiveIntentActive,
-  isDriveMovingActive,
   shouldDeferLowPrioStream,
-  APARTMENT_DEFER_PRIORITY,
-  DRIVE_DEFER_PRIORITY
+  clampStreamMaxPriority,
+  clampStreamLoadRadius,
+  allowOuterRingExpand,
+  driveTinyAdmit,
+  streamDeferDecisionLabel
 } from '../engine/streamIntent.js';
 
 export const STREAM_STEP = 10;
@@ -130,52 +132,38 @@ export class WorldStream {
     this.buildings = [];
     this._lastPumpNote = 0;
     this._lastWantsNote = 0;
-    this._lastAptsDeferNote = 0;
-    this._lastDriveDeferNote = 0;
+    this._lastDeferNote = 0;
   }
 
   /**
-   * Defer nature/carpet (prio ≥4) while apartment live-intent OR drive-moving
-   * owns the stream. Driving smoothness > filling poses natureza.
+   * streamIntent admit policy + rate-limited Carregador HUD note.
+   * Policy lives in streamIntent — WorldStream only applies + reports.
    */
-  _shouldDeferLowPrioStream(priority = DRIVE_DEFER_PRIORITY) {
+  _shouldDeferLowPrioStream(priority) {
     if (!shouldDeferLowPrioStream(priority)) return false;
-    const now = performance.now();
-    if (isApartmentLiveIntentActive()) {
-      if (now - this._lastAptsDeferNote > 1500) {
-        noteDecision('Carregador', `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`);
-        this._lastAptsDeferNote = now;
-      }
-    } else if (isDriveMovingActive()) {
-      if (now - this._lastDriveDeferNote > 1500) {
-        noteDecision('Carregador', `defer prio≥${DRIVE_DEFER_PRIORITY} (drive moving)`);
-        this._lastDriveDeferNote = now;
+    const label = streamDeferDecisionLabel();
+    if (label) {
+      const now = performance.now();
+      if (now - this._lastDeferNote > 1500) {
+        noteDecision('Carregador', label);
+        this._lastDeferNote = now;
       }
     }
     return true;
   }
 
-  /**
-   * While driving: only critical stream may run under leftover — streets /
-   * furniture / bank / buildings (prio ≤3). Nature+carpet wait until nearly stopped.
-   */
-  _driveMaxPriority(defaultMax) {
-    if (!isDriveMovingActive()) return defaultMax;
-    return Math.min(defaultMax, APARTMENT_DEFER_PRIORITY - 1);
-  }
-
-  /**
-   * While driving: do not chase outer rings — keep pump radius at playCore even
-   * if outer was unlocked before the move (focus retarget must not dump annulus).
-   */
-  _driveLoadRadiusCap(loadR) {
-    if (!isDriveMovingActive()) return loadR;
-    return Math.min(loadR, playCoreRadius());
+  /** Apply streamIntent clamps for ring pump (max prio + load radius). */
+  _admitForPump(defaultMax, loadR) {
+    return {
+      maxPriority: clampStreamMaxPriority(defaultMax),
+      loadR: clampStreamLoadRadius(loadR, playCoreRadius()),
+      tiny: driveTinyAdmit()
+    };
   }
 
   /**
    * While interactive: compile with pause:false and never hold pauseDraw across
-   * the batch — multi-10s Travamentos freezes came from pauseDraw sandwiches on
+   * the batch — multi-10s Hitches freezes came from pauseDraw sandwiches on
    * furniture (prio 1), buildings (prio 3), and nature/carpet (prio ≥4).
    * Boot (pre-interactive) still pauses so first programs do not compile-via-draw.
    */
@@ -509,9 +497,10 @@ export class WorldStream {
   async pumpTo(radius, maxPriority = 5) {
 
     const now = performance.now();
-    const driving = isDriveMovingActive();
-    maxPriority = this._driveMaxPriority(maxPriority);
-    const loadR = this._driveLoadRadiusCap(effectiveLoadRadius());
+    const admit = this._admitForPump(maxPriority, effectiveLoadRadius());
+    maxPriority = admit.maxPriority;
+    const loadR = admit.loadR;
+    const driving = admit.tiny;
     // Soft-cap full: still drain in-radius remaining so Fila do foco can reach 0.
     let forceFocusDrain = false;
     if (!memoryGuardian.wantsLoad && this.computeFocusRemain().total > 0) {
@@ -744,7 +733,7 @@ export class WorldStream {
 
   async revealBuildings(radius, priority, budget) {
     if (priority !== 3) return;
-    const driving = isDriveMovingActive();
+    const driving = driveTinyAdmit();
     let driveBuildingWork = 0;
 
     for (const b of this.buildings) {
@@ -1264,7 +1253,7 @@ export class WorldStream {
     const core = STREAM_PRIORITY_CORE;
     // Terrain + nature + carpet already run on their own loops; this only expands core rings.
     // playCore first (load tile); outer rings only after Foco completo (spec 02).
-    // While driving: nature/carpet deferred; no outer-ring expand; critical-only pump.
+    // While driving: prio≥1 deferred (streets+terrain only); no outer expand; leftover.
     armFocusRemain();
     this.startTerrainBackground();
     this.startNatureBackground();
@@ -1277,10 +1266,10 @@ export class WorldStream {
     for (;;) {
       this.publishRemain();
       const remain = this.computeFocusRemain();
-      const driving = isDriveMovingActive();
-      // Drive clamp: never chase outer annulus mid-move (even if previously unlocked).
-      const cap = this._driveLoadRadiusCap(effectiveLoadRadius());
-      const pumpMax = this._driveMaxPriority(core);
+      // streamIntent admit: streets-only + playCore radius while driving.
+      const admit = this._admitForPump(core, effectiveLoadRadius());
+      const cap = admit.loadR;
+      const pumpMax = admit.maxPriority;
       // Clamp ring cursor when playCore re-locks on cell change, or outer unlocks.
       if (r > cap) r = cap;
       if (isOuterUnlocked() && !sawOuter) {
@@ -1291,9 +1280,9 @@ export class WorldStream {
       if (!isOuterUnlocked()) sawOuter = false;
 
       // playCore Fila empty — step outer rings after unlock; else close phases at cap.
-      // Never expand outer rings while the car is moving.
+      // streamIntent.allowOuterRingExpand: never expand outer while drive-moving.
       if (remain.total === 0) {
-        if (!driving && isOuterUnlocked() && r < cap && memoryGuardian.wantsLoad) {
+        if (allowOuterRingExpand() && isOuterUnlocked() && r < cap && memoryGuardian.wantsLoad) {
           r = Math.min(r + STREAM_STEP, cap);
           await this.pumpTo(r, pumpMax);
         } else {
@@ -1308,7 +1297,7 @@ export class WorldStream {
       }
 
       // Expand toward playCore (or full R once unlocked) while wantsLoad.
-      // Mid-drive: only critical drain under leftover — no nature dump on cell change.
+      // Mid-drive: streets-only drain under leftover — no furniture/nature dump on cell change.
       if (memoryGuardian.wantsLoad) {
         if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);

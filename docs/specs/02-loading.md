@@ -5,10 +5,10 @@ Market-style open-world load. Fixed Ultra/Simples knobs. **No FPS-driven throttl
 ## Product law (play)
 
 - **Stable FPS > high FPS.** Only raise FPS targets when already stable.
-- Near-term play goal: **fully load one focus/load tile → drive the car into the next tile at ≥30 FPS with no Travamentos hitches** (no multi-100ms / multi-second freezes; ideally frames ≤~33ms while streaming the next cell).
-- **Drive smoothness is first-class:** while the car is **moving**, display frames must stay stable (~≥30 FPS, no multi-100ms / multi-second Travamentos). Filling nature poses / carpet is **secondary** to a lovely drive.
+- Near-term play goal: **fully load one focus/load tile → drive the car into the next tile at ≥30 FPS with no Hitches** (no multi-100ms / multi-second freezes; ideally frames ≤~33ms while streaming the next cell).
+- **Drive smoothness is first-class:** while the car is **moving**, display frames must stay stable (~≥30 FPS, no multi-100ms / multi-second Hitches). Filling furniture / nature / carpet is **secondary** to a lovely drive.
 - Conscious, sustainable, **simple** code; MemoryGuardian-friendly; may use GPU memory / GPU time aggressively if it keeps the **CPU main/display frame stable**.
-- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget, **drive-moving defer of nature/carpet** — **not** FPS HOLD / adaptive pauseDraw valve.
+- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget, **drive-moving defer of prio ≥1 (furniture+)** — **not** FPS HOLD / adaptive pauseDraw valve.
 
 ## Idle
 
@@ -64,13 +64,15 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
 - Observation-gated admission — **não** é pauseDraw HOLD / adaptive valve.
 - `throughValve` / pumps / `createBudget` respeitam budget + leftover e yield quando fechados.
 
-## Drive-moving defer (prio ≥4)
+## Drive-moving defer (prio ≥1)
 
 - Enquanto velocidade planar &gt; limiar (~1.2 m/s enter / ~0.4 m/s exit histerese), `streamIntent.isDriveMovingActive`:
-  - **Defere nature + carpet (prio ≥4)** — mesmo espírito do defer de apartment live-intent.
-  - Só admite stream **crítico** sob leftover: phys pin (já no carro real), streets / terrain / buildings leves na célula prevista; `maxLoads` / reveal **mínimos**.
-  - **Não** expande anéis externos nem despeja batches de nature em mudança de focus-cell mid-drive.
-- Ao quase parar / estacionar: retoma nature/carpet normalmente. Dirigir &gt; encher poses natureza.
+  - **Defere furniture / bank / buildings / nature / carpet (prio ≥1)** — só **prio 0 streets** + **terrain** (pump independente) entram.
+  - Street furniture (`Prop_Sign_HW_*`, planters, …) is prio 1 (`registerCity` / `StreetFurniture`) — must **not** `gltf:parse` mid-drive.
+  - `maxLoads` / reveal **mínimos** no que ainda corre; leftover drive (~22 ms).
+  - **Não** expande anéis externos nem despeja props/nature em mudança de focus-cell mid-drive.
+  - `pumpNatureSlice` / `pumpCarpetSlice` early-return while drive-moving (via `shouldDeferLowPrioStream`).
+- Ao quase parar / estacionar: retoma props + nature/carpet. Dirigir &gt; encher Fila.
 
 ## Two-stage assets (Pareto)
 

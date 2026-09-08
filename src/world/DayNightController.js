@@ -136,8 +136,6 @@ export function createDayNightController(opts) {
   const starfield = createStarfield({ radius: SKY_SCALE * 0.42 });
   const stars = starfield.root;
   scene.add(stars);
-  let twinkleTime = 0;
-
   let t = DEFAULT_T;
   let playing = false;
   let daySeconds = DEFAULT_DAY_SECONDS;
@@ -168,10 +166,8 @@ export function createDayNightController(opts) {
     if (playing && dt > 0 && Number.isFinite(dt)) {
       t = (t + dt / daySeconds) % 1;
     }
-    if (dt > 0 && Number.isFinite(dt)) {
-      twinkleTime += dt;
-      starfield.setTwinkleTime(twinkleTime);
-    }
+    // Continuous wall clock — immune to pauseDraw dt hitches / accumulator resets.
+    starfield.setTwinkleTime(performance.now() * 0.001);
     apply();
   }
 

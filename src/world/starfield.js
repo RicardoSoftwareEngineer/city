@@ -287,6 +287,7 @@ function magToSize(mag) {
  *   points: THREE.Points,
  *   setNightFactor: (nf: number) => void,
  *   setTwinkleTime: (t: number) => void,
+ *   setSiderealTime: (dayFraction: number) => void,
  *   followCamera: (cam: THREE.Camera) => void
  * }}
  */
@@ -301,6 +302,12 @@ export function createStarfield(opts = {}) {
   const tiltQ = new THREE.Quaternion().setFromEuler(
     new THREE.Euler(THREE.MathUtils.degToRad(90 + OBSERVER_LAT_DEG), 0, 0, 'XYZ')
   );
+  // NCP in root space (positions already bake the same tilt).
+  const poleAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(tiltQ).normalize();
+
+  const spin = new THREE.Group();
+  spin.name = 'starfieldSpin';
+  root.add(spin);
 
   const catalogN = CATALOG.length;
   const totalN = catalogN + FIELD_STAR_COUNT;
@@ -412,7 +419,7 @@ varying float vTwinkle;`
   points.name = 'starfieldPoints';
   points.frustumCulled = false;
   points.renderOrder = -1;
-  root.add(points);
+  spin.add(points);
 
   // Subtle constellation lines (catalog stars only)
   const linePos = new Float32Array(CONSTELLATION_PAIRS.length * 3);
@@ -436,7 +443,7 @@ varying float vTwinkle;`
   lines.name = 'constellationLines';
   lines.frustumCulled = false;
   lines.renderOrder = -2;
-  root.add(lines);
+  spin.add(lines);
 
   return {
     root,
@@ -453,6 +460,12 @@ varying float vTwinkle;`
     },
     setTwinkleTime(t) {
       uTime.value = t;
+    },
+    /** Sidereal spin: one full turn per day around tilted NCP. */
+    setSiderealTime(dayFraction) {
+      let t = dayFraction % 1;
+      if (t < 0) t += 1;
+      spin.quaternion.setFromAxisAngle(poleAxis, -t * Math.PI * 2);
     },
     followCamera(cam) {
       root.position.copy(cam.position);

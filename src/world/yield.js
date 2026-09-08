@@ -2,12 +2,18 @@
  * Cooperative yields for streaming — NO FPS HOLD / pauseDraw valve.
  * Hard per-frame stream CPU budget (preset budgetMs) PLUS play-frame leftover
  * admission: while interactive, do not start stream work when recent wall
- * frameMs EMA is already >= PLAY_STREAM_HEADROOM_MS (~28ms). Observation-gated
+ * frameMs EMA is already >= PLAY_STREAM_HEADROOM_MS (~28ms), or
+ * PLAY_STREAM_DRIVE_HEADROOM_MS (~22ms) while the car is moving. Observation-gated
  * yield only — never pauseDraw HOLD / adaptive valve.
  */
 
-import { loadGovernor, PLAY_STREAM_HEADROOM_MS } from "../engine/LoadGovernor.js";
+import {
+  loadGovernor,
+  PLAY_STREAM_HEADROOM_MS,
+  PLAY_STREAM_DRIVE_HEADROOM_MS
+} from "../engine/LoadGovernor.js";
 import { getInteractive } from "../engine/loadLog.js";
+import { isDriveMovingActive } from "../engine/streamIntent.js";
 
 /** Optional draw pause hooks (compileSubtree / legacy). Valve no longer uses them for FPS. */
 let drawPauseDepth = 0;
@@ -55,10 +61,17 @@ export function isStreamBudgetSpent() {
 /**
  * Interactive leftover gate: recent frames already near the 30fps budget means
  * no more stream CPU this display frame. Boot / pre-interactive always admits.
+ * While driving, use a tighter headroom so only sparse critical stream fits.
  */
+export function playStreamHeadroomMs() {
+  return isDriveMovingActive()
+    ? PLAY_STREAM_DRIVE_HEADROOM_MS
+    : PLAY_STREAM_HEADROOM_MS;
+}
+
 export function isPlayLeftoverTight() {
   if (!getInteractive()) return false;
-  return loadGovernor.frameMsEma >= PLAY_STREAM_HEADROOM_MS;
+  return loadGovernor.frameMsEma >= playStreamHeadroomMs();
 }
 
 export function isStreamAdmissionClosed() {

@@ -5,6 +5,8 @@
  * Dense carpet (prio 5) is background-only — never blocks radius expansion
  * or Foco pronto (optional HUD line only).
  * Foco completo = playCore disk (load tile); outer rings unlock after that.
+ * While the car is moving: defer nature+carpet (prio ≥4), no outer expand,
+ * critical-only pump under leftover — drive smoothness first-class.
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -33,7 +35,10 @@ import { noteDecision } from '../engine/personaLog.js';
 import { noteZonePolicy } from '../engine/qualityAdapter.js';
 import {
   isApartmentLiveIntentActive,
-  APARTMENT_DEFER_PRIORITY
+  isDriveMovingActive,
+  shouldDeferLowPrioStream,
+  APARTMENT_DEFER_PRIORITY,
+  DRIVE_DEFER_PRIORITY
 } from '../engine/streamIntent.js';
 
 export const STREAM_STEP = 10;
@@ -126,18 +131,46 @@ export class WorldStream {
     this._lastPumpNote = 0;
     this._lastWantsNote = 0;
     this._lastAptsDeferNote = 0;
+    this._lastDriveDeferNote = 0;
   }
 
-  /** Apartment live-intent owns Valve — defer nature/carpet (prio ≥4). */
-  _shouldDeferLowPrioStream(priority = APARTMENT_DEFER_PRIORITY) {
-    if (priority < APARTMENT_DEFER_PRIORITY) return false;
-    if (!isApartmentLiveIntentActive()) return false;
+  /**
+   * Defer nature/carpet (prio ≥4) while apartment live-intent OR drive-moving
+   * owns the stream. Driving smoothness > filling poses natureza.
+   */
+  _shouldDeferLowPrioStream(priority = DRIVE_DEFER_PRIORITY) {
+    if (!shouldDeferLowPrioStream(priority)) return false;
     const now = performance.now();
-    if (now - this._lastAptsDeferNote > 1500) {
-      noteDecision('Carregador', `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`);
-      this._lastAptsDeferNote = now;
+    if (isApartmentLiveIntentActive()) {
+      if (now - this._lastAptsDeferNote > 1500) {
+        noteDecision('Carregador', `defer prio≥${APARTMENT_DEFER_PRIORITY} (apts intent)`);
+        this._lastAptsDeferNote = now;
+      }
+    } else if (isDriveMovingActive()) {
+      if (now - this._lastDriveDeferNote > 1500) {
+        noteDecision('Carregador', `defer prio≥${DRIVE_DEFER_PRIORITY} (drive moving)`);
+        this._lastDriveDeferNote = now;
+      }
     }
     return true;
+  }
+
+  /**
+   * While driving: only critical stream may run under leftover — streets /
+   * furniture / bank / buildings (prio ≤3). Nature+carpet wait until nearly stopped.
+   */
+  _driveMaxPriority(defaultMax) {
+    if (!isDriveMovingActive()) return defaultMax;
+    return Math.min(defaultMax, APARTMENT_DEFER_PRIORITY - 1);
+  }
+
+  /**
+   * While driving: do not chase outer rings — keep pump radius at playCore even
+   * if outer was unlocked before the move (focus retarget must not dump annulus).
+   */
+  _driveLoadRadiusCap(loadR) {
+    if (!isDriveMovingActive()) return loadR;
+    return Math.min(loadR, playCoreRadius());
   }
 
   /**
@@ -476,7 +509,9 @@ export class WorldStream {
   async pumpTo(radius, maxPriority = 5) {
 
     const now = performance.now();
-    const loadR = effectiveLoadRadius();
+    const driving = isDriveMovingActive();
+    maxPriority = this._driveMaxPriority(maxPriority);
+    const loadR = this._driveLoadRadiusCap(effectiveLoadRadius());
     // Soft-cap full: still drain in-radius remaining so Fila do foco can reach 0.
     let forceFocusDrain = false;
     if (!memoryGuardian.wantsLoad && this.computeFocusRemain().total > 0) {
@@ -540,7 +575,9 @@ export class WorldStream {
         ensureLoadPhase(phaseId, `r${radius}`);
       }
 
-      for (const job of toLoad) {
+      // Driving: tiny admission — at most one url template per priority per pump.
+      const loadJobs = driving ? toLoad.slice(0, 1) : toLoad;
+      for (const job of loadJobs) {
         if (job.grower || job.loading) continue;
         job.loading = true;
         try {
@@ -576,10 +613,12 @@ export class WorldStream {
         await yieldAfterWork();
       }
 
+      let driveTplLoads = 0;
       for (const job of this.templateJobs) {
         if (job.priority !== priority || job.grower) continue;
         if (minPoseDist(job.poses, this.ox, this.oz) > radius) continue;
         if (minPoseDist(job.poses, focus.x, focus.z) > loadR) continue;
+        if (driving && driveTplLoads >= 1) break;
         if (job.template && !job._streamTemplate) {
           demoteMaps(job.template);
           job._streamTemplate = job.template;
@@ -611,21 +650,35 @@ export class WorldStream {
             job
           );
         }
+        driveTplLoads += 1;
         await yieldAfterWork();
       }
 
       {
         const keepDrawing = this._keepDrawingForPrio(priority);
         if (this.renderer && !keepDrawing) this.renderer.pauseDraw();
+        let driveRevealPasses = 0;
+        const maxDriveReveal = 1;
         for (const job of this.urlJobs) {
           if (!job.grower || job.priority !== priority) continue;
+          if (driving && driveRevealPasses >= maxDriveReveal) break;
           await ensureGrowerWarmed(job.grower, this.renderer, `warmup ${job.url?.split('/').pop() || 'url'}`);
           let added = 0;
-          while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
-            added += 1;
-            await budget.tick();
+          const chunk = driving ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
+          // Driving: one reveal tick per job; parked: drain under leftover/budget.
+          if (driving) {
+            if (job.grower.reveal(radius, chunk) > 0) {
+              added += 1;
+              await budget.tick();
+            }
+          } else {
+            while (job.grower.reveal(radius, chunk) > 0) {
+              added += 1;
+              await budget.tick();
+            }
           }
           if (added && this.renderer) {
+            driveRevealPasses += 1;
             await this._compileReveal(`compile urls r${radius} p${priority}`, priority);
             if (!keepDrawing) this.renderer.resumeDraw();
             await yieldToMain();
@@ -634,13 +687,23 @@ export class WorldStream {
         }
         for (const job of this.templateJobs) {
           if (!job.grower || job.priority !== priority) continue;
+          if (driving && driveRevealPasses >= maxDriveReveal) break;
           await ensureGrowerWarmed(job.grower, this.renderer, 'warmup template');
           let added = 0;
-          while (job.grower.reveal(radius, loadGovernor.chunk) > 0) {
-            added += 1;
-            await budget.tick();
+          const chunk = driving ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
+          if (driving) {
+            if (job.grower.reveal(radius, chunk) > 0) {
+              added += 1;
+              await budget.tick();
+            }
+          } else {
+            while (job.grower.reveal(radius, chunk) > 0) {
+              added += 1;
+              await budget.tick();
+            }
           }
           if (added && this.renderer) {
+            driveRevealPasses += 1;
             await this._compileReveal(`compile templates r${radius} p${priority}`, priority);
             if (!keepDrawing) this.renderer.resumeDraw();
             await yieldToMain();
@@ -657,7 +720,8 @@ export class WorldStream {
           task.priority === priority &&
           task.dist <= radius
       );
-      for (const task of tasks) {
+      const taskSlice = driving ? tasks.slice(0, 1) : tasks;
+      for (const task of taskSlice) {
         await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () =>
           throughValve(() => task.run())
         );
@@ -680,11 +744,15 @@ export class WorldStream {
 
   async revealBuildings(radius, priority, budget) {
     if (priority !== 3) return;
+    const driving = isDriveMovingActive();
+    let driveBuildingWork = 0;
 
     for (const b of this.buildings) {
       if (!b.sorted.length) continue;
       if (chebyshev(b.sorted[0].x, b.sorted[0].z, this.ox, this.oz) > radius) continue;
       if (!memoryGuardian.allowsAt(b.sorted[0].x, b.sorted[0].z)) continue;
+      // Driving: at most one building load/reveal per pump under leftover.
+      if (driving && driveBuildingWork >= 1) break;
 
       if (!b.grower) {
         if (b.heavy) {
@@ -744,10 +812,19 @@ export class WorldStream {
           added += 1;
         }
       }
-      while (b.grower && b.grower.reveal(radius, loadGovernor.chunk) > 0) {
-        added += 1;
-        await budget.tick();
+      const bChunk = driving ? Math.min(loadGovernor.chunk, 4) : loadGovernor.chunk;
+      if (driving) {
+        if (b.grower && b.grower.reveal(radius, bChunk) > 0) {
+          added += 1;
+          await budget.tick();
+        }
+      } else {
+        while (b.grower && b.grower.reveal(radius, bChunk) > 0) {
+          added += 1;
+          await budget.tick();
+        }
       }
+      if (added) driveBuildingWork += 1;
       if (added && this.renderer) {
         await this._compileReveal(`compile building r${radius}`, 3);
         if (!keepDrawing) this.renderer.resumeDraw();
@@ -1187,6 +1264,7 @@ export class WorldStream {
     const core = STREAM_PRIORITY_CORE;
     // Terrain + nature + carpet already run on their own loops; this only expands core rings.
     // playCore first (load tile); outer rings only after Foco completo (spec 02).
+    // While driving: nature/carpet deferred; no outer-ring expand; critical-only pump.
     armFocusRemain();
     this.startTerrainBackground();
     this.startNatureBackground();
@@ -1199,7 +1277,10 @@ export class WorldStream {
     for (;;) {
       this.publishRemain();
       const remain = this.computeFocusRemain();
-      const cap = effectiveLoadRadius();
+      const driving = isDriveMovingActive();
+      // Drive clamp: never chase outer annulus mid-move (even if previously unlocked).
+      const cap = this._driveLoadRadiusCap(effectiveLoadRadius());
+      const pumpMax = this._driveMaxPriority(core);
       // Clamp ring cursor when playCore re-locks on cell change, or outer unlocks.
       if (r > cap) r = cap;
       if (isOuterUnlocked() && !sawOuter) {
@@ -1210,10 +1291,11 @@ export class WorldStream {
       if (!isOuterUnlocked()) sawOuter = false;
 
       // playCore Fila empty — step outer rings after unlock; else close phases at cap.
+      // Never expand outer rings while the car is moving.
       if (remain.total === 0) {
-        if (isOuterUnlocked() && r < cap && memoryGuardian.wantsLoad) {
+        if (!driving && isOuterUnlocked() && r < cap && memoryGuardian.wantsLoad) {
           r = Math.min(r + STREAM_STEP, cap);
-          await this.pumpTo(r, core);
+          await this.pumpTo(r, pumpMax);
         } else {
           this.endIdleCorePhases(cap, core);
           if (!dumped) {
@@ -1226,13 +1308,14 @@ export class WorldStream {
       }
 
       // Expand toward playCore (or full R once unlocked) while wantsLoad.
+      // Mid-drive: only critical drain under leftover — no nature dump on cell change.
       if (memoryGuardian.wantsLoad) {
         if (r + STREAM_STEP <= cap + 0.01) {
           r = Math.min(r + STREAM_STEP, cap);
         } else if (r < cap) {
           r = cap;
         }
-        await this.pumpTo(r, core);
+        await this.pumpTo(r, pumpMax);
       } else {
         this.endIdleCorePhases(Math.min(r, cap), core);
         this.publishRemain();

@@ -4,8 +4,9 @@
 
 - **Stable FPS > high FPS.** Só subir meta de FPS quando já está estável.
 - Ship bar de play: **célula → célula a ≥30 FPS estável** (frames ≤~33 ms) enquanto o próximo tile streama — sem Travamentos multi-100ms / multi-segundo.
+- **Drive smoothness first-class:** com o carro **em movimento**, FPS estável (~≥30) e Travamentos raros/ausentes — mesmo que a Fila ainda mostre poses natureza pendentes.
 - Preferir CPU main/display estável; GPU memory/time podem ser agressivos se isso proteger o frame.
-- Alavancas: leftover budget, playCore / raio menor, placeholder→upgrade, predicted focus. **Não** FPS HOLD / adaptive pauseDraw.
+- Alavancas: leftover budget (mais apertado ao dirigir), playCore / raio menor, placeholder→upgrade, predicted focus, **drive-moving defer prio ≥4**. **Não** FPS HOLD / adaptive pauseDraw.
 
 ## Budgets (o que controlamos)
 
@@ -13,6 +14,7 @@
 |------|-------|---------|-------|
 | Stream CPU ms / frame (play) | 4–6 | 2–3 | Hard budget; yield quando esgota |
 | Play leftover admit | frameMs EMA &lt; ~28 ms | idem | Só gasta stream com headroom; meta wall ≤~33 ms |
+| Drive leftover admit | frameMs EMA &lt; ~22 ms | idem | Enquanto `isDriveMovingActive`; crítico só |
 | playCore (load tile) | ~160 m | ~100 m | Foco completo / Fila; anéis externos depois |
 | Residency radius | ~480 m | ~220 m | Fixo no preset (círculo menor permitido) |
 | Soft-cap (não-terrain) | ~280 | ~140 | Heap ainda pode bloquear |
@@ -33,6 +35,7 @@ Sem ladder ao vivo por FPS. Leftover é **admission** observacional (yield), nã
 ### Ship bar (play)
 
 - **Primário:** tile→tile ≥30 FPS estável (sem freezes multi-100ms / multi-segundo ao cruzar focusGrid; ideal frames ≤~33 ms com stream do próximo cell).
+- **Drive:** enquanto o carro se move, mesma barra — nature/carpet deferidos; Fila “faltam N poses natureza” **não** autoriza hitch.
 - Frames **&gt;1 s** ainda marcam **BUG** no HUD (tag de caça).
 - A meta interim “worst Travamentos &lt; 10 s” **deixa de ser** a barra primária de ship para play (pode permanecer como diagnóstico histórico de boot).
 
@@ -54,12 +57,14 @@ Sem ladder ao vivo por FPS. Leftover é **admission** observacional (yield), nã
 - Clone with shared materials so `_gpu*ProgramWarmed` sticks
 - Predicted focus + phys pin real + focusGrid load tile
 - playCore primeiro; anel externo só após Foco completo
+- Drive-moving: defer prio ≥4 + leftover ~22 ms + sem expand outer mid-drive
 - Deletar leftovers de FPS-adapt em vez de novas personas
 
 ## pauseDraw + stream ownership
 
 - **Boot (pre-interactive):** WorldStream may still `pauseDraw()` around ring / building compiles (avoid compile-via-draw on the first programs).
 - While **apartment live-intent** is active (`streamIntent.isApartmentLiveIntentActive`), nature / water / carpet (**prio ≥4**) are **deferred** — no pauseDraw compile for those lanes until the intent finishes. Apartment room compile stays `pause: false`.
+- While **drive-moving** is active (`streamIntent.isDriveMovingActive`, speed hysteresis), the same **prio ≥4** lanes are deferred; outer rings do not expand; critical stream only under the tighter drive leftover (~22 ms). Resume nature/carpet when nearly stopped.
 - When **interactive**, **all** stream priorities (furniture, buildings, nature, carpet, **terrain**) compile with `compileSubtree(..., { pause: false })` and skip the multi-second `pauseDraw` sandwich — targets multi-10s Travamentos freezes (`gltf:parse` sticky tags, `gpu compile inst …`, `draw frame+shadows`) during downtown Ultra stream beside apartment Todos.
 - **Terrain caveat:** tiles are plain `Mesh` (shared `terrainLambert`). Compiles must pass `instancersOnly: false` or the first shadowed `render()` compiles programs via draw (BUG LOAD `draw frame+shadows +Nprog`).
 - **Shadow bake:** `shadowMap.autoUpdate = false`; after `resumeShadows`, defer the first `needsUpdate` bake by ~1.5s so it does not stack on first-draw program compiles (`loadGovernor.streaming` stays true all session — do not gate on it). `resumeShadows` keeps drawing (no pauseDraw) and budgets `compileAsync` with `clearLoadTag` / yields.

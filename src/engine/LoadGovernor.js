@@ -20,6 +20,12 @@ export const TARGET_FPS = 60;
 export const PLAY_FRAME_TARGET_MS = 33;
 /** Prefer stream spend only when recent frameMs is under this. */
 export const PLAY_STREAM_HEADROOM_MS = 28;
+/**
+ * While the car is moving, tighten leftover further so critical stream
+ * (streets/terrain) cannot push frames toward the 30fps wall. Driving
+ * smoothness > filling the focus queue.
+ */
+export const PLAY_STREAM_DRIVE_HEADROOM_MS = 22;
 
 export const loadGovernor = {
   fps: 60,
@@ -55,7 +61,8 @@ export const loadGovernor = {
    * Uses observed frame ms (not pauseDraw). Boot / non-interactive always open.
    */
   get streamAdmissionOpen() {
-    // Imported lazily via getter callers that already know interactive — yield.js checks.
+    // Imported lazily via getter callers that already know interactive — yield.js checks
+    // (drive-moving uses PLAY_STREAM_DRIVE_HEADROOM_MS).
     return this.frameMsEma < PLAY_STREAM_HEADROOM_MS;
   },
 

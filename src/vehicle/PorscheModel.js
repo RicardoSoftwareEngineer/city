@@ -29,15 +29,17 @@ export class PorscheModel {
     this.chassisGroup = new THREE.Group();  // The group added to the scene
     this.wheelPivots = {};                  // { frontLeft: { steerPivot, spinPivot, isFront }, ... }
     this._placeholder = null;
+    this._gltfRoot = null;
+    this._visualMode = 'box';              // 'porsche' | 'box'
     this.ready = false;
   }
 
   /**
    * Cheap stand-in so GameLoop can start before the glTF finishes.
-   * Cleared automatically when setupModel runs.
+   * Kept (hidden) after load so HUD can toggle box vs Porsche instantly.
    */
   attachPlaceholder() {
-    if (this._placeholder || this.ready) return;
+    if (this._placeholder) return;
     const group = new THREE.Group();
     group.name = 'porsche-placeholder';
 
@@ -69,6 +71,7 @@ export class PorscheModel {
     this.chassisGroup.add(group);
   }
 
+  /** Dispose placeholder for good — prefer hide via setVisualMode for toggles. */
   clearPlaceholder() {
     if (!this._placeholder) return;
     this._placeholder.removeFromParent();
@@ -120,7 +123,8 @@ export class PorscheModel {
   }
 
   setupModel(root) {
-    this.clearPlaceholder();
+    // Keep placeholder parented — hide it; HUD can toggle back without recreate.
+    if (this._placeholder) this._placeholder.visible = false;
     // Measure and center
     const boundingBox = new THREE.Box3().setFromObject(root);
     const size = boundingBox.getSize(new THREE.Vector3());
@@ -184,7 +188,10 @@ export class PorscheModel {
     for (const mesh of drop) mesh.removeFromParent();
 
     this.chassisGroup.add(root);
+    this._gltfRoot = root;
     this.ready = true;
+    this._visualMode = 'porsche';
+    root.visible = true;
   }
 
   /**
@@ -220,6 +227,41 @@ export class PorscheModel {
     }
 
     return { steerPivot, spinPivot, isFront, isRight };
+  }
+
+
+  canShowPorsche() {
+    return this.ready;
+  }
+
+  getVisualMode() {
+    return this._visualMode;
+  }
+
+  /**
+   * Toggle between loaded glTF and procedural box placeholder.
+   * @param {'porsche'|'box'} mode
+   */
+  setVisualMode(mode) {
+    if (mode === 'porsche') {
+      if (!this.ready || !this._gltfRoot) {
+        // Stay on box until glTF is ready.
+        this._visualMode = 'box';
+        if (this._placeholder) this._placeholder.visible = true;
+        else this.attachPlaceholder();
+        return;
+      }
+      this._visualMode = 'porsche';
+      this._gltfRoot.visible = true;
+      if (this._placeholder) this._placeholder.visible = false;
+      return;
+    }
+
+    // mode === 'box'
+    this._visualMode = 'box';
+    if (this._gltfRoot) this._gltfRoot.visible = false;
+    if (this._placeholder) this._placeholder.visible = true;
+    else this.attachPlaceholder();
   }
 
   /**

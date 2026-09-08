@@ -194,6 +194,31 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
+  // Debug HUD: toggle Porsche glTF vs procedural box (inspect geometry).
+  const carVisualBtn = document.getElementById('car-visual-btn');
+  function syncCarVisualBtn() {
+    if (!carVisualBtn) return;
+    const mode = porscheModel.getVisualMode();
+    carVisualBtn.dataset.mode = mode;
+    carVisualBtn.textContent = mode === 'porsche' ? 'Carro: Porsche' : 'Carro: quadrado';
+  }
+  syncCarVisualBtn();
+  if (carVisualBtn) {
+    carVisualBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const next = porscheModel.getVisualMode() === 'porsche' ? 'box' : 'porsche';
+      if (next === 'porsche' && !porscheModel.canShowPorsche()) {
+        carVisualBtn.title = 'Porsche ainda carregando';
+        syncCarVisualBtn();
+        return;
+      }
+      carVisualBtn.title = '';
+      porscheModel.setVisualMode(next);
+      syncCarVisualBtn();
+    });
+  }
+
   const gameLoop = new GameLoop((delta, elapsed) => {
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
@@ -438,6 +463,7 @@ async function startGame() {
         // Porsche after first ring — not competing with createCityStream on click.
         porscheModel.load()
           .then(async () => {
+            syncCarVisualBtn();
             await throughValve(() =>
               renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
             );

@@ -39,6 +39,7 @@ import {
 } from './world/RoadDimensions.js';
 import { tickWind } from './world/terrain/windMaterial.js';
 import { tickWater } from './world/water/registerLakes.js';
+import { createDayNightController } from './world/DayNightController.js';
 import { ensureGroundAround, setTerrainPhysics, TERRAIN_TILE, GRID_OFFSET } from './world/terrain/terrainCollision.js';
 import { surfaceY } from './world/terrain/paths.js';
 import { ensureWhiteOrchardHeightmap } from './world/terrain/whiteOrchardHeight.js';
@@ -65,8 +66,14 @@ async function startGame() {
     resume: () => renderer.resumeDraw()
   });
 
-  // ── Lighting ────────────────────────────────────────────────────────
-  setupLighting(renderer.scene);
+  // ── Lighting / day–night (Sky + sun orbit; replaces fixed hemi/dir) ─
+  const dayNight = createDayNightController({
+    scene: renderer.scene,
+    renderer: renderer.renderer,
+    camera: renderer.camera
+  });
+  window.__cityDayNight = dayNight;
+  const paintDayNightHud = bindDayNightHud(dayNight);
 
   // ── Physics ─────────────────────────────────────────────────────────
   const physicsWorld = new PhysicsWorld();
@@ -233,6 +240,8 @@ async function startGame() {
   }
 
   const gameLoop = new GameLoop((delta, elapsed) => {
+    dayNight.tick(delta);
+    if (dayNight.isPlaying()) paintDayNightHud();
     tickWind(elapsed);
     tickWater(elapsed, renderer.scene);
     apartmentDirector.update(delta);
@@ -554,28 +563,41 @@ function rescueIfBelowGround(vehicleController) {
   body.wakeUp();
 }
 
-function setupLighting(scene) {
-  // Hemisphere light (sky + ground)
-  const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 1.2);
-  hemisphereLight.position.set(0, 50, 0);
-  scene.add(hemisphereLight);
+/**
+ * HUD: slider Hora (0–24h) + Play/Pause auto cycle. Hidden in boot-idle via CSS.
+ * @param {ReturnType<typeof createDayNightController>} dayNight
+ * @returns {() => void} paint — call each frame while playing (or after scrub)
+ */
+function bindDayNightHud(dayNight) {
+  const slider = document.getElementById('day-night-slider');
+  const label = document.getElementById('day-night-label');
+  const playBtn = document.getElementById('day-night-play');
+  if (!slider || !label || !playBtn) return () => {};
 
-  // Directional sun light with shadows
-  const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.2);
-  sunLight.position.set(20, 140, 20);
-  sunLight.target.position.set(90, 0, 90);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 1024;
-  sunLight.shadow.mapSize.height = 1024;
-  sunLight.shadow.camera.near = 1;
-  sunLight.shadow.camera.far = 420;
-  sunLight.shadow.camera.left = -160;
-  sunLight.shadow.camera.right = 160;
-  sunLight.shadow.camera.top = 160;
-  sunLight.shadow.camera.bottom = -160;
-  sunLight.shadow.bias = -0.0005;
-  scene.add(sunLight);
-  scene.add(sunLight.target);
+  function paint() {
+    const h = dayNight.getHours();
+    const hh = Math.floor(h);
+    const mm = Math.floor((h - hh) * 60);
+    label.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    if (document.activeElement !== slider) {
+      slider.value = String(h);
+    }
+  }
+
+  slider.addEventListener('input', () => {
+    dayNight.setHours(Number(slider.value));
+    paint();
+  });
+
+  playBtn.addEventListener('click', () => {
+    const next = !dayNight.isPlaying();
+    dayNight.setPlaying(next);
+    playBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
+    playBtn.textContent = next ? 'Pausar' : 'Play';
+  });
+
+  paint();
+  return paint;
 }
 
 // ── Start ───────────────────────────────────────────────────────────────

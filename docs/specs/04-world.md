@@ -25,6 +25,7 @@ Fence, orchard heightmap, biomes, vista tiles e downtown paved.
 ## Ownership
 
 World modules (biomes, terrain, city ground). Apartments → `05`.
+Sky / sun / moon / stars → `DayNightController` (product note in `01`; not a hitch knob).
 
 ## Same-PR rule
 

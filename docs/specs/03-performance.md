@@ -24,6 +24,7 @@ Budgets Ultra/Simples, hitch taxonomy e ship bar. Drive-defer / admit completo: 
 | Shadows / pixelRatio | on (pós-bake) / 2 | off / 1 | |
 
 HUD preset: `#quality-preset-float` + boot + painel FPS.
+HUD hora: `#day-night-float` (scrub; Play opcional). DayNight **não** regenera PMREM; hitch law / Ultra fixo inalterados.
 
 ## Hitch taxonomy
 
@@ -49,7 +50,7 @@ Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first
 
 ## Ownership
 
-`loadLog` (tiers) · `LoadGovernor` (budget/leftover) · `qualityPresets` · `streamIntent` (admit — contrato em `02`/`05`).
+`loadLog` (tiers) · `LoadGovernor` (budget/leftover) · `qualityPresets` · `streamIntent` (admit — contrato em `02`/`05`). Sky/sun: `DayNightController` (não mexe budgets).
 
 ## Same-PR rule
 

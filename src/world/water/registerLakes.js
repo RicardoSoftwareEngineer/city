@@ -24,10 +24,13 @@ let sunLight = null;
 
 function findSun(scene) {
   let found = null;
+  let fallback = null;
   scene.traverse((obj) => {
-    if (obj.isDirectionalLight) found = obj;
+    if (!obj.isDirectionalLight) return;
+    if (obj.userData?.isSun || obj.name === 'sunLight') found = obj;
+    else if (!obj.userData?.isMoon && obj.name !== 'moonLight') fallback = obj;
   });
-  return found;
+  return found || fallback;
 }
 
 function updateSunDirection(scene) {

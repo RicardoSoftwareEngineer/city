@@ -1,14 +1,15 @@
 /**
  * Streams the city in Chebyshev rings of 10 m around the car.
- * Terrain meshes run on a continuous background loop (never gated by street pumps).
+ * Terrain visual meshes + nature/carpet run on background loops (gated by
+ * streamIntent while driving — phys colliders stay on-demand in main).
  * Then streets → props → bank → buildings → countryside veg (prio ≤4).
  * Dense carpet (prio 5) is background-only — never blocks radius expansion
  * or Foco pronto (optional HUD line only).
  * Foco completo = playCore disk (load tile); outer rings unlock after that.
- * While the car is moving: defer furniture+ (prio ≥1; streets prio 0 + terrain
- * bg only), no outer expand, critical-only pump under leftover — drive
- * smoothness first-class. Admit is re-checked per urlJob; in-flight furniture
- * aborts before gltf:parse after fetch/yield (streamIntent.mayAdmitStreamWork).
+ * While the car is moving: admit only streets (prio 0); defer furniture+ /
+ * nature / carpet / new terrainMesh tiles; no outer expand; leftover critical.
+ * Admit re-checked per urlJob / terrain tile; in-flight glTF aborts before
+ * parse after fetch/yield (streamIntent.mayAdmitStreamWork).
  */
 
 import { loadGltf } from './AssetLoader.js';
@@ -42,7 +43,8 @@ import {
   clampStreamLoadRadius,
   allowOuterRingExpand,
   driveTinyAdmit,
-  streamDeferDecisionLabel
+  streamDeferDecisionLabel,
+  STREAM_LANE
 } from '../engine/streamIntent.js';
 
 /** Returned by _loadStreamTemplate when drive/apt defer aborts before parse. */
@@ -749,10 +751,11 @@ export class WorldStream {
       const taskSlice = drivingNow ? tasks.slice(0, 1) : tasks;
       for (const task of taskSlice) {
         if (this._shouldDeferLowPrioStream(priority)) break;
-        await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () =>
+        const taskOk = await measureRingItem(`task p${priority} d${Math.round(task.dist)}`, () =>
           throughValve(() => task.run())
         );
-        task.done = true;
+        // Explicit false = deferred (e.g. nature treeLod mid-drive) — retry when parked.
+        if (taskOk !== false) task.done = true;
         await yieldAfterWork();
       }
 
@@ -891,6 +894,18 @@ export class WorldStream {
    * Returns how many tiles were successfully built this call.
    */
   async pumpTerrainSlice(maxTiles = 12) {
+    // Drive-moving: no new visual terrain tiles (phys via ensureGroundAround).
+    if (!mayAdmitStreamWork(STREAM_LANE.TERRAIN_MESH)) {
+      const label = streamDeferDecisionLabel();
+      if (label) {
+        const now = performance.now();
+        if (now - this._lastDeferNote > 1500) {
+          noteDecision('Carregador', label);
+          this._lastDeferNote = now;
+        }
+      }
+      return 0;
+    }
     const focus = memoryGuardian.focus;
     const pending = this.tasks
       .filter(
@@ -947,6 +962,8 @@ export class WorldStream {
     try {
       for (const task of pending) {
         if (built >= maxTiles || !memoryGuardian.wantsTerrainLoad) break;
+        // Re-check per tile — drive may start mid-slice.
+        if (!mayAdmitStreamWork(STREAM_LANE.TERRAIN_MESH)) break;
         if (!memoryGuardian.allowsTerrainAt(task.x, task.z)) continue;
 
         const dFocus = chebyshev(task.x, task.z, focus.x, focus.z);
@@ -1007,11 +1024,11 @@ export class WorldStream {
             t.x != null &&
             memoryGuardian.allowsTerrainAt(t.x, t.z)
         );
-        if (pendingInVista) {
+        if (pendingInVista && mayAdmitStreamWork(STREAM_LANE.TERRAIN_MESH)) {
           ensureLoadPhase('terrain', `bg vista${Math.round(memoryGuardian.vistaRadius)}`);
           await this.pumpTerrainSlice(16);
         } else {
-          endLoadPhase('terrain');
+          if (!pendingInVista) endLoadPhase('terrain');
           this.publishRemain();
           await yieldToMain();
         }
@@ -1037,7 +1054,8 @@ export class WorldStream {
   }
 
   /**
-   * One background slice of base veg (prio 4). Independent of street soft-cap.
+   * One background slice of base veg (prio 4 / STREAM_LANE.NATURE).
+   * Independent of street soft-cap; streamIntent defers mid-drive (no Bush_* parse).
    */
   async pumpNatureSlice({ maxLoads = 1, maxRevealPasses = 2 } = {}) {
     const priority = STREAM_PRIORITY_CORE;
@@ -1061,8 +1079,11 @@ export class WorldStream {
       this.publishRemain();
       return 0;
     }
-    // Apartment Todos / live-intent owns the stream — do not pauseDraw-compile nature.
-    if (this._shouldDeferLowPrioStream(priority)) return 0;
+    // Drive-moving / apartment: no nature glTF (Bush_*, trees, grass templates).
+    if (!mayAdmitStreamWork(STREAM_LANE.NATURE)) {
+      this._shouldDeferLowPrioStream(priority); // HUD note
+      return 0;
+    }
     // Heap gate after empty-check so a full table cannot leave nature "running" forever.
     if (!memoryGuardian.wantsNatureLoad) return 0;
 
@@ -1317,7 +1338,7 @@ export class WorldStream {
     const core = STREAM_PRIORITY_CORE;
     // Terrain + nature + carpet already run on their own loops; this only expands core rings.
     // playCore first (load tile); outer rings only after Foco completo (spec 02).
-    // While driving: prio≥1 deferred (streets+terrain only); no outer expand; leftover.
+    // While driving: streets only (terrainMesh+nature deferred); no outer expand; leftover.
     armFocusRemain();
     this.startTerrainBackground();
     this.startNatureBackground();
@@ -1330,7 +1351,7 @@ export class WorldStream {
     for (;;) {
       this.publishRemain();
       const remain = this.computeFocusRemain();
-      // streamIntent admit: streets-only + playCore radius while driving.
+      // streamIntent admit: streets-only + playCore radius while driving (no terrainMesh).
       const admit = this._admitForPump(core, effectiveLoadRadius());
       const cap = admit.loadR;
       const pumpMax = admit.maxPriority;

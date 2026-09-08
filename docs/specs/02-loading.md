@@ -8,7 +8,7 @@ Market-style open-world load. Fixed Ultra/Simples knobs. **No FPS-driven throttl
 - Near-term play goal: **fully load one focus/load tile → drive the car into the next tile at ≥30 FPS with no Hitches** (no multi-100ms / multi-second freezes; ideally frames ≤~33ms while streaming the next cell).
 - **Drive smoothness is first-class:** while the car is **moving**, display frames must stay stable (~≥30 FPS, no multi-100ms / multi-second Hitches). Filling furniture / nature / carpet is **secondary** to a lovely drive.
 - Conscious, sustainable, **simple** code; MemoryGuardian-friendly; may use GPU memory / GPU time aggressively if it keeps the **CPU main/display frame stable**.
-- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget, **drive-moving defer of prio ≥1 (furniture+)** — **not** FPS HOLD / adaptive pauseDraw valve.
+- Allowed levers: smaller residency circle, **lightweight placeholder before real texture**, predicted warm of next cell, hard stream leftover budget, **drive-moving defer of prio ≥1 + terrainMesh / nature glTF** — **not** FPS HOLD / adaptive pauseDraw valve.
 
 ## Idle
 
@@ -64,16 +64,18 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
 - Observation-gated admission — **não** é pauseDraw HOLD / adaptive valve.
 - `throughValve` / pumps / `createBudget` respeitam budget + leftover e yield quando fechados.
 
-## Drive-moving defer (prio ≥1)
+## Drive-moving defer (prio ≥1 + terrainMesh)
 
 - Enquanto velocidade planar &gt; limiar (~1.2 m/s enter / ~0.4 m/s exit histerese), `streamIntent.isDriveMovingActive`:
-  - **Defere furniture / bank / buildings / nature / carpet (prio ≥1)** — só **prio 0 streets** + **terrain** (pump independente) entram.
-  - Street furniture (`Prop_Sign_HW_*`, planters, …) is prio 1 (`registerCity` / `StreetFurniture`) — must **not** `gltf:parse` mid-drive.
-  - **Admit único:** `streamIntent.mayAdmitStreamWork(priority)` — WorldStream re-checa **por urlJob** (não só no entry de `pumpTo`); `AssetLoader.loadGltf({ shouldAbort })` aborta **antes** de `gltf:parse` após fetch/yield se a lane deferiu. Job fica sem grower → retry ao estacionar (sem empty-grower falso).
-  - Não continua warmup/compile/reveal de furniture mid-drive; leftover drive (~22 ms) só para streets+terrain.
-  - **Não** expande anéis externos nem despeja props/nature em mudança de focus-cell mid-drive.
-  - `pumpNatureSlice` / `pumpCarpetSlice` early-return while drive-moving (via `shouldDeferLowPrioStream`).
-- Ao quase parar / estacionar: retoma props + nature/carpet. Dirigir &gt; encher Fila.
+  - **Defere furniture / bank / buildings / nature / carpet (prio ≥1)** e **novos tiles de terrain visual** (`STREAM_LANE.TERRAIN_MESH`) — só **prio 0 streets** entram no ring pump.
+  - **Terrain phys** (height/collision) permanece on-demand via `ensureGroundAround` — fora desta policy; preferir meshes já residentes / placeholders para vista.
+  - Street furniture (`Prop_Sign_HW_*`, planters, …) is prio 1 — must **not** `gltf:parse` mid-drive.
+  - Countryside veg (`Bush_Large_Flowers`, trees, …) is `STREAM_LANE.NATURE` / prio 4 — must **not** `gltf:parse` mid-drive (nature bg + treeLod).
+  - **Admit único:** `streamIntent.mayAdmitStreamWork(priority|lane)` — WorldStream re-checa **por urlJob / terrain tile**; `AssetLoader.loadGltf({ shouldAbort })` aborta **antes** de `gltf:parse` após fetch/yield se a lane deferiu. Job fica sem grower → retry ao estacionar.
+  - Não continua warmup/compile/reveal de furniture/nature mid-drive; leftover drive (~22 ms) só para streets.
+  - **Não** expande anéis externos nem despeja props/nature/terrainMesh em mudança de focus-cell mid-drive.
+  - `pumpTerrainSlice` / `pumpNatureSlice` / `pumpCarpetSlice` early-return while drive-moving (via `mayAdmitStreamWork`).
+- Ao quase parar / estacionar: retoma props + nature/carpet + terrainMesh. Dirigir &gt; encher Fila.
 
 ## Two-stage assets (Pareto)
 

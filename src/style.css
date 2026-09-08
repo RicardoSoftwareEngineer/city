@@ -249,9 +249,27 @@ kbd {
 #camera-mode-btn[data-mode="orbit"] { border-color: #7ab0ff; color: #7ab0ff; }
 #camera-mode-btn[data-mode="follow"] { border-color: rgba(120, 170, 255, 0.55); }
 
-#terrain-debug-readout {
+#car-visual-btn {
   position: fixed;
   top: 92px;
+  right: 12px;
+  z-index: 30;
+  padding: 8px 14px;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #fff4e8;
+  background: rgba(28, 18, 12, 0.82);
+  border: 1px solid rgba(255, 176, 58, 0.55);
+  border-radius: 6px;
+  cursor: pointer;
+}
+#car-visual-btn:hover { background: rgba(44, 28, 20, 0.92); }
+#car-visual-btn[data-mode="porsche"] { border-color: #ffb03a; color: #ffb03a; }
+#car-visual-btn[data-mode="box"] { border-color: rgba(255, 176, 58, 0.55); }
+
+#terrain-debug-readout {
+  position: fixed;
+  top: 132px;
   right: 12px;
   z-index: 30;
   display: none;
@@ -883,6 +901,7 @@ body.boot-idle #quality-preset-float,
 body.boot-idle #apts-house-hud,
 body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,
+body.boot-idle #car-visual-btn,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;
   pointer-events: none !important;

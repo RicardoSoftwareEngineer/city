@@ -111,7 +111,7 @@ export function createDayNightController(opts) {
   const moonDisc = new THREE.Mesh(
     new THREE.SphereGeometry(18, 16, 12),
     new THREE.MeshBasicMaterial({
-      color: 0xe8eef8,
+      color: 0xffffff,
       fog: false,
       depthWrite: false,
       transparent: true,
@@ -121,6 +121,16 @@ export function createDayNightController(opts) {
   moonDisc.name = 'moonDisc';
   moonDisc.frustumCulled = false;
   scene.add(moonDisc);
+
+  // NASA LROC 2k color map — color near-white so the map shows; night fade via opacity.
+  new THREE.TextureLoader().load(
+    '/textures/moon/lroc_color_2k.jpg',
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      moonDisc.material.map = texture;
+      moonDisc.material.needsUpdate = true;
+    }
+  );
 
   const stars = buildStarfield(STAR_COUNT);
   scene.add(stars);

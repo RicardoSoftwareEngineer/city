@@ -1,0 +1,3 @@
+NASA SVS CGI Moon Kit / LRO LROC color map (lroc_color_2k.jpg).
+Source: https://svs.gsfc.nasa.gov/4720
+Public domain / NASA imagery — credit NASA / GSFC / SVS.

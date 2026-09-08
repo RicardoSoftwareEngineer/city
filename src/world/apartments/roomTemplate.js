@@ -70,53 +70,58 @@ function ensureCurtainMaps() {
   const applyIfReady = () => {
     remaining -= 1;
     if (remaining > 0 || !sharedCurtainMat) return;
-    if (pending.map) {
-      pending.map.colorSpace = THREE.SRGBColorSpace;
-      sharedCurtainMat.map = pending.map;
+    try {
+      if (pending.map) {
+        pending.map.colorSpace = THREE.SRGBColorSpace;
+        sharedCurtainMat.map = pending.map;
+      }
+      if (pending.normalMap) {
+        pending.normalMap.colorSpace = THREE.NoColorSpace;
+        sharedCurtainMat.normalMap = pending.normalMap;
+        sharedCurtainMat.normalScale.set(0.55, 0.55);
+      }
+      if (pending.roughnessMap) {
+        pending.roughnessMap.colorSpace = THREE.NoColorSpace;
+        sharedCurtainMat.roughnessMap = pending.roughnessMap;
+      }
+      if (pending.alphaMap) {
+        pending.alphaMap.colorSpace = THREE.NoColorSpace;
+        sharedCurtainMat.alphaMap = pending.alphaMap;
+      }
+      sharedCurtainMat.needsUpdate = true;
+    } catch (err) {
+      // Keep cream fallback — never let map swap take down the render path.
+      console.warn('[apartments] curtain maps apply skipped', err);
     }
-    if (pending.normalMap) {
-      pending.normalMap.colorSpace = THREE.NoColorSpace;
-      sharedCurtainMat.normalMap = pending.normalMap;
-      sharedCurtainMat.normalScale.set(0.55, 0.55);
-    }
-    if (pending.roughnessMap) {
-      pending.roughnessMap.colorSpace = THREE.NoColorSpace;
-      sharedCurtainMat.roughnessMap = pending.roughnessMap;
-    }
-    if (pending.alphaMap) {
-      pending.alphaMap.colorSpace = THREE.NoColorSpace;
-      sharedCurtainMat.alphaMap = pending.alphaMap;
-    }
-    sharedCurtainMat.needsUpdate = true;
   };
 
   const prep = (tex) => {
+    const img = tex.image;
+    const w = img?.naturalWidth || img?.width || 0;
+    const h = img?.naturalHeight || img?.height || 0;
+    if (!(w > 0 && h > 0)) return null;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(2, 2);
     tex.anisotropy = 4;
+    // Prefer cheaper filtering — curtain is sheer overlay, not close-up hero.
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
     return tex;
   };
 
-  loader.load(CURTAIN_MAP_URLS.color, (tex) => {
-    pending.map = prep(tex);
+  const onLoad = (key) => (tex) => {
+    const ready = prep(tex);
+    if (ready) pending[key] = ready;
+    else tex.dispose?.();
     applyIfReady();
-  }, undefined, applyIfReady);
+  };
 
-  loader.load(CURTAIN_MAP_URLS.normal, (tex) => {
-    pending.normalMap = prep(tex);
-    applyIfReady();
-  }, undefined, applyIfReady);
-
-  loader.load(CURTAIN_MAP_URLS.rough, (tex) => {
-    pending.roughnessMap = prep(tex);
-    applyIfReady();
-  }, undefined, applyIfReady);
-
-  loader.load(CURTAIN_MAP_URLS.opacity, (tex) => {
-    pending.alphaMap = prep(tex);
-    applyIfReady();
-  }, undefined, applyIfReady);
+  loader.load(CURTAIN_MAP_URLS.color, onLoad('map'), undefined, applyIfReady);
+  loader.load(CURTAIN_MAP_URLS.normal, onLoad('normalMap'), undefined, applyIfReady);
+  loader.load(CURTAIN_MAP_URLS.rough, onLoad('roughnessMap'), undefined, applyIfReady);
+  loader.load(CURTAIN_MAP_URLS.opacity, onLoad('alphaMap'), undefined, applyIfReady);
 }
 
 export function getSharedCurtainMaterial() {

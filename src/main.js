@@ -465,7 +465,12 @@ async function startGame() {
           .then(async () => {
             syncCarVisualBtn();
             await throughValve(() =>
-              renderer.compileSubtree(porscheModel.chassisGroup, { instancersOnly: false })
+              renderer.compileSubtree(porscheModel.chassisGroup, {
+                instancersOnly: false,
+                // Interactive boot is already true before Começar — never freeze
+                // the canvas (0 draw calls) while Porsche programs warm.
+                pause: false
+              })
             );
           })
           .catch((error) => {

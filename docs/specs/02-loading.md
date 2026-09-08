@@ -69,7 +69,8 @@ Sem shrink/expand por FPS. Heap / soft-cap ainda podem pausar *novos* residentes
 - Enquanto velocidade planar &gt; limiar (~1.2 m/s enter / ~0.4 m/s exit histerese), `streamIntent.isDriveMovingActive`:
   - **Defere furniture / bank / buildings / nature / carpet (prio ≥1)** — só **prio 0 streets** + **terrain** (pump independente) entram.
   - Street furniture (`Prop_Sign_HW_*`, planters, …) is prio 1 (`registerCity` / `StreetFurniture`) — must **not** `gltf:parse` mid-drive.
-  - `maxLoads` / reveal **mínimos** no que ainda corre; leftover drive (~22 ms).
+  - **Admit único:** `streamIntent.mayAdmitStreamWork(priority)` — WorldStream re-checa **por urlJob** (não só no entry de `pumpTo`); `AssetLoader.loadGltf({ shouldAbort })` aborta **antes** de `gltf:parse` após fetch/yield se a lane deferiu. Job fica sem grower → retry ao estacionar (sem empty-grower falso).
+  - Não continua warmup/compile/reveal de furniture mid-drive; leftover drive (~22 ms) só para streets+terrain.
   - **Não** expande anéis externos nem despeja props/nature em mudança de focus-cell mid-drive.
   - `pumpNatureSlice` / `pumpCarpetSlice` early-return while drive-moving (via `shouldDeferLowPrioStream`).
 - Ao quase parar / estacionar: retoma props + nature/carpet. Dirigir &gt; encher Fila.

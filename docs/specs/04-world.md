@@ -25,7 +25,7 @@ Fence, orchard heightmap, biomes, vista tiles e downtown paved.
 ## Ownership
 
 World modules (biomes, terrain, city ground). Apartments → `05`.
-Sky / sun / moon / stars → `DayNightController` (product note in `01`; not a hitch knob).
+Sky / sun / moon / stars → `DayNightController` (product note in `01`; not a hitch knob). Ultra daytime shadows: light along `sunDir` at `LIGHT_DISTANCE` (not sky distance) so asphalt/sidewalk stay inside the ortho frustum.
 
 ## Same-PR rule
 

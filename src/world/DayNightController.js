@@ -18,7 +18,20 @@ import { Sky } from 'three/addons/objects/Sky.js';
 
 const STAR_COUNT = 3000;
 const SKY_SCALE = 4500;
+/** Sky dome sunPosition distance (visual only). */
 const SUN_DISTANCE = 400;
+/**
+ * Shadow-casting DirectionalLight distance along sunDir from target.
+ * Pre-#141 light sat ~172 from target; keeping ~180 avoids noon/afternoon
+ * ground sitting at/beyond shadow.camera.far when the light was at 400.
+ */
+const LIGHT_DISTANCE = 180;
+/** Ortho shadow far with headroom for afternoon ground past the target. */
+const SHADOW_CAMERA_FAR = 700;
+/** Rebake while auto-playing at most every N apply ticks (hitch-friendly). */
+const SHADOW_REBAKE_PLAY_FRAMES = 30;
+/** Dot threshold (~1.8°) — rebake sooner if the sun jumped. */
+const SHADOW_REBAKE_DOT = 0.9995;
 /** Default: noon. */
 const DEFAULT_T = 0.5;
 /** Full day cycle length when auto-play is on (seconds). Slow for demo. */
@@ -77,7 +90,7 @@ export function createDayNightController(opts) {
   sunLight.shadow.mapSize.width = 1024;
   sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.camera.near = 1;
-  sunLight.shadow.camera.far = 420;
+  sunLight.shadow.camera.far = SHADOW_CAMERA_FAR;
   sunLight.shadow.camera.left = -160;
   sunLight.shadow.camera.right = 160;
   sunLight.shadow.camera.top = 160;
@@ -116,9 +129,13 @@ export function createDayNightController(opts) {
   let playing = false;
   let daySeconds = DEFAULT_DAY_SECONDS;
   const sunDirection = new THREE.Vector3(0.707, 0.707, 0);
+  const lastShadowBakeDir = new THREE.Vector3();
+  let forceShadowBake = false;
+  let framesSinceShadowBake = 0;
 
   function setTime(next) {
     t = ((Number(next) % 1) + 1) % 1;
+    forceShadowBake = true;
     apply();
   }
 
@@ -162,7 +179,8 @@ export function createDayNightController(opts) {
     uniforms.turbidity.value = 3.5 + horizon * 4;
     uniforms.rayleigh.value = 1.0 + horizon * 0.8;
 
-    sunLight.position.copy(target).addScaledVector(_sunDir, SUN_DISTANCE);
+    // Shadow light closer than Sky sunPosition so ground stays inside near/far.
+    sunLight.position.copy(target).addScaledVector(_sunDir, LIGHT_DISTANCE);
     sunLight.target.position.copy(target);
     sunLight.target.updateMatrixWorld();
 
@@ -185,8 +203,26 @@ export function createDayNightController(opts) {
     if (sunLight.castShadow !== wantShadow) {
       sunLight.castShadow = wantShadow;
       if (wantShadow && renderer.shadowMap.enabled) {
-        renderer.shadowMap.needsUpdate = true;
+        forceShadowBake = true;
       }
+    }
+
+    // autoUpdate=false after resumeShadows — rebake when the sun pose moves.
+    if (renderer.shadowMap.enabled && sunLight.castShadow) {
+      framesSinceShadowBake++;
+      const moved =
+        lastShadowBakeDir.lengthSq() < 1e-6 ||
+        lastShadowBakeDir.dot(_sunDir) < SHADOW_REBAKE_DOT;
+      const playDue = playing && (moved || framesSinceShadowBake >= SHADOW_REBAKE_PLAY_FRAMES);
+      if (forceShadowBake || playDue) {
+        renderer.shadowMap.needsUpdate = true;
+        lastShadowBakeDir.copy(_sunDir);
+        framesSinceShadowBake = 0;
+        forceShadowBake = false;
+      }
+    } else {
+      forceShadowBake = false;
+      framesSinceShadowBake = 0;
     }
 
     _colHemiSky.copy(_colHemiDay).lerp(_colHemiNight, nightFactor * 0.85);

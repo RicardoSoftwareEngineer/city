@@ -1,26 +1,30 @@
 # Spec-Driven Development
 
-Specs in this folder are the **source of truth** for product behavior, loading/streaming, performance budgets, and world rules.
+Specs = **contrato vivo**. Código segue specs; discordância → corrige código ou atualiza a spec **no mesmo PR**.
 
-## Rules
+**Milestone atual: Gilgalad** — cidade dirigível + downtown visível; guerra de hitch no drive ainda ativa (`01-product.md`).
 
-1. **Specs win.** Code follows the specs. If code and a spec disagree, fix the code — or update the spec in the **same PR** when the contract intentionally changes.
-2. **Same-PR updates.** Any change to loading, streaming, presets (Ultra/Simples), focus/Fila, phys pin, or world/fence/biome/orchard/vista rules **must** update the matching spec file in that PR.
-3. **Keep each file short.** Enough to control behavior — not a novel. Portuguese is fine for product voice; English is fine for technical IDs (`phys`, `Fila do foco`, `Ultra`).
-4. **Historical notes are not the contract.** Root `OPTIMIZATION_LOADING.md` and `OPTIMIZATION_MAP_ITEMS.md` are diaries of past hitches and file ownership. Prefer linking them; do not treat them as the live contract.
+## Como AIs devem usar
+
+1. Mudar loading / drive-defer / boot → lê `02-loading.md`.
+2. Mudar budgets / hitch / ship bar / leftover → lê `03-performance.md` (drive-defer detalhado está em **02**).
+3. Mudar fence / biome / paved / vista → lê `04-world.md`.
+4. Mudar vidro / interiores / cortinas / Todos → lê `05-apartments.md`.
+5. **Same-PR:** mudança intencional de contrato atualiza a spec matching.
+6. `OPTIMIZATION_*.md` = diários históricos — **não** contrato.
 
 ## Index
 
-| Spec | Contract |
+| Spec | Contrato |
 |------|----------|
-| [01-product.md](./01-product.md) | Product: downtown + open campo, presets, playability |
-| [02-loading.md](./02-loading.md) | **Loading / streaming** (market open-world style) |
-| [03-performance.md](./03-performance.md) | Budgets, hitch definition, what we measure vs control |
-| [04-world.md](./04-world.md) | Fence, orchard, biomes, vista, city paved |
-| [05-apartments.md](./05-apartments.md) | Glass windows, on-demand interiors, curtains |
+| [01-product.md](./01-product.md) | Pitch, Gilgalad, não-objetivos, menos é mais |
+| [02-loading.md](./02-loading.md) | Idle/boot, playCore, drive-defer, admit, Fila |
+| [03-performance.md](./03-performance.md) | Budgets, hitch tiers, ship bar |
+| [04-world.md](./04-world.md) | Fence, orchard, biomes, vista, paved |
+| [05-apartments.md](./05-apartments.md) | Glass, InstancedMesh, liveTarget, cortinas |
 
 ## Workflow
 
-1. Change intent → edit the relevant `docs/specs/*.md` first (or in the same commit as code).
-2. Implement the smallest maintainable change that satisfies the spec.
-3. Prefer deleting dead FPS-adapt / HOLD leftovers over adding new adaptive personas.
+1. Intent → edita a spec matching (primeiro ou no mesmo commit).
+2. Menor change que satisfaz a spec.
+3. Deletar leftovers FPS-adapt/HOLD &gt; inventar personas novas.

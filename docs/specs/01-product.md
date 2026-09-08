@@ -1,22 +1,36 @@
 # 01 — Product
 
+## Purpose
+
+Pitch e leis de produto. Knobs de implementação: `02`–`05`.
+
 ## Pitch
 
-Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** inspirado em Witcher / White Orchard: cidade no centro, countryside streamável até a cerca √10.
+Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** estilo Witcher / White Orchard: cidade no centro, countryside streamável até a cerca √10.
 
-## Público
+## Milestone Gilgalad (atual)
 
-Jogador em **português** (HUD, boot gate, Fila do foco). IDs técnicos em inglês (`phys`, `Ultra`, `stream`).
+- Cidade **dirigível**; downtown **visível** no cold open (mínimo jogável).
+- **Guerra de hitch no drive** ainda ativa — stable drive é a war em curso.
+- Ship bar: célula→célula ≥30 FPS estável → `03-performance.md`.
 
-## Experiência
+## Invariants / MUST / MUST NOT
 
-- **Cidade centrada** no mapa; asfalto / calçadas MegaKit inalterados na área paved.
-- **Jogável antes do mundo terminar** — idle com phys + shell; após *Começar*, o mundo sobe em streaming (sem exigir tela preta).
-- Presets fixos: **Ultra** (padrão) e **Simples**. Sem adaptação contínua por FPS.
-- **Stable FPS > high FPS** — meta de play: célula focusGrid → próxima a ≥30 FPS estável (ver `02-loading.md` / `03-performance.md`).
-- **Dirigir deve ser suave e gostoso** — FPS estável com o carro em movimento; nature/carpet podem esperar até quase parar.
+- **MUST** português no HUD/boot/Fila; IDs técnicos em inglês (`phys`, `Ultra`, `stream`).
+- **MUST** jogável antes do mundo terminar (idle phys+shell; após *Começar*, stream sem black screen).
+- **MUST** presets fixos **Ultra** (default) / **Simples** — sem ladder contínuo por FPS.
+- **MUST** Stable FPS > high FPS; dirigir suave é first-class.
+- **MUST NOT** FPS HOLD / adaptive pauseDraw / personas de adaptação contínua.
+- **Menos é mais** — contrato curto e código sustentável &gt; features adaptivas.
 
-## Não-objetivos
+## Ownership
 
-- Não é um sandbox de “mais adaptividade FPS”.
-- Carpet denso e vista longe são desejáveis, mas **não** bloqueiam “mínimo jogável” nem “foco completo” (ver `02-loading.md`).
+Pitch/milestone: este arquivo. Knobs: `02`–`05`. Presets: `qualityPresets`.
+
+## Same-PR rule
+
+Pitch, milestone, não-objetivos ou “menos é mais” → este arquivo.
+
+## Out of scope
+
+Sandbox de adaptividade FPS. Carpet/vista longe como bloqueio de mínimo jogável ou Foco completo (`02`).

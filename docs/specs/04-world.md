@@ -1,35 +1,35 @@
 # 04 — World
 
-## Fence / escala
+## Purpose
 
-- Cerca do campo: **√10** em área vs mapa legado (±560 m) → `GROUND_BODY_HALF ≈ 1770` m.
-- `WORLD_LINEAR_SCALE = √10` para centros/raios de bioma.
+Fence, orchard heightmap, biomes, vista tiles e downtown paved.
 
-## Orchard heightmap
+## Invariants / MUST / MUST NOT
 
-- White Orchard: **elevação só** (heightfield / mesh Y).
-- Não redefine regras de vegetação por si — biomes cuidam de tint/veg.
+- **MUST** cerca √10 vs legado (±560 m) → `GROUND_BODY_HALF ≈ 1770` m; `WORLD_LINEAR_SCALE = √10`.
+- **MUST** orchard = elevação só; biomes cuidam tint/veg.
+- **MUST** paved (`CITY_PAVED_MIN`…`MAX`) **inalterada** — MegaKit não vira grama.
+- **MUST** strip `COLOR_0` vermelho no chão paved + prédios (`groundOpts` / `sidewalkOpts` / `castOpts` / `noCastOpts`); `foliageOpts` mantém VC.
+- **MUST** calçada: só lajes cheias (`straight` / `broken*`).
+- **MUST NOT** `Sidewalk_*_Stripe` nem `Inset_*` como tile.
+- Vista: terreno grosso até a cerca (`TERRAIN_VISTA_RADIUS`); heap pode pausar novos tiles.
 
-## Biomes
+## Knobs
 
-- Tint de terreno + densidade/tipo de vegetação por campo suave.
-- Escala linear √10; cidade 4×4 perto da origem.
+| Knob | Valor |
+|------|-------|
+| Fence / body half | √10 / ≈1770 m |
+| Biome linear scale | √10 (cidade 4×4 na origem) |
+| Paved | `CITY_PAVED_*` — terrain enterra; phys = box + pin campo |
 
-## Vista tiles
+## Ownership
 
-- Terreno grosso pode preencher até a cerca (`TERRAIN_VISTA_RADIUS` / `allowsTerrainAt`) mesmo com R de Guardian menor.
-- Heap ainda pode pausar novos tiles de vista.
+World modules (biomes, terrain, city ground). Apartments → `05`.
 
-## Cidade paved
+## Same-PR rule
 
-- Retângulo paved (`CITY_PAVED_MIN`…`CITY_PAVED_MAX`) **inalterado**: asfalto/MegaKit não “viram grama”.
-- Terrain enterra sob a paved; phys da cidade usa box plana + pin no campo.
+Fence, paved, sidewalk tiles, biome scale ou vista radius → este arquivo.
 
-- **Chão pavimentado:** sem `COLOR_0` do MegaKit (meio-fio vermelho US em calçada **e** rua). `groundOpts()` / `sidewalkOpts()` strips vertex colors.
+## Out of scope
 
-- **Chão pavimentado + prédios downtown:** sem `COLOR_0` vermelho do MegaKit (`groundOpts` / `castOpts` / `noCastOpts`). Natureza (`foliageOpts`) mantém VC.
-- **Calçada:** só lajes cheias (`straight` / `broken*`). Nunca `Sidewalk_*_Stripe` nem `Inset_*` como tile — stripe é decal fino e inset abre buraco.
-
-## Apartments
-
-- Vidro real + interiores sob demanda + cortinas: ver [05-apartments.md](./05-apartments.md).
+Loading/budgets → `02`/`03`. Glass/interiors → `05`.

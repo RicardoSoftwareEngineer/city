@@ -46,7 +46,7 @@ Ideal drive ≤~33 ms (sub-33 fora da lista). Top ~50 HUD; dump: `hitchEntries` 
 
 ## Compile notes (curto)
 
-Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first shadowed draw = `draw frame+shadows`). Shadow bake: `autoUpdate=false`; defer first `needsUpdate` ~1.5 s após `resumeShadows`. DayNight: sky `sunPosition` stays far; shadow DirectionalLight closer (`LIGHT_DISTANCE`) + `shadow.camera.far` headroom; Hora scrub / play pose changes set `needsUpdate` (throttled while playing). `zoneAwareOptions`: keep `castShadow` if any pose (or nearest-to-focus) is inner — not centroid-only (city trees are one InstancedMesh/species); outer-only batches still skip; `Renderer.requestShadowBake` when casting instances first reveal. Personas admit: `streamIntent` (`02` / `05`).
+Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first shadowed draw = `draw frame+shadows`). Shadow bake: `autoUpdate=false`; defer first `needsUpdate` ~1.5 s após `resumeShadows`. DayNight: sky `sunPosition` stays far; shadow DirectionalLight closer (`LIGHT_DISTANCE`) + `shadow.camera.far` headroom; Hora scrub / play pose changes set `needsUpdate` (throttled while playing). `zoneAwareOptions`: keep `castShadow` if any pose (or nearest-to-focus) is inner — not centroid-only (city trees are one InstancedMesh/species); outer-only batches still skip; `Renderer.requestShadowBake` when casting instances first reveal. Personas admit: `streamIntent` (`02` / `05`). Street lamps: pool ≤6–8 Spot(+Point) nearest poles only — never per-pole lights; `castShadow` off on pool lights.
 
 ## Ownership
 

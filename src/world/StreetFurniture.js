@@ -6,7 +6,10 @@
  * Jobs are merged by glTF URL + shadow opts + priority so keys that share a
  * file (awning / awningBakery / awningPub → Prop_Awning.gltf) parse once and
  * share one instancer / GPU program warm — avoids repeated MAP parse+compile.
+ *
+ * Street lamps use a single Quaternius/CC0 GLB (not MegaKit downtown files).
  */
+
 import { gridStreetCoords } from './RoadDimensions.js';
 import { downtown } from './downtownSrc.js';
 import { noCastOpts, castOpts } from './shadowPolicy.js';
@@ -17,7 +20,11 @@ import { placeFireEscapes } from './streetFurniture/fireEscapes.js';
 import { placeStreetProps } from './streetFurniture/streetProps.js';
 import { placePlanterRows } from './streetFurniture/planters.js';
 import { placeExtraRoads } from './streetFurniture/extraRoads.js';
-import { collectStreetlightPoses, createStreetlightModel } from './streetFurniture/streetlight.js';
+import {
+  collectStreetlightPoses,
+  STREETLIGHT_URL,
+  prepareStreetlightTemplate
+} from './streetFurniture/streetlight.js';
 
 function optsKey(options) {
   return `c${options.castShadow ? 1 : 0}|r${options.receiveShadow ? 1 : 0}|vc${options.keepVertexColors ? 1 : 0}`;
@@ -51,10 +58,23 @@ export class StreetFurniture {
     placeStreetProps(add, xs, zs);
     placePlanterRows(add, xs, zs);
     placeExtraRoads(add, xs, zs);
+
+    const streetlightPoses = collectStreetlightPoses(xs, zs);
+    if (streetlightPoses.length) {
+      jobs.push({
+        url: STREETLIGHT_URL,
+        poses: streetlightPoses,
+        options: {
+          ...castOpts(),
+          prepare: prepareStreetlightTemplate
+        },
+        priority: 1
+      });
+    }
+
     return {
       jobs,
-      streetlightPoses: collectStreetlightPoses(xs, zs),
-      streetlightTemplate: createStreetlightModel()
+      streetlightPoses
     };
   }
 }

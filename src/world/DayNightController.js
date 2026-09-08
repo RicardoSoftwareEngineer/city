@@ -139,6 +139,7 @@ export function createDayNightController(opts) {
   let t = DEFAULT_T;
   let playing = false;
   let daySeconds = DEFAULT_DAY_SECONDS;
+  let nightFactor = 0;
   const sunDirection = new THREE.Vector3(0.707, 0.707, 0);
   const lastShadowBakeDir = new THREE.Vector3();
   let forceShadowBake = false;
@@ -200,7 +201,7 @@ export function createDayNightController(opts) {
     // Day / night factors from sun height (smooth around horizon).
     const sunY = _sunDir.y;
     const dayFactor = THREE.MathUtils.smoothstep(sunY, -0.05, 0.2);
-    const nightFactor = 1 - dayFactor;
+    nightFactor = 1 - dayFactor;
 
     if (sunY > 0.35) {
       sunLight.color.copy(_colNoon);
@@ -283,6 +284,10 @@ export function createDayNightController(opts) {
     setPlaying,
     isPlaying,
     getSunDirection,
+    /** 0 = day, 1 = night — same factor as stars / Hora scrub. */
+    getNightFactor() {
+      return nightFactor;
+    },
     /** New casters / scrub — next apply() sets shadowMap.needsUpdate. */
     requestShadowBake() {
       forceShadowBake = true;

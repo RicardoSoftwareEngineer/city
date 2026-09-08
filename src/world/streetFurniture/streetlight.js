@@ -1,52 +1,66 @@
-import * as THREE from 'three';
+/**
+ * Downtown street lamps — Quaternius/CC0 GLB instanced along N–S streets.
+ * Poses only here; night glow + capped PointLights live in StreetLightsController.
+ */
 
+/** Raw GLB height ≈ 93.2 units → ~6 m poles on the sidewalk. */
+export const STREETLIGHT_RAW_HEIGHT = 93.236;
+export const STREETLIGHT_TARGET_HEIGHT = 6;
+export const STREETLIGHT_SCALE = STREETLIGHT_TARGET_HEIGHT / STREETLIGHT_RAW_HEIGHT;
+
+export const STREETLIGHT_URL = '/models/street/lamp_post.glb';
+
+/** Shared bulb materials (filled by prepareStreetlightTemplate). */
+const bulbMaterials = [];
+
+export function getStreetlightBulbMaterials() {
+  return bulbMaterials;
+}
+
+/**
+ * Mid-block poles on both curbs of each N–S grid street.
+ * Long axis of the GLB faces the roadway (±X).
+ */
 export function collectStreetlightPoses(xs, zs) {
   const poses = [];
+  const s = STREETLIGHT_SCALE;
   for (const sx of xs) {
     for (let j = 0; j < zs.length - 1; j++) {
       const z = (zs[j] + zs[j + 1]) / 2;
-      poses.push({ x: sx - 8.5, z, rot: -Math.PI / 2 });
-      poses.push({ x: sx + 8.5, z, rot: Math.PI / 2 });
+      poses.push({ x: sx - 8.5, z, rot: 0, scale: s });
+      poses.push({ x: sx + 8.5, z, rot: Math.PI, scale: s });
     }
   }
   return poses;
 }
 
-export function createStreetlightModel() {
-  const root = new THREE.Group();
-  const metalMat = new THREE.MeshStandardMaterial({
-    color: 0x1f2937,
-    metalness: 0.85,
-    roughness: 0.3
+/**
+ * Tag emissive Inners mats for night toggle; poles cast cheap shadows.
+ * Called once via urlJob options.prepare after GLTF load.
+ */
+export function prepareStreetlightTemplate(root) {
+  bulbMaterials.length = 0;
+  if (!root) return;
+  root.name = root.name || 'streetlight';
+  root.traverse((child) => {
+    if (!child.isMesh) return;
+    child.castShadow = true;
+    child.receiveShadow = false;
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (!mat?.isMaterial) continue;
+      const em = mat.emissive;
+      const glowing =
+        (em && (em.r > 0.04 || em.g > 0.04 || em.b > 0.04)) ||
+        /inner|bulb|lamp|emissive|light/i.test(`${mat.name || ''} ${child.name || ''}`);
+      if (!glowing) continue;
+      mat.userData._streetBulb = true;
+      mat.userData._streetBulbMaxEi =
+        typeof mat.emissiveIntensity === 'number' && mat.emissiveIntensity > 0
+          ? mat.emissiveIntensity
+          : 1.25;
+      mat.emissiveIntensity = 0;
+      bulbMaterials.push(mat);
+    }
   });
-  const lampMat = new THREE.MeshStandardMaterial({
-    color: 0xfffbeb,
-    emissive: 0xfef08a,
-    emissiveIntensity: 0.8
-  });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.4, 12), metalMat);
-  base.position.y = 0.2;
-  base.castShadow = true;
-  base.receiveShadow = false;
-  root.add(base);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 6.2, 12), metalMat);
-  pole.position.y = 3.3;
-  pole.castShadow = true;
-  pole.receiveShadow = false;
-  root.add(pole);
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.8, 8), metalMat);
-  arm.position.set(0.7, 6.1, 0);
-  arm.rotation.z = -Math.PI / 3.2;
-  arm.castShadow = true;
-  arm.receiveShadow = false;
-  root.add(arm);
-  const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.5), metalMat);
-  fixture.position.set(1.45, 5.85, 0);
-  fixture.castShadow = true;
-  fixture.receiveShadow = false;
-  root.add(fixture);
-  const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.42), lampMat);
-  bulb.position.set(1.45, 5.79, 0);
-  root.add(bulb);
-  return root;
 }

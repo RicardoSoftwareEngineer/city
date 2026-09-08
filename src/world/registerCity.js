@@ -4,7 +4,6 @@ import { CityBuildings } from './CityBuildings.js';
 import { BankBuilding } from './BankBuilding.js';
 import { chebyshev } from './instancing.js';
 import { STREAM_STEP, WorldStream } from './WorldStream.js';
-import { castOpts } from './shadowPolicy.js';
 import { registerTerrain } from './terrain/TerrainWorld.js';
 import { ensureWhiteOrchardHeightmap } from './terrain/whiteOrchardHeight.js';
 import {
@@ -58,7 +57,7 @@ export async function createCityStream(parentGroup, physicsWorld, ox, oz, render
     stream.addUrl(job.url, job.poses, job.options, job.priority);
     if (i > 0 && i % 8 === 0) await yieldToMain();
   }
-  stream.addTemplate(furniture.streetlightTemplate, furniture.streetlightPoses, castOpts(), 1);
+  stream.streetlightPoses = furniture.streetlightPoses;
   await yieldToMain();
 
   stream.addTask({

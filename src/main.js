@@ -194,26 +194,39 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
-  // Debug HUD: toggle Porsche glTF vs procedural box (inspect geometry).
+  // Debug HUD: cycle Porsche glTF → procedural Defender → crude box.
   const carVisualBtn = document.getElementById('car-visual-btn');
+  const CAR_VISUAL_LABELS = {
+    porsche: 'Carro: Porsche',
+    defender: 'Carro: Defender',
+    box: 'Carro: quadrado'
+  };
   function syncCarVisualBtn() {
     if (!carVisualBtn) return;
     const mode = porscheModel.getVisualMode();
     carVisualBtn.dataset.mode = mode;
-    carVisualBtn.textContent = mode === 'porsche' ? 'Carro: Porsche' : 'Carro: quadrado';
+    carVisualBtn.textContent = CAR_VISUAL_LABELS[mode] || CAR_VISUAL_LABELS.box;
+  }
+  function nextCarVisualMode(current) {
+    // Porsche → Defender → quadrado → Porsche…
+    if (current === 'porsche') return 'defender';
+    if (current === 'defender') return 'box';
+    // Prefer Porsche when ready; otherwise skip to Defender.
+    if (porscheModel.canShowPorsche()) return 'porsche';
+    return 'defender';
   }
   syncCarVisualBtn();
   if (carVisualBtn) {
     carVisualBtn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const next = porscheModel.getVisualMode() === 'porsche' ? 'box' : 'porsche';
+      let next = nextCarVisualMode(porscheModel.getVisualMode());
       if (next === 'porsche' && !porscheModel.canShowPorsche()) {
+        next = 'defender';
         carVisualBtn.title = 'Porsche ainda carregando';
-        syncCarVisualBtn();
-        return;
+      } else {
+        carVisualBtn.title = '';
       }
-      carVisualBtn.title = '';
       porscheModel.setVisualMode(next);
       syncCarVisualBtn();
     });

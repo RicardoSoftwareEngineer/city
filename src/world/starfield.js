@@ -402,6 +402,7 @@ varying float vTwinkle;`
         /* glsl */ `vTwinkle = 0.72 + 0.28 * sin(uTime * aTwinkle + aPhase);
 gl_PointSize = size * aSize * (0.85 + 0.15 * vTwinkle);`
       );
+    // Soft circular core + 6 diffraction spikes (naked-eye style); kill square quad corners.
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
@@ -410,10 +411,17 @@ varying float vTwinkle;`
       )
       .replace(
         'vec4 diffuseColor = vec4( diffuse, opacity );',
-        /* glsl */ `vec4 diffuseColor = vec4( diffuse, opacity * vTwinkle );`
+        /* glsl */ `vec2 pc = gl_PointCoord - vec2(0.5);
+float r = length(pc);
+float theta = atan(pc.y, pc.x);
+float disc = smoothstep(0.5, 0.05, r);
+float spike = pow(abs(cos(3.0 * theta)), 14.0);
+float shape = disc * (1.0 + 1.35 * spike);
+if (shape < 0.01) discard;
+vec4 diffuseColor = vec4( diffuse, opacity * vTwinkle * shape );`
       );
   };
-  mat.customProgramCacheKey = () => 'starfield-twinkle-v1';
+  mat.customProgramCacheKey = () => 'starfield-twinkle-spikes6-v1';
 
   const points = new THREE.Points(geo, mat);
   points.name = 'starfieldPoints';

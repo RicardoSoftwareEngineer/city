@@ -1,9 +1,16 @@
 /**
  * Minimizable street-lighting study HUD — live knobs for StreetLightsController.
  * Wire before initMinimizableHud so [data-min-id="street-lights"] is scanned.
+ * Persists all params + per-row on/off to localStorage (STORAGE_KEY).
  */
 
-import { DEFAULT_PARAMS } from '../world/StreetLightsController.js';
+import {
+  DEFAULT_PARAMS,
+  STORAGE_KEY,
+  loadStoredStreetLights,
+  saveStoredStreetLights,
+  clearStoredStreetLights
+} from '../world/StreetLightsController.js';
 
 /** @typedef {keyof typeof DEFAULT_PARAMS | 'enabledSpot' | 'enabledPoint' | 'enabledEmissive'} ParamKey */
 
@@ -19,7 +26,7 @@ const ROWS = [
     label: 'Intensidade (spot)',
     kind: 'number',
     min: 0,
-    max: 40,
+    max: 500,
     step: 0.1,
     enableFlag: 'enabledSpot'
   },
@@ -28,7 +35,7 @@ const ROWS = [
     label: 'Distância (spot)',
     kind: 'number',
     min: 1,
-    max: 80,
+    max: 500,
     step: 0.5,
     enableFlag: null
   },
@@ -37,7 +44,7 @@ const ROWS = [
     label: 'Decaimento (spot)',
     kind: 'number',
     min: 0,
-    max: 4,
+    max: 20,
     step: 0.05,
     enableFlag: null
   },
@@ -64,7 +71,7 @@ const ROWS = [
     label: 'Intensidade (ponto)',
     kind: 'number',
     min: 0,
-    max: 20,
+    max: 500,
     step: 0.1,
     enableFlag: 'enabledPoint'
   },
@@ -73,7 +80,7 @@ const ROWS = [
     label: 'Distância (ponto)',
     kind: 'number',
     min: 1,
-    max: 60,
+    max: 500,
     step: 0.5,
     enableFlag: null
   },
@@ -82,7 +89,7 @@ const ROWS = [
     label: 'Decaimento (ponto)',
     kind: 'number',
     min: 0,
-    max: 4,
+    max: 20,
     step: 0.05,
     enableFlag: null
   },
@@ -91,7 +98,7 @@ const ROWS = [
     label: 'Emissivo (lâmpada)',
     kind: 'number',
     min: 0,
-    max: 4,
+    max: 50,
     step: 0.05,
     enableFlag: 'enabledEmissive'
   },
@@ -99,8 +106,8 @@ const ROWS = [
     key: 'aimAlong',
     label: 'Mira (rua)',
     kind: 'number',
-    min: -20,
-    max: 20,
+    min: -100,
+    max: 100,
     step: 0.5,
     enableFlag: null
   },
@@ -108,8 +115,8 @@ const ROWS = [
     key: 'groundY',
     label: 'Solo Y',
     kind: 'number',
-    min: -2,
-    max: 2,
+    min: -50,
+    max: 50,
     step: 0.05,
     enableFlag: null
   },
@@ -163,13 +170,31 @@ export function initStreetLightsHud(streetLights) {
   /** @type {Map<string, boolean>} per-row enable (structural params) */
   const rowOn = new Map();
 
-  const params0 = streetLights.getParams();
+  const stored = loadStoredStreetLights();
+  // Controller already merged params on create; re-apply so missing keys fall back
+  // to DEFAULT_PARAMS and HUD bind restores the same snapshot after refresh.
+  const mergedParams = {
+    ...DEFAULT_PARAMS,
+    ...(stored?.params && typeof stored.params === 'object' ? stored.params : {}),
+    ...streetLights.getParams()
+  };
+
+  const params0 = { ...mergedParams };
+  const storedRowOn =
+    stored?.rowOn && typeof stored.rowOn === 'object' ? stored.rowOn : null;
   for (const row of ROWS) {
-    rowOn.set(row.key, true);
-    if (row.enableFlag && params0[row.enableFlag] === false) {
-      rowOn.set(row.key, false);
+    let on = true;
+    if (storedRowOn && Object.prototype.hasOwnProperty.call(storedRowOn, row.key)) {
+      on = Boolean(storedRowOn[row.key]);
+    } else if (row.enableFlag && params0[row.enableFlag] === false) {
+      on = false;
+    }
+    rowOn.set(row.key, on);
+    if (row.enableFlag) {
+      mergedParams[row.enableFlag] = on;
     }
   }
+  streetLights.setParams(mergedParams);
 
   root.innerHTML =
     `<button type="button" class="hud-min-toggle" id="street-lights-label" data-min-toggle>` +
@@ -243,6 +268,7 @@ export function initStreetLightsHud(streetLights) {
       num.type = 'number';
       num.className = 'sl-num';
       num.step = String(def.step);
+      // No min/max on number — typed finite values are applied as-is (slider thumb may clamp).
       num.setAttribute('aria-label', `${def.label} valor`);
       tools.appendChild(range);
       tools.appendChild(num);
@@ -253,6 +279,20 @@ export function initStreetLightsHud(streetLights) {
 
     rowsEl.appendChild(row);
     controls.set(def.key, ctl);
+  }
+
+  function rowOnObject() {
+    /** @type {Record<string, boolean>} */
+    const o = {};
+    for (const def of ROWS) o[def.key] = rowOn.get(def.key) !== false;
+    return o;
+  }
+
+  function persistHudState() {
+    saveStoredStreetLights({
+      params: streetLights.getParams(),
+      rowOn: rowOnObject()
+    });
   }
 
   function readUiValue(def, ctl) {
@@ -306,12 +346,14 @@ export function initStreetLightsHud(streetLights) {
 
   function applyPatch(patch) {
     streetLights.setParams(patch);
+    persistHudState();
     paintFromParams(streetLights.getParams());
   }
 
   function applyRowValue(def, value) {
     if (rowOn.get(def.key) === false) {
       remembered.set(def.key, value);
+      persistHudState();
       paintFromParams(streetLights.getParams());
       return;
     }
@@ -319,6 +361,7 @@ export function initStreetLightsHud(streetLights) {
       applyPatch({ color: value });
       return;
     }
+    // Typed / finite value wins — do not clamp to slider max before setParams.
     applyPatch({ [def.key]: value });
   }
 
@@ -356,9 +399,11 @@ export function initStreetLightsHud(streetLights) {
     // Structural / other: lock editing; keep last applied value (no silent default swap).
     if (!on) {
       remembered.set(def.key, currentUi);
+      persistHudState();
       paintFromParams(streetLights.getParams());
     } else {
       remembered.delete(def.key);
+      persistHudState();
       paintFromParams(streetLights.getParams());
     }
   }
@@ -391,6 +436,7 @@ export function initStreetLightsHud(streetLights) {
       const push = (raw) => {
         const n = Number(raw);
         if (!Number.isFinite(n)) return;
+        // Slider thumb only: clamp display range; applied value stays raw `n`.
         if (ctl.range) {
           const lo = def.min ?? 0;
           const hi = def.max ?? 1;
@@ -413,6 +459,7 @@ export function initStreetLightsHud(streetLights) {
   resetBtn?.addEventListener('click', () => {
     remembered.clear();
     for (const def of ROWS) rowOn.set(def.key, true);
+    clearStoredStreetLights();
     applyPatch({
       ...DEFAULT_PARAMS,
       enabledSpot: true,
@@ -421,5 +468,9 @@ export function initStreetLightsHud(streetLights) {
     });
   });
 
+  persistHudState();
   paintFromParams(streetLights.getParams());
+
+  // Expose key for diagnostics (matches STORAGE_KEY export).
+  root.dataset.storageKey = STORAGE_KEY;
 }

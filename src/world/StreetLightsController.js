@@ -3,7 +3,7 @@
  *
  * - Shared bulb materials: emissiveIntensity follows nightFactor × emissiveMul.
  * - At most MAX_ACTIVE SpotLights on the nearest poles to focus (XZ), aimed
- *   down toward the roadway so asphalt/sidewalk get a warm wash cone.
+ *   mostly downward (small aimAlong) so curb grass + roadway both get wash.
  * - Lights never castShadow (poles may).
  * - Tunables via DEFAULT_PARAMS / setParams / window.__cityStreetLights.
  * - Study HUD: enabledSpot / enabledPoint / enabledEmissive gate contributions.
@@ -24,9 +24,12 @@ const REFOCUS_EPS = 4;
 const REFOCUS_EPS_SQ = REFOCUS_EPS * REFOCUS_EPS;
 
 /**
- * Tuned for night ACES exposure (~0.55): Spot concentrates energy on the
- * street so the wash reads on asphalt/sidewalk (Standard/Lambert receivers).
+ * Tuned for night ACES exposure (~0.55): Spot + Point fill wash asphalt,
+ * sidewalk, and curb-side terrain grass (MeshLambert splat receives lights).
  */
+/** localStorage key for study HUD + controller params. */
+export const STORAGE_KEY = 'city-street-lights-v1';
+
 export const DEFAULT_PARAMS = Object.freeze({
   color: 0xffd090,
   intensity: 18,
@@ -34,19 +37,53 @@ export const DEFAULT_PARAMS = Object.freeze({
   decay: 1.75,
   angle: 0.68,
   penumbra: 0.55,
-  /** Soft fill PointLight under each spot (0 = spot only). */
-  pointIntensity: 3.2,
-  pointDistance: 22,
+  /** Soft omnidirectional fill — washes curb-side grass/terrain near the pole. */
+  pointIntensity: 8,
+  pointDistance: 28,
   pointDecay: 2,
   emissiveMul: 1.2,
-  /** Meters from bulb toward roadway (±X for N–S curb poles). */
-  aimAlong: 6,
+  /**
+   * Meters from bulb along pole yaw toward roadway.
+   * Small default so the Spot cone spills onto both curb sides (grass + street).
+   */
+  aimAlong: 1.5,
   groundY: -0.15,
   maxLights: MAX_ACTIVE,
   enabledSpot: true,
   enabledPoint: true,
   enabledEmissive: true
 });
+
+/**
+ * @returns {{ params?: object, rowOn?: Record<string, boolean> } | null}
+ */
+export function loadStoredStreetLights() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && typeof data === 'object' ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {{ params?: object, rowOn?: Record<string, boolean> }} state */
+export function saveStoredStreetLights(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function clearStoredStreetLights() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 const _bulb = new THREE.Vector3();
 
@@ -59,6 +96,7 @@ export function createStreetLightsController(opts) {
   if (opts.maxLights != null) {
     params.maxLights = Math.max(1, Math.min(SLOT_CAP, opts.maxLights | 0));
   }
+  const storedAtCreate = loadStoredStreetLights();
   // Always allocate SLOT_CAP so study HUD can raise maxLights live.
   const slotCount = SLOT_CAP;
 
@@ -134,29 +172,53 @@ export function createStreetLightsController(opts) {
   function setParams(patch) {
     if (!patch || typeof patch !== 'object') return getParams();
     if (patch.color != null) params.color = Number(patch.color) >>> 0;
-    if (patch.intensity != null) params.intensity = Math.max(0, Number(patch.intensity) || 0);
-    if (patch.distance != null) params.distance = Math.max(1, Number(patch.distance) || 1);
-    if (patch.decay != null) params.decay = Math.max(0, Number(patch.decay) || 0);
+    // Finite values only — no upper clamp to HUD slider max (typed values win).
+    if (patch.intensity != null) {
+      const n = Number(patch.intensity);
+      if (Number.isFinite(n)) params.intensity = Math.max(0, n);
+    }
+    if (patch.distance != null) {
+      const n = Number(patch.distance);
+      if (Number.isFinite(n)) params.distance = Math.max(1, n);
+    }
+    if (patch.decay != null) {
+      const n = Number(patch.decay);
+      if (Number.isFinite(n)) params.decay = Math.max(0, n);
+    }
     if (patch.angle != null) {
-      params.angle = THREE.MathUtils.clamp(Number(patch.angle) || 0.1, 0.05, Math.PI / 2);
+      const n = Number(patch.angle);
+      if (Number.isFinite(n)) {
+        params.angle = THREE.MathUtils.clamp(n, 0.05, Math.PI / 2);
+      }
     }
     if (patch.penumbra != null) {
-      params.penumbra = THREE.MathUtils.clamp(Number(patch.penumbra) || 0, 0, 1);
+      const n = Number(patch.penumbra);
+      if (Number.isFinite(n)) params.penumbra = THREE.MathUtils.clamp(n, 0, 1);
     }
     if (patch.pointIntensity != null) {
-      params.pointIntensity = Math.max(0, Number(patch.pointIntensity) || 0);
+      const n = Number(patch.pointIntensity);
+      if (Number.isFinite(n)) params.pointIntensity = Math.max(0, n);
     }
     if (patch.pointDistance != null) {
-      params.pointDistance = Math.max(1, Number(patch.pointDistance) || 1);
+      const n = Number(patch.pointDistance);
+      if (Number.isFinite(n)) params.pointDistance = Math.max(1, n);
     }
     if (patch.pointDecay != null) {
-      params.pointDecay = Math.max(0, Number(patch.pointDecay) || 0);
+      const n = Number(patch.pointDecay);
+      if (Number.isFinite(n)) params.pointDecay = Math.max(0, n);
     }
     if (patch.emissiveMul != null) {
-      params.emissiveMul = Math.max(0, Number(patch.emissiveMul) || 0);
+      const n = Number(patch.emissiveMul);
+      if (Number.isFinite(n)) params.emissiveMul = Math.max(0, n);
     }
-    if (patch.aimAlong != null) params.aimAlong = Number(patch.aimAlong) || 0;
-    if (patch.groundY != null) params.groundY = Number(patch.groundY) || 0;
+    if (patch.aimAlong != null) {
+      const n = Number(patch.aimAlong);
+      if (Number.isFinite(n)) params.aimAlong = n;
+    }
+    if (patch.groundY != null) {
+      const n = Number(patch.groundY);
+      if (Number.isFinite(n)) params.groundY = n;
+    }
     if (patch.maxLights != null) {
       const next = Math.max(1, Math.min(slots.length, patch.maxLights | 0));
       if (next !== params.maxLights) {
@@ -173,11 +235,20 @@ export function createStreetLightsController(opts) {
     if (patch.enabledEmissive != null) params.enabledEmissive = Boolean(patch.enabledEmissive);
     applyBulbEmissive();
     syncLights();
+    persistParams();
     return getParams();
   }
 
   function getParams() {
     return { ...params };
+  }
+
+  function persistParams() {
+    const prev = loadStoredStreetLights() || {};
+    saveStoredStreetLights({
+      params: getParams(),
+      rowOn: prev.rowOn && typeof prev.rowOn === 'object' ? prev.rowOn : undefined
+    });
   }
 
   function bulbWorld(pose, out) {
@@ -294,6 +365,11 @@ export function createStreetLightsController(opts) {
     slots.length = 0;
     poses = [];
     activeIdx = [];
+  }
+
+  // Merge persisted study knobs (typed large values + enable flags) after slots exist.
+  if (storedAtCreate?.params && typeof storedAtCreate.params === 'object') {
+    setParams(storedAtCreate.params);
   }
 
   return {

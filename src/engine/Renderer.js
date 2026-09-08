@@ -228,45 +228,49 @@ export class Renderer {
     if (!root) return;
     const wasPaused = this._pauseDraw;
     if (pause) this._pauseDraw = true;
-    const objects = [];
-    root.traverse((object) => {
-      if (only && !only.has(object)) return;
-      if (!object.isMesh || object.userData._gpuCompiled) return;
-      if (instancersOnly && !object.userData._streamInstancer) return;
-      // Same material already compiled → program is in the driver (clones share mats).
-      const mat = object.material;
-      if (mat && !Array.isArray(mat)) {
-        if (object.isInstancedMesh && mat.userData?._gpuInstancedProgramWarmed) {
-          object.userData._gpuCompiled = true;
-          return;
+    try {
+      const objects = [];
+      root.traverse((object) => {
+        if (only && !only.has(object)) return;
+        if (!object.isMesh || object.userData._gpuCompiled) return;
+        if (instancersOnly && !object.userData._streamInstancer) return;
+        // Same material already compiled → program is in the driver (clones share mats).
+        const mat = object.material;
+        if (mat && !Array.isArray(mat)) {
+          if (object.isInstancedMesh && mat.userData?._gpuInstancedProgramWarmed) {
+            object.userData._gpuCompiled = true;
+            return;
+          }
+          if (!object.isInstancedMesh && mat.userData?._gpuMeshProgramWarmed) {
+            object.userData._gpuCompiled = true;
+            return;
+          }
         }
-        if (!object.isInstancedMesh && mat.userData?._gpuMeshProgramWarmed) {
-          object.userData._gpuCompiled = true;
-          return;
+        objects.push(object);
+      });
+      for (let i = 0; i < objects.length; i++) {
+        const object = objects[i];
+        const kind = object.isInstancedMesh ? 'inst' : 'mesh';
+        const label = `${kind} ${object.name || i}`;
+        // Drop sticky tag across yield so rAF gaps are not one multi-10s hitch.
+        clearLoadTag();
+        await waitIfSlow();
+        beginLoad('gpu', `compile ${label}`);
+        const t0 = performance.now();
+        await this.renderer.compileAsync(object, this.camera, this.lightProbe());
+        object.userData._gpuCompiled = true;
+        const mat = object.material;
+        if (mat && !Array.isArray(mat)) {
+          if (object.isInstancedMesh) mat.userData._gpuInstancedProgramWarmed = true;
+          else mat.userData._gpuMeshProgramWarmed = true;
         }
+        loadMark('gpu', `compile ${label}`, performance.now() - t0);
+        clearLoadTag();
+        await yieldToMain();
       }
-      objects.push(object);
-    });
-    for (let i = 0; i < objects.length; i++) {
-      const object = objects[i];
-      const kind = object.isInstancedMesh ? 'inst' : 'mesh';
-      const label = `${kind} ${object.name || i}`;
-      // Drop sticky tag across yield so rAF gaps are not one multi-10s hitch.
-      clearLoadTag();
-      await waitIfSlow();
-      beginLoad('gpu', `compile ${label}`);
-      const t0 = performance.now();
-      await this.renderer.compileAsync(object, this.camera, this.lightProbe());
-      object.userData._gpuCompiled = true;
-      const mat = object.material;
-      if (mat && !Array.isArray(mat)) {
-        if (object.isInstancedMesh) mat.userData._gpuInstancedProgramWarmed = true;
-        else mat.userData._gpuMeshProgramWarmed = true;
-      }
-      loadMark('gpu', `compile ${label}`, performance.now() - t0);
-      clearLoadTag();
-      await yieldToMain();
+    } finally {
+      // Always restore — throw/hang abort must not leave the canvas at 0 draw calls.
+      if (pause) this._pauseDraw = wasPaused;
     }
-    if (pause) this._pauseDraw = wasPaused;
   }
 }

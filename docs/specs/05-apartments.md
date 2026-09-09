@@ -30,15 +30,21 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
 | Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
+| Example sandbox | `Large_3@171,30` sidewalk | `window.__cityAptExample` — staging only; not the InstancedMesh path |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.
 
 HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFacadeHouse({ autoLoad: false })` → `setLiveCount`. Hidden em `boot-idle`.
 
+
+## Example sandbox (staging)
+
+Freestanding **apt example room** at/near `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — shell + named loft pieces as separate Object3D children with load-time upright normalize (chair tallest→Y). Exposes `window.__cityAptExample` `{ root, pieces, setPose, getPose }` for piece-by-piece iteration. MeshBasic only. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path for live facades. Hard-refresh or `?v=` on the loft GLB if the chair still looks tipped (cache).
+
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake).
+`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3).
 
 ## Same-PR rule
 

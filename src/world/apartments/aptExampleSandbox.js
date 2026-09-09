@@ -33,7 +33,7 @@ export const APT_EXAMPLE_DEFAULT = {
 };
 
 /** Catalog order along the street strip (south → north = −Z). */
-export const CATALOG_NAMES = ['sofa', 'plant', 'console', 'lamp', 'chair']; // coffee = box proxy (Cube.007 was skull art)
+export const CATALOG_NAMES = ['sofa', 'chair', 'coffee', 'console', 'bar', 'plant', 'tray', 'wallart', 'rug'];
 
 /**
  * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
@@ -41,18 +41,21 @@ export const CATALOG_NAMES = ['sofa', 'plant', 'console', 'lamp', 'chair']; // c
  */
 const DEFAULT_SLOTS = {
   sofa: { x: 0.05, y: 0, z: 2.05, yaw: Math.PI, scale: 1 },
-  plant: { x: 1.35, y: 0, z: 0.45, yaw: 0.25, scale: 1 },
+  chair: { x: -1.15, y: 0, z: 1.2, yaw: Math.PI * 0.65, scale: 1 },
   coffee: { x: 0.0, y: 0, z: 1.1, yaw: 0, scale: 1 },
   console: { x: 1.45, y: 0, z: 1.85, yaw: -Math.PI / 2, scale: 1 },
-  lamp: { x: -1.4, y: 0, z: 2.0, yaw: 0.15, scale: 1 },
-  chair: { x: -1.15, y: 0, z: 1.2, yaw: Math.PI * 0.65, scale: 1 }
+  bar: { x: 1.35, y: 0, z: 0.7, yaw: -Math.PI / 2, scale: 1 },
+  plant: { x: 1.35, y: 0, z: 0.45, yaw: 0.25, scale: 1 },
+  tray: { x: 0.35, y: 0.45, z: 1.1, yaw: 0.2, scale: 1 },
+  wallart: { x: -1.55, y: 1.1, z: 1.6, yaw: Math.PI / 2, scale: 1 },
+  rug: { x: 0.0, y: 0, z: 1.5, yaw: 0, scale: 1 }
 };
 
 /** World-space street samples: lane near x=179.5, stepping north (−Z). */
 const CATALOG_STREET = {
   x: 179.5,
   z0: 17.0,
-  dz: -2.8,
+  dz: -2.15, // tighter spacing for 9 pieces along the lane
   yaw: Math.PI * 0.15
 };
 
@@ -62,12 +65,15 @@ const CATALOG_STREET = {
  * scale does not pancake height.
  */
 const FIT = {
-  sofa: { targetHeight: 0.65, maxWidth: 2.0, maxDepth: 1.55 },
+  sofa: { targetHeight: 0.72, maxWidth: 2.15, maxDepth: 1.7 },
+  chair: { targetHeight: 0.78, maxWidth: 0.8, maxDepth: 0.85 },
+  coffee: { targetHeight: 0.28, maxWidth: 0.95, maxDepth: 0.95 },
+  console: { targetHeight: 0.55, maxWidth: 0.95, maxDepth: 0.55 },
+  bar: { targetHeight: 0.95, maxWidth: 1.15, maxDepth: 0.55 },
   plant: { targetHeight: 1.15, maxWidth: 0.55, maxDepth: 0.55 },
-  coffee: { targetHeight: 0.2, maxWidth: 0.95, maxDepth: 0.7 },
-  console: { targetHeight: 0.5, maxWidth: 0.95, maxDepth: 0.5 },
-  lamp: { targetHeight: 0.4, maxWidth: 0.5, maxDepth: 0.5 },
-  chair: { targetHeight: 0.78, maxWidth: 0.8, maxDepth: 0.85 }
+  tray: { targetHeight: 0.18, maxWidth: 0.45, maxDepth: 0.45 },
+  wallart: { targetHeight: 0.85, maxWidth: 1.1, maxDepth: 0.12 },
+  rug: { targetHeight: 0.02, maxWidth: 2.4, maxDepth: 2.8 }
 };
 
 const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
@@ -163,17 +169,24 @@ export function normalizePieceUpright(inner, pieceName = '') {
     // Extract can still read Z-tall — tallest → up.
     upAxis = dims[2].axis;
   } else if (name === 'sofa' || name.startsWith('sofa')) {
-    // GLB sofa AABB ~[2.74, 1.06, 2.83] floored Y-up. The generic
-    // "shortest → up" flat path is a no-op today but must not reorient an
-    // L-sofa if AABB jitter ever swaps axes.
+    // Real sofa (node_0) AABB ~[4.49, 1.81, 5.57] floored Y-up after extract.
     upAxis = 1;
-  } else if (name === 'coffee' || name.startsWith('coffee')) {
-    // Thin tabletop: shortest → up.
+  } else if (name === 'rug' || name.startsWith('rug')) {
+    // Flat plane: shortest → up.
     upAxis = dims[0].axis;
+  } else if (name === 'coffee' || name.startsWith('coffee') || name === 'tray' || name.startsWith('tray')) {
+    // Thin tabletop / tray: shortest → up if clearly flat.
+    if (dims[0].s < dims[1].s * 0.55) upAxis = dims[0].axis;
+    else upAxis = 1;
+  } else if (name === 'wallart' || name.startsWith('wallart')) {
+    // Canvas slab: keep authored Y-up (tall face).
+    upAxis = 1;
+  } else if (name === 'bar' || name.startsWith('bar')) {
+    upAxis = 1;
   } else if (sy < dims[2].s * 0.85 && (name === 'plant' || name.startsWith('plant'))) {
     upAxis = dims[2].axis;
   }
-  // console / lamp / other: keep authored Y-up.
+  // console / other: keep authored Y-up.
 
   if (upAxis === 0) {
     inner.rotation.z = Math.PI / 2; // +X → +Y
@@ -503,10 +516,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       roomGroup.add(piece);
       pieces[name] = piece;
       layout[name] = { ...piece.userData.aptExamplePose };
-      if (name === 'coffee') {
-        clearCoffeeLegs(roomGroup);
-        addCoffeeLegs(roomGroup, layout[name]);
-      }
+      // Real loft coffee mesh (Cube.008) — no box-leg proxy.
       console.info('[apt-example] added', name, layout[name]);
       return true;
     },
@@ -529,10 +539,6 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       };
       applyPose(p, next);
       layout[name] = { ...p.userData.aptExamplePose };
-      if (name === 'coffee') {
-        clearCoffeeLegs(roomGroup);
-        addCoffeeLegs(roomGroup, layout[name]);
-      }
       return true;
     },
     getPose(name) {

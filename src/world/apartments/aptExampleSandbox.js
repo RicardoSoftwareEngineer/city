@@ -17,7 +17,7 @@ import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
 import { LOFT_FURNITURE_URL } from './roomTemplate.js';
 
 /** Cache-bust so browser/disk cache cannot keep a tipped extract. */
-const LOFT_URL = `${LOFT_FURNITURE_URL}?v=apt-example-4`;
+const LOFT_URL = LOFT_FURNITURE_URL; // cache-bust lives on LOFT_FURNITURE_URL
 
 /**
  * Large_3@171,30 east facade; green-rect corner on N–S asphalt (street x≈180).
@@ -33,7 +33,7 @@ export const APT_EXAMPLE_DEFAULT = {
 };
 
 /** Catalog order along the street strip (south → north = −Z). */
-export const CATALOG_NAMES = ['sofa', 'plant', 'coffee', 'console', 'lamp', 'chair'];
+export const CATALOG_NAMES = ['sofa', 'plant', 'console', 'lamp', 'chair']; // coffee = box proxy (Cube.007 was skull art)
 
 /**
  * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
@@ -109,10 +109,11 @@ function basicFromLoft(src, cache) {
     (src?.color ? src.color.getHexString() : 'fff');
   if (cache.has(key)) return cache.get(key);
   const color = src?.color ? src.color.clone() : new THREE.Color(0xffffff);
-  color.multiplyScalar(0.72);
-  color.r = Math.min(1, color.r + 0.08);
-  color.g = Math.min(1, color.g + 0.05);
-  color.b = Math.min(1, color.b + 0.02);
+  // Lift dark loft fabric (sofa) for outdoor MeshBasic readability.
+  color.multiplyScalar(1.12);
+  color.r = Math.min(1, color.r + 0.1);
+  color.g = Math.min(1, color.g + 0.08);
+  color.b = Math.min(1, color.b + 0.05);
   const mat = new THREE.MeshBasicMaterial({
     color,
     map: src?.map || null,

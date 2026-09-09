@@ -1,42 +1,57 @@
 /**
- * Freestanding apartment interior **sandbox** near Large_3 (≈171,30).
+ * Freestanding apartment interior **sandbox** on asphalt near Large_3 (≈171,30).
  *
- * Staging tool for piece-by-piece furniture layout — NOT the InstancedMesh
- * product bake (`roomTemplate.pushLoftPiece`). Each loft piece is a named
- * Object3D child with load-time upright normalization so tipped Z-up meshes
- * (chair) stand on the floor regardless of extract flags.
+ * Collaborative staging: empty shell on the marked street corner + labeled
+ * loft-furniture catalog on the road. Click a catalog sample (or call
+ * `addFromCatalog`) to clone a piece into the room. NOT the InstancedMesh
+ * product bake (`roomTemplate.pushLoftPiece`).
  *
  * MeshBasic only — no PointLight (Ultra night CPU).
  */
 
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
+import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
 import { LOFT_FURNITURE_URL } from './roomTemplate.js';
 
 /** Cache-bust so browser/disk cache cannot keep a tipped extract. */
-const LOFT_URL = `${LOFT_FURNITURE_URL}?v=apt-example-2`;
+const LOFT_URL = `${LOFT_FURNITURE_URL}?v=apt-example-3`;
 
-/** Large_3@171.00,30.00 east facade — sidewalk just outside glass. */
+/**
+ * Large_3@171,30 east facade; green-rect corner on N–S asphalt (street x≈180).
+ * Open face south (yaw=π) so approach looking north (~339°) sees into the room.
+ * Catalog marches north (−Z) along the dashed lane (green arrows).
+ */
 export const APT_EXAMPLE_DEFAULT = {
-  // East face of block (x=171, z=30, rot=-π/2). Room open (−Z) → world +X.
-  x: 174.6,
-  y: 0,
-  z: 30.0,
-  yaw: -Math.PI / 2,
+  x: 182.0,
+  y: ASPHALT_SURFACE_Y + 0.2,
+  z: 22.0,
+  yaw: Math.PI,
   facadeId: 'Large_3@171.00,30.00'
 };
 
+/** Catalog order along the street strip (south → north = −Z). */
+export const CATALOG_NAMES = ['sofa', 'plant', 'coffee', 'console', 'lamp', 'chair'];
+
 /**
- * Readable first layout (room local: glass≈z=0, depth +Z, width X).
- * Sofa faces window; coffee in front; chair angles in; plant near glass.
+ * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
+ * Used when `addFromCatalog` places a piece the first time.
  */
-const FIRST_LAYOUT = {
+const DEFAULT_SLOTS = {
   sofa: { x: 0.05, y: 0, z: 2.05, yaw: Math.PI, scale: 1 },
   plant: { x: 1.35, y: 0, z: 0.45, yaw: 0.25, scale: 1 },
   coffee: { x: 0.0, y: 0, z: 1.1, yaw: 0, scale: 1 },
   console: { x: 1.45, y: 0, z: 1.85, yaw: -Math.PI / 2, scale: 1 },
   lamp: { x: -1.4, y: 0, z: 2.0, yaw: 0.15, scale: 1 },
   chair: { x: -1.15, y: 0, z: 1.2, yaw: Math.PI * 0.65, scale: 1 }
+};
+
+/** World-space street samples: lane near x=179.5, stepping north (−Z). */
+const CATALOG_STREET = {
+  x: 179.5,
+  z0: 17.0,
+  dz: -2.8,
+  yaw: Math.PI * 0.15
 };
 
 /** Fit targets (metres) after upright normalize — silhouette through open face. */
@@ -54,6 +69,8 @@ const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
+const _ndc = new THREE.Vector2();
+const _raycaster = new THREE.Raycaster();
 
 function stdBasic(color, emissive, emissiveIntensity = 0.5) {
   const out = new THREE.Color(color).multiplyScalar(0.35);
@@ -242,6 +259,7 @@ function extractPiece(loftRoot, name, matCache) {
 
   pose.userData.aptExampleFitScale = fitScale;
   pose.userData.aptExamplePose = { x: 0, y: 0, z: 0, yaw: 0, scale: 1 };
+  pose.userData.aptCatalogName = name;
   return pose;
 }
 
@@ -264,6 +282,14 @@ function addCoffeeLegs(parent, layout) {
   }
 }
 
+function clearCoffeeLegs(parent) {
+  const doomed = [];
+  parent.traverse((c) => {
+    if (c.name === 'coffee-leg') doomed.push(c);
+  });
+  for (const m of doomed) m.parent?.remove(m);
+}
+
 function applyPose(poseGroup, next) {
   const fit = poseGroup.userData.aptExampleFitScale || 1;
   poseGroup.position.set(next.x, next.y, next.z);
@@ -282,9 +308,63 @@ function applyPose(poseGroup, next) {
   }
 }
 
+/** Floating label sprite above a catalog sample. */
+function makeLabelSprite(text) {
+  const w = 256;
+  const h = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+  ctx.beginPath();
+  // roundRect may be missing in older engines — manual path
+  const r = 12;
+  ctx.moveTo(r, 4);
+  ctx.lineTo(w - r, 4);
+  ctx.quadraticCurveTo(w - 4, 4, w - 4, r);
+  ctx.lineTo(w - 4, h - r);
+  ctx.quadraticCurveTo(w - 4, h - 4, w - r, h - 4);
+  ctx.lineTo(r, h - 4);
+  ctx.quadraticCurveTo(4, h - 4, 4, h - r);
+  ctx.lineTo(4, r);
+  ctx.quadraticCurveTo(4, 4, r, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#4ade80';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.fillStyle = '#ecfdf5';
+  ctx.font = 'bold 32px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2 + 1);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const spr = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: tex,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true
+    })
+  );
+  spr.scale.set(1.6, 0.4, 1);
+  spr.position.y = 1.45;
+  spr.renderOrder = 1000;
+  spr.frustumCulled = false;
+  spr.name = `label-${text}`;
+  spr.userData.aptCatalogName = text;
+  return spr;
+}
+
 /**
  * @param {THREE.Object3D} parent
- * @param {Partial<typeof APT_EXAMPLE_DEFAULT>} [opts]
+ * @param {Partial<typeof APT_EXAMPLE_DEFAULT> & {
+ *   camera?: THREE.Camera,
+ *   domElement?: HTMLElement
+ * }} [opts]
  */
 export async function spawnAptExampleSandbox(parent, opts = {}) {
   const cfg = { ...APT_EXAMPLE_DEFAULT, ...opts };
@@ -293,37 +373,105 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   root.position.set(cfg.x, cfg.y, cfg.z);
   root.rotation.y = cfg.yaw;
 
-  root.add(buildShell());
+  const roomGroup = new THREE.Group();
+  roomGroup.name = 'apt-example-room';
+  roomGroup.add(buildShell());
+  root.add(roomGroup);
+
+  /** Street catalog lives in world space (sibling of room root orientation). */
+  const catalogGroup = new THREE.Group();
+  catalogGroup.name = 'apt-example-catalog';
+  parent.add(catalogGroup);
 
   /** @type {Record<string, THREE.Object3D>} */
   const pieces = {};
+  /** @type {Record<string, THREE.Object3D>} */
+  const catalog = {};
   const matCache = new Map();
+  /** @type {THREE.Object3D|null} */
+  let loftRoot = null;
 
-  const loftRoot = await loadGltf(LOFT_URL);
+  loftRoot = await loadGltf(LOFT_URL);
   if (loftRoot) {
-    for (const name of Object.keys(FIRST_LAYOUT)) {
-      const piece = extractPiece(loftRoot, name, matCache);
-      if (!piece) continue;
-      applyPose(piece, { ...FIRST_LAYOUT[name] });
-      root.add(piece);
-      pieces[name] = piece;
+    for (let i = 0; i < CATALOG_NAMES.length; i++) {
+      const name = CATALOG_NAMES[i];
+      const sample = extractPiece(loftRoot, name, matCache);
+      if (!sample) continue;
+      sample.name = `catalog-${name}`;
+      sample.userData.aptCatalogName = name;
+      sample.userData.aptIsCatalog = true;
+      const wx = CATALOG_STREET.x;
+      const wz = CATALOG_STREET.z0 + i * CATALOG_STREET.dz;
+      sample.position.set(wx, ASPHALT_SURFACE_Y + 0.05, wz);
+      sample.rotation.y = CATALOG_STREET.yaw;
+      // Re-floor on asphalt after world place.
+      sample.updateMatrixWorld(true);
+      _box.setFromObject(sample);
+      if (!_box.isEmpty()) {
+        sample.position.y -= _box.min.y - (ASPHALT_SURFACE_Y + 0.02);
+      }
+      sample.add(makeLabelSprite(name));
+      catalogGroup.add(sample);
+      catalog[name] = sample;
     }
-    if (pieces.coffee) addCoffeeLegs(root, FIRST_LAYOUT.coffee);
   } else {
     console.warn('[apt-example] loft GLB failed — shell only');
   }
 
   parent.add(root);
 
+  const layout = {};
+
   const api = {
     root,
+    roomGroup,
+    catalogGroup,
     pieces,
-    layout: { ...FIRST_LAYOUT },
+    catalog,
+    layout,
+    catalogNames: [...CATALOG_NAMES],
     where:
-      'Sidewalk east of Large_3@171,30 — stand ~x=178–182, z=28–32, look west (−X) into the open room. Free-flight near HUD CASA APTS Large_3 + street lamp/tree.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°.',
     facadeId: cfg.facadeId,
     /**
-     * Nudge one piece. y=0 keeps feet on floor. yaw in radians.
+     * Clone a loft piece into the empty room at its default slot (or override).
+     * Replaces any existing piece of the same name.
+     * @param {string} name
+     * @param {{x?:number,y?:number,z?:number,yaw?:number,scale?:number}} [pose]
+     */
+    addFromCatalog(name, pose = {}) {
+      if (!loftRoot) {
+        console.warn('[apt-example] no loft root — cannot add', name);
+        return false;
+      }
+      if (!DEFAULT_SLOTS[name] && !CATALOG_NAMES.includes(name)) {
+        console.warn('[apt-example] unknown catalog piece', name);
+        return false;
+      }
+      // Remove prior instance of same name.
+      if (pieces[name]) {
+        roomGroup.remove(pieces[name]);
+        delete pieces[name];
+        delete layout[name];
+        if (name === 'coffee') clearCoffeeLegs(roomGroup);
+      }
+      const piece = extractPiece(loftRoot, name, matCache);
+      if (!piece) return false;
+      piece.userData.aptIsCatalog = false;
+      const slot = { ...(DEFAULT_SLOTS[name] || { x: 0, y: 0, z: 1.2, yaw: 0, scale: 1 }), ...pose };
+      applyPose(piece, slot);
+      roomGroup.add(piece);
+      pieces[name] = piece;
+      layout[name] = { ...piece.userData.aptExamplePose };
+      if (name === 'coffee') {
+        clearCoffeeLegs(roomGroup);
+        addCoffeeLegs(roomGroup, layout[name]);
+      }
+      console.info('[apt-example] added', name, layout[name]);
+      return true;
+    },
+    /**
+     * Nudge one in-room piece. y=0 keeps feet on floor. yaw in radians.
      * @param {string} name
      * @param {{x?:number,y?:number,z?:number,yaw?:number,scale?:number}} pose
      */
@@ -339,27 +487,118 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
         scale: pose.scale ?? cur.scale
       };
       applyPose(p, next);
-      api.layout[name] = { ...p.userData.aptExamplePose };
+      layout[name] = { ...p.userData.aptExamplePose };
+      if (name === 'coffee') {
+        clearCoffeeLegs(roomGroup);
+        addCoffeeLegs(roomGroup, layout[name]);
+      }
       return true;
     },
     getPose(name) {
       const p = pieces[name];
       if (!p) return null;
       return { ...(p.userData.aptExamplePose || {}) };
+    },
+    /** Remove all furniture from the room (catalog stays on the street). */
+    clearRoom() {
+      for (const name of Object.keys(pieces)) {
+        roomGroup.remove(pieces[name]);
+        delete pieces[name];
+        delete layout[name];
+      }
+      clearCoffeeLegs(roomGroup);
+      return true;
+    },
+    getPoseRoom() {
+      return { x: cfg.x, y: cfg.y, z: cfg.z, yaw: cfg.yaw };
     }
   };
 
-  // Sync layout with floored y values from applyPose.
-  for (const name of Object.keys(pieces)) {
-    api.layout[name] = { ...pieces[name].userData.aptExamplePose };
+  // Click catalog → addFromCatalog (ignore HUD / drag orbits).
+  const camera = opts.camera || null;
+  const dom = opts.domElement || null;
+  let downX = 0;
+  let downY = 0;
+  let downOk = false;
+
+  function catalogNameFromHit(obj) {
+    let o = obj;
+    while (o) {
+      if (o.userData?.aptCatalogName && o.userData?.aptIsCatalog) {
+        return o.userData.aptCatalogName;
+      }
+      if (o.userData?.aptCatalogName && catalog[o.userData.aptCatalogName] === o) {
+        return o.userData.aptCatalogName;
+      }
+      // Labels / mesh children inherit via parent walk.
+      if (typeof o.name === 'string' && o.name.startsWith('catalog-')) {
+        return o.name.slice('catalog-'.length);
+      }
+      if (typeof o.name === 'string' && o.name.startsWith('label-')) {
+        return o.name.slice('label-'.length);
+      }
+      o = o.parent;
+    }
+    return null;
+  }
+
+  function onPointerDown(ev) {
+    if (ev.button != null && ev.button !== 0) return;
+    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout')) return;
+    downX = ev.clientX;
+    downY = ev.clientY;
+    downOk = true;
+  }
+
+  function onPointerUp(ev) {
+    if (!downOk || !camera) {
+      downOk = false;
+      return;
+    }
+    downOk = false;
+    const dx = ev.clientX - downX;
+    const dy = ev.clientY - downY;
+    if (dx * dx + dy * dy > 64) return; // drag, not click
+    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout')) return;
+
+    const rect = (dom || ev.target)?.getBoundingClientRect?.() || {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+    _ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    _ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    _raycaster.setFromCamera(_ndc, camera);
+    const hits = _raycaster.intersectObjects(catalogGroup.children, true);
+    for (const hit of hits) {
+      const name = catalogNameFromHit(hit.object);
+      if (name) {
+        api.addFromCatalog(name);
+        break;
+      }
+    }
+  }
+
+  if (camera && typeof window !== 'undefined') {
+    const target = dom || window;
+    target.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerup', onPointerUp);
+    api._unbindPick = () => {
+      target.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
   }
 
   console.info(
     '[apt-example] sandbox at',
     cfg.x.toFixed(1),
     cfg.z.toFixed(1),
-    'pieces',
-    Object.keys(pieces).join(',')
+    'yaw',
+    cfg.yaw.toFixed(2),
+    'catalog',
+    Object.keys(catalog).join(',') || '(none)',
+    'room empty — click street samples or addFromCatalog(name)'
   );
   return api;
 }

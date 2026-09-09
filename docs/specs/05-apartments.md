@@ -30,7 +30,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
 | Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
-| Example sandbox | `Large_3@171,30` sidewalk | `window.__cityAptExample` — staging only; not the InstancedMesh path |
+| Example sandbox | asphalt corner near `Large_3@171,30` + street catalog | `window.__cityAptExample` — empty shell + loft picker; staging only |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.
@@ -40,7 +40,7 @@ HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFaca
 
 ## Example sandbox (staging)
 
-Freestanding **apt example room** at/near `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — shell + named loft pieces as separate Object3D children with load-time upright normalize (chair tallest→Y). Exposes `window.__cityAptExample` `{ root, pieces, setPose, getPose }` for piece-by-piece iteration. MeshBasic only. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path for live facades. Hard-refresh or `?v=` on the loft GLB if the chair still looks tipped (cache).
+Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — **empty shell** + labeled loft **street catalog** (sofa/plant/coffee/console/lamp/chair). Click a catalog sample or `addFromCatalog(name)` clones into the room; `setPose` / `clearRoom` for staging. MeshBasic only. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path. Hard-refresh or `?v=apt-example-3` on the loft GLB if cache sticks.
 
 ## Ownership
 

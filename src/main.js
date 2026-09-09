@@ -472,7 +472,9 @@ async function startGame() {
     // Freestanding apt sandbox: empty shell on asphalt corner + street loft catalog picker.
     void spawnAptExampleSandbox(cityGroup, {
       camera: renderer.camera,
-      domElement: canvas
+      domElement: canvas,
+      lookControls: camera,
+      mouseInput: mouse
     })
       .then((api) => {
         window.__cityAptExample = api;

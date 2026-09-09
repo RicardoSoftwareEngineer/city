@@ -72,6 +72,11 @@ export class MouseInput {
     window.addEventListener('wheel', this.handleWheel, { passive: false });
   }
 
+  /** Staging / UI: cancel look drag without permanently disabling zoom. */
+  setDragBlocked(blocked) {
+    if (blocked) this.isDragging = false;
+  }
+
   applyState(camera) {
     if (!camera) return;
     if (Number.isFinite(camera.yaw)) this.yaw = camera.yaw;

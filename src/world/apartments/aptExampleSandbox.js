@@ -2,9 +2,10 @@
  * Freestanding apartment interior **sandbox** on asphalt near Large_3 (≈171,30).
  *
  * Collaborative staging: empty shell on the marked street corner + labeled
- * loft-furniture catalog on the road. Click a catalog sample (or call
- * `addFromCatalog`) to clone a piece into the room. NOT the InstancedMesh
- * product bake (`roomTemplate.pushLoftPiece`).
+ * loft-furniture catalog on the road. Click or **drag** a catalog sample onto
+ * the room floor (or call `addFromCatalog`) to place a piece; drag in-room
+ * pieces to slide on the floor. NOT the InstancedMesh product bake
+ * (`roomTemplate.pushLoftPiece`).
  *
  * MeshBasic only — no PointLight (Ultra night CPU).
  */
@@ -15,7 +16,7 @@ import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
 import { LOFT_FURNITURE_URL } from './roomTemplate.js';
 
 /** Cache-bust so browser/disk cache cannot keep a tipped extract. */
-const LOFT_URL = `${LOFT_FURNITURE_URL}?v=apt-example-3`;
+const LOFT_URL = `${LOFT_FURNITURE_URL}?v=apt-example-4`;
 
 /**
  * Large_3@171,30 east facade; green-rect corner on N–S asphalt (street x≈180).
@@ -35,7 +36,7 @@ export const CATALOG_NAMES = ['sofa', 'plant', 'coffee', 'console', 'lamp', 'cha
 
 /**
  * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
- * Used when `addFromCatalog` places a piece the first time.
+ * Used when `addFromCatalog` places a piece the first time (click fallback).
  */
 const DEFAULT_SLOTS = {
   sofa: { x: 0.05, y: 0, z: 2.05, yaw: Math.PI, scale: 1 },
@@ -54,9 +55,13 @@ const CATALOG_STREET = {
   yaw: Math.PI * 0.15
 };
 
-/** Fit targets (metres) after upright normalize — silhouette through open face. */
+/**
+ * Fit targets (metres) after upright normalize — silhouette through open face.
+ * Sofa footprint is wide/deep in the GLB; keep maxDepth generous so uniform
+ * scale does not pancake height.
+ */
 const FIT = {
-  sofa: { targetHeight: 0.55, maxWidth: 1.85, maxDepth: 1.15 },
+  sofa: { targetHeight: 0.65, maxWidth: 2.0, maxDepth: 1.55 },
   plant: { targetHeight: 1.15, maxWidth: 0.55, maxDepth: 0.55 },
   coffee: { targetHeight: 0.2, maxWidth: 0.95, maxDepth: 0.7 },
   console: { targetHeight: 0.5, maxWidth: 0.95, maxDepth: 0.5 },
@@ -66,11 +71,18 @@ const FIT = {
 
 const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
 
+/** Pointer move (px²) before a press becomes a furniture drag. */
+const DRAG_THRESH_SQ = 64;
+
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
 const _ndc = new THREE.Vector2();
 const _raycaster = new THREE.Raycaster();
+const _floorPlane = new THREE.Plane();
+const _hitPoint = new THREE.Vector3();
+const _localHit = new THREE.Vector3();
+const _floorNormal = new THREE.Vector3(0, 1, 0);
 
 function stdBasic(color, emissive, emissiveIntensity = 0.5) {
   const out = new THREE.Color(color).multiplyScalar(0.35);
@@ -98,7 +110,8 @@ function basicFromLoft(src, cache) {
     color,
     map: src?.map || null,
     name: src?.name ? `aptEx-${src.name}` : 'aptEx-mat',
-    side: THREE.FrontSide,
+    // Loft GLB mats are DoubleSide; FrontSide + inverted tops → black pancake.
+    side: THREE.DoubleSide,
     toneMapped: true
   });
   if (mat.map) {
@@ -111,7 +124,8 @@ function basicFromLoft(src, cache) {
 
 /**
  * Detect up axis from AABB, rotate so it becomes +Y, floor to y=0, center XZ.
- * Chair: tallest → Y (GLB still Z-tall). Flat pieces: shortest → Y.
+ * Chair: tallest → Y (GLB still Z-tall). Coffee: shortest → Y (tabletop).
+ * Sofa: keep authored Y-up (never flat-heuristic reorient).
  * Mutates `inner` in place (child of a pose Group).
  * @param {THREE.Object3D} inner
  * @param {string} [pieceName] loft piece id
@@ -135,17 +149,23 @@ export function normalizePieceUpright(inner, pieceName = '') {
     { axis: 2, s: sz }
   ].sort((a, b) => a.s - b.s);
 
-  // Flat (coffee/sofa): shortest → up. Chair: always tallest (extract still Z-tall).
-  // Other standing pieces: keep authored Y-up (console/lamp/plant).
   let upAxis = 1;
   const name = pieceName || inner.name || '';
   if (name === 'chair' || name.startsWith('chair')) {
+    // Extract can still read Z-tall — tallest → up.
     upAxis = dims[2].axis;
-  } else if (dims[0].s < dims[1].s * 0.5) {
+  } else if (name === 'sofa' || name.startsWith('sofa')) {
+    // GLB sofa AABB ~[2.74, 1.06, 2.83] floored Y-up. The generic
+    // "shortest → up" flat path is a no-op today but must not reorient an
+    // L-sofa if AABB jitter ever swaps axes.
+    upAxis = 1;
+  } else if (name === 'coffee' || name.startsWith('coffee')) {
+    // Thin tabletop: shortest → up.
     upAxis = dims[0].axis;
   } else if (sy < dims[2].s * 0.85 && (name === 'plant' || name.startsWith('plant'))) {
     upAxis = dims[2].axis;
   }
+  // console / lamp / other: keep authored Y-up.
 
   if (upAxis === 0) {
     inner.rotation.z = Math.PI / 2; // +X → +Y
@@ -359,11 +379,22 @@ function makeLabelSprite(text) {
   return spr;
 }
 
+function clampRoomXZ(x, z) {
+  const margin = 0.35;
+  const halfW = ROOM.width * 0.5 - margin;
+  return {
+    x: Math.max(-halfW, Math.min(halfW, x)),
+    z: Math.max(margin, Math.min(ROOM.depth - margin, z))
+  };
+}
+
 /**
  * @param {THREE.Object3D} parent
  * @param {Partial<typeof APT_EXAMPLE_DEFAULT> & {
  *   camera?: THREE.Camera,
- *   domElement?: HTMLElement
+ *   domElement?: HTMLElement,
+ *   lookControls?: { setLookBlocked?: (b: boolean) => void },
+ *   mouseInput?: { setDragBlocked?: (b: boolean) => void, enabled?: boolean }
  * }} [opts]
  */
 export async function spawnAptExampleSandbox(parent, opts = {}) {
@@ -431,7 +462,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     layout,
     catalogNames: [...CATALOG_NAMES],
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°. Drag catalog→room or drag in-room pieces; click still adds.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -458,6 +489,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       const piece = extractPiece(loftRoot, name, matCache);
       if (!piece) return false;
       piece.userData.aptIsCatalog = false;
+      piece.userData.aptInRoom = true;
       const slot = { ...(DEFAULT_SLOTS[name] || { x: 0, y: 0, z: 1.2, yaw: 0, scale: 1 }), ...pose };
       applyPose(piece, slot);
       roomGroup.add(piece);
@@ -514,12 +546,27 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     }
   };
 
-  // Click catalog → addFromCatalog (ignore HUD / drag orbits).
+  // ── Pointer: click-to-add + drag catalog→room + drag in-room slide ──
   const camera = opts.camera || null;
   const dom = opts.domElement || null;
-  let downX = 0;
-  let downY = 0;
-  let downOk = false;
+  const lookControls = opts.lookControls || null;
+  const mouseInput = opts.mouseInput || null;
+
+  /** @type {null | { kind:'catalog'|'room', name:string, downX:number, downY:number, dragging:boolean, yaw:number }} */
+  let gesture = null;
+  /** @type {THREE.Object3D|null} ghost preview while dragging from catalog */
+  let ghost = null;
+
+  function setLookBlocked(blocked) {
+    lookControls?.setLookBlocked?.(blocked);
+    mouseInput?.setDragBlocked?.(blocked);
+  }
+
+  function disposeGhost() {
+    if (!ghost) return;
+    roomGroup.remove(ghost);
+    ghost = null;
+  }
 
   function catalogNameFromHit(obj) {
     let o = obj;
@@ -530,7 +577,6 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       if (o.userData?.aptCatalogName && catalog[o.userData.aptCatalogName] === o) {
         return o.userData.aptCatalogName;
       }
-      // Labels / mesh children inherit via parent walk.
       if (typeof o.name === 'string' && o.name.startsWith('catalog-')) {
         return o.name.slice('catalog-'.length);
       }
@@ -542,25 +588,22 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     return null;
   }
 
-  function onPointerDown(ev) {
-    if (ev.button != null && ev.button !== 0) return;
-    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout')) return;
-    downX = ev.clientX;
-    downY = ev.clientY;
-    downOk = true;
+  function roomPieceNameFromHit(obj) {
+    let o = obj;
+    while (o && o !== roomGroup) {
+      if (o.userData?.aptInRoom && o.userData?.aptCatalogName && pieces[o.userData.aptCatalogName] === o) {
+        return o.userData.aptCatalogName;
+      }
+      if (o.userData?.aptCatalogName && !o.userData?.aptIsCatalog && pieces[o.userData.aptCatalogName] === o) {
+        return o.userData.aptCatalogName;
+      }
+      if (typeof o.name === 'string' && pieces[o.name] === o) return o.name;
+      o = o.parent;
+    }
+    return null;
   }
 
-  function onPointerUp(ev) {
-    if (!downOk || !camera) {
-      downOk = false;
-      return;
-    }
-    downOk = false;
-    const dx = ev.clientX - downX;
-    const dy = ev.clientY - downY;
-    if (dx * dx + dy * dy > 64) return; // drag, not click
-    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout')) return;
-
+  function eventToNdc(ev) {
     const rect = (dom || ev.target)?.getBoundingClientRect?.() || {
       left: 0,
       top: 0,
@@ -569,24 +612,191 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     };
     _ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     _ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  /** Ray → room-local floor xz, or null if miss / outside. */
+  function rayRoomFloorLocal() {
+    if (!camera) return null;
+    // Floor plane through room local y=0 (feet), in world space.
+    roomGroup.updateMatrixWorld(true);
+    const worldOrigin = roomGroup.localToWorld(new THREE.Vector3(0, 0, ROOM.depth * 0.5));
+    _floorNormal.set(0, 1, 0).transformDirection(roomGroup.matrixWorld).normalize();
+    _floorPlane.setFromNormalAndCoplanarPoint(_floorNormal, worldOrigin);
+    if (!_raycaster.ray.intersectPlane(_floorPlane, _hitPoint)) return null;
+    _localHit.copy(_hitPoint);
+    roomGroup.worldToLocal(_localHit);
+    // Accept hits roughly over the footprint (slightly past open face for drops).
+    if (_localHit.x < -ROOM.width * 0.55 || _localHit.x > ROOM.width * 0.55) return null;
+    if (_localHit.z < -0.35 || _localHit.z > ROOM.depth + 0.2) return null;
+    return clampRoomXZ(_localHit.x, _localHit.z);
+  }
+
+  function ensureGhost(name) {
+    if (ghost && ghost.userData.aptCatalogName === name) return ghost;
+    disposeGhost();
+    if (!loftRoot) return null;
+    ghost = extractPiece(loftRoot, name, matCache);
+    if (!ghost) return null;
+    ghost.userData.aptIsCatalog = false;
+    ghost.userData.aptGhost = true;
+    // Clone mats so opacity does not dirty the shared loft cache / catalog.
+    ghost.traverse((c) => {
+      if (!c.isMesh || !c.material) return;
+      const srcMats = Array.isArray(c.material) ? c.material : [c.material];
+      const next = srcMats.map((m) => {
+        const cm = m.clone();
+        cm.transparent = true;
+        cm.opacity = 0.72;
+        cm.depthWrite = false;
+        return cm;
+      });
+      c.material = Array.isArray(c.material) ? next : next[0];
+    });
+    roomGroup.add(ghost);
+    return ghost;
+  }
+
+  function onPointerDown(ev) {
+    if (ev.button != null && ev.button !== 0) return;
+    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn')) {
+      return;
+    }
+    if (!camera) return;
+
+    eventToNdc(ev);
     _raycaster.setFromCamera(_ndc, camera);
-    const hits = _raycaster.intersectObjects(catalogGroup.children, true);
-    for (const hit of hits) {
-      const name = catalogNameFromHit(hit.object);
+
+    // Prefer in-room piece, then catalog (so placed furniture is easy to grab).
+    const roomHits = _raycaster.intersectObjects(roomGroup.children, true);
+    for (const hit of roomHits) {
+      if (hit.object?.userData?.aptGhost) continue;
+      const name = roomPieceNameFromHit(hit.object);
       if (name) {
-        api.addFromCatalog(name);
-        break;
+        const cur = pieces[name]?.userData?.aptExamplePose || DEFAULT_SLOTS[name] || {};
+        gesture = {
+          kind: 'room',
+          name,
+          downX: ev.clientX,
+          downY: ev.clientY,
+          dragging: false,
+          yaw: cur.yaw ?? 0
+        };
+        setLookBlocked(true);
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        return;
       }
     }
+
+    const catHits = _raycaster.intersectObjects(catalogGroup.children, true);
+    for (const hit of catHits) {
+      const name = catalogNameFromHit(hit.object);
+      if (name) {
+        const slot = DEFAULT_SLOTS[name] || { yaw: 0 };
+        gesture = {
+          kind: 'catalog',
+          name,
+          downX: ev.clientX,
+          downY: ev.clientY,
+          dragging: false,
+          yaw: slot.yaw ?? 0
+        };
+        setLookBlocked(true);
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        return;
+      }
+    }
+    // Miss — let free-flight orbit handle the gesture.
+    gesture = null;
+  }
+
+  function onPointerMove(ev) {
+    if (!gesture || !camera) return;
+    const dx = ev.clientX - gesture.downX;
+    const dy = ev.clientY - gesture.downY;
+    if (!gesture.dragging) {
+      if (dx * dx + dy * dy < DRAG_THRESH_SQ) return;
+      gesture.dragging = true;
+      setLookBlocked(true);
+    }
+
+    eventToNdc(ev);
+    _raycaster.setFromCamera(_ndc, camera);
+    const local = rayRoomFloorLocal();
+
+    if (gesture.kind === 'catalog') {
+      if (!local) {
+        disposeGhost();
+        return;
+      }
+      const g = ensureGhost(gesture.name);
+      if (!g) return;
+      applyPose(g, { x: local.x, y: 0, z: local.z, yaw: gesture.yaw, scale: 1 });
+      return;
+    }
+
+    if (gesture.kind === 'room' && local) {
+      api.setPose(gesture.name, { x: local.x, y: 0, z: local.z, yaw: gesture.yaw });
+    }
+  }
+
+  function onPointerUp(ev) {
+    if (!gesture) {
+      setLookBlocked(false);
+      return;
+    }
+    const g = gesture;
+    gesture = null;
+
+    const dx = ev.clientX - g.downX;
+    const dy = ev.clientY - g.downY;
+    const wasDrag = g.dragging || dx * dx + dy * dy >= DRAG_THRESH_SQ;
+
+    if (g.kind === 'catalog') {
+      if (!wasDrag) {
+        // Short click fallback — default slot.
+        disposeGhost();
+        api.addFromCatalog(g.name);
+      } else {
+        eventToNdc(ev);
+        if (camera) _raycaster.setFromCamera(_ndc, camera);
+        const local = camera ? rayRoomFloorLocal() : null;
+        disposeGhost();
+        if (local) {
+          api.addFromCatalog(g.name, {
+            x: local.x,
+            y: 0,
+            z: local.z,
+            yaw: g.yaw,
+            scale: 1
+          });
+        }
+        // Drop outside room → cancel (no add).
+      }
+    } else if (g.kind === 'room' && wasDrag) {
+      // Final floor snap already applied during move; refresh coffee legs etc.
+      const pose = api.getPose(g.name);
+      if (pose) api.setPose(g.name, pose);
+    }
+
+    setLookBlocked(false);
   }
 
   if (camera && typeof window !== 'undefined') {
     const target = dom || window;
-    target.addEventListener('pointerdown', onPointerDown);
+    // Capture phase so we can consume furniture hits before free-flight look.
+    target.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
     api._unbindPick = () => {
-      target.removeEventListener('pointerdown', onPointerDown);
+      target.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      disposeGhost();
+      setLookBlocked(false);
     };
   }
 
@@ -598,7 +808,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     cfg.yaw.toFixed(2),
     'catalog',
     Object.keys(catalog).join(',') || '(none)',
-    'room empty — click street samples or addFromCatalog(name)'
+    'room empty — click/drag street samples → room floor; drag in-room to slide; addFromCatalog(name)'
   );
   return api;
 }

@@ -49,6 +49,7 @@ export class ThirdPersonCamera {
     this._targetPitch = 0;
     this.flySpeed = BASE_SPEED;
     this._dragging = false;
+    this._lookBlocked = false;
     this._pointerId = null;
     this._dom = renderer.domElement;
     this._lastTarget = null;
@@ -101,12 +102,38 @@ export class ThirdPersonCamera {
     this._mouseInput = mouse;
   }
 
+  /**
+   * While true, free-flight / follow look-drag is suppressed (furniture staging).
+   * Clears any in-progress look drag immediately.
+   */
+  setLookBlocked(blocked) {
+    this._lookBlocked = !!blocked;
+    if (this._lookBlocked) {
+      this._dragging = false;
+      if (this._pointerId != null && this._dom) {
+        try {
+          this._dom.releasePointerCapture(this._pointerId);
+        } catch (_) {
+          /* ignore */
+        }
+        this._pointerId = null;
+      }
+      // Also mute follow-mode MouseInput for this gesture.
+      if (this._mouseInput) this._mouseInput.enabled = false;
+    } else if (this.mode === 'follow') {
+      this._setCarMouseEnabled(true);
+    } else {
+      this._setCarMouseEnabled(false);
+    }
+  }
+
   _setCarMouseEnabled(on) {
     if (this._mouseInput) this._mouseInput.enabled = on;
   }
 
   _bindFlyMouse(dom) {
     this._onDown = (event) => {
+      if (this._lookBlocked) return;
       if (this.mode !== 'orbit') return;
       if (event.button !== 0) return;
       if (event.target.closest?.(UI_BLOCK)) return;
@@ -118,6 +145,7 @@ export class ThirdPersonCamera {
       event.preventDefault();
     };
     this._onMove = (event) => {
+      if (this._lookBlocked) return;
       if (this.mode !== 'orbit' || !this._dragging) return;
       // movementX/Y are sub-pixel capable and match PointerLockControls’ input path.
       let dx = event.movementX;

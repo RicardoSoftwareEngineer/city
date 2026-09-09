@@ -2,11 +2,11 @@
  * Freestanding apartment interior **sandbox** on asphalt near Large_3 (≈171,30).
  *
  * Collaborative staging: empty shell on the marked street corner + labeled
- * loft-furniture catalog on the road. Click or **drag** a catalog sample onto
- * the room floor (or call `addFromCatalog`) to place a piece; drag in-room
- * pieces to slide on the floor. While dragging, **mouse wheel** raises/lowers
- * Y (scroll up → raise; clamps ~0–2.5 m). NOT the InstancedMesh product bake
- * (`roomTemplate.pushLoftPiece`).
+ * furniture catalog on the **grass** east of the room (loft-5 + novopo JP packs).
+ * Click or **drag** a catalog sample onto the room floor (or call
+ * `addFromCatalog`) to place a piece; drag in-room pieces to slide on the
+ * floor. While dragging, **mouse wheel** raises/lowers Y (scroll up → raise;
+ * clamps ~0–2.5 m). NOT the InstancedMesh product bake (`roomTemplate.pushLoftPiece`).
  *
  * MeshBasic only — no PointLight (Ultra night CPU).
  */
@@ -14,10 +14,11 @@
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
 import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
-import { LOFT_FURNITURE_URL } from './roomTemplate.js';
+import { LOFT_FURNITURE_URL, NOVOPO_FURNITURE_URL } from './roomTemplate.js';
 
 /** Cache-bust so browser/disk cache cannot keep a tipped extract. */
 const LOFT_URL = LOFT_FURNITURE_URL; // cache-bust lives on LOFT_FURNITURE_URL
+const NOVOPO_URL = NOVOPO_FURNITURE_URL;
 
 /**
  * Large_3@171,30 east facade; green-rect corner on N–S asphalt (street x≈180).
@@ -32,8 +33,45 @@ export const APT_EXAMPLE_DEFAULT = {
   facadeId: 'Large_3@171.00,30.00'
 };
 
-/** Catalog order along the street strip (south → north = −Z). */
-export const CATALOG_NAMES = ['sofa', 'chair', 'coffee', 'console', 'bar', 'plant', 'tray', 'wallart', 'rug'];
+/** Loft-5 catalog (kept). */
+export const LOFT_CATALOG_NAMES = [
+  'sofa',
+  'chair',
+  'coffee',
+  'console',
+  'bar',
+  'plant',
+  'tray',
+  'wallart',
+  'rug'
+];
+
+/** Novopo Japanese loft-11 furniture/decor (deduped siblings). */
+export const NOVOPO_CATALOG_NAMES = [
+  'jp_cushion',
+  'jp_tea_set',
+  'jp_geisha',
+  'jp_moongate',
+  'jp_stone_lantern',
+  'jp_mat_a',
+  'jp_mat_b',
+  'jp_slat_mat',
+  'jp_wood_bench',
+  'jp_table_geo',
+  'jp_art_roofs',
+  'jp_art_street',
+  'jp_shelf_ledge',
+  'jp_knit_pillow',
+  'jp_rug_round',
+  'jp_paper_lantern',
+  'jp_art_py',
+  'jp_art_wind',
+  'jp_art_py2',
+  'jp_art_wind2'
+];
+
+/** Full catalog order (loft-5 first, then novopo JP). */
+export const CATALOG_NAMES = [...LOFT_CATALOG_NAMES, ...NOVOPO_CATALOG_NAMES];
 
 /**
  * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
@@ -48,15 +86,42 @@ const DEFAULT_SLOTS = {
   plant: { x: 1.35, y: 0, z: 0.45, yaw: 0.25, scale: 1 },
   tray: { x: 0.35, y: 0.45, z: 1.1, yaw: 0.2, scale: 1 },
   wallart: { x: -1.55, y: 1.1, z: 1.6, yaw: Math.PI / 2, scale: 1 },
-  rug: { x: 0.0, y: 0, z: 1.5, yaw: 0, scale: 1 }
+  rug: { x: 0.0, y: 0, z: 1.5, yaw: 0, scale: 1 },
+  // Novopo JP — drop near room center; user can drag
+  jp_cushion: { x: -0.6, y: 0, z: 1.4, yaw: 0.2, scale: 1 },
+  jp_tea_set: { x: 0.2, y: 0, z: 1.1, yaw: 0.3, scale: 1 },
+  jp_geisha: { x: 1.2, y: 0, z: 1.8, yaw: -0.4, scale: 1 },
+  jp_moongate: { x: -1.3, y: 0, z: 2.0, yaw: Math.PI / 2, scale: 1 },
+  jp_stone_lantern: { x: 1.3, y: 0, z: 0.55, yaw: 0.15, scale: 1 },
+  jp_mat_a: { x: 0.0, y: 0, z: 1.6, yaw: 0, scale: 1 },
+  jp_mat_b: { x: 0.0, y: 0, z: 1.5, yaw: 0.1, scale: 1 },
+  jp_slat_mat: { x: 0.0, y: 0, z: 1.4, yaw: 0, scale: 1 },
+  jp_wood_bench: { x: -0.9, y: 0, z: 1.5, yaw: Math.PI / 2, scale: 1 },
+  jp_table_geo: { x: 0.1, y: 0, z: 1.2, yaw: 0.2, scale: 1 },
+  jp_art_roofs: { x: -1.55, y: 1.0, z: 1.4, yaw: Math.PI / 2, scale: 1 },
+  jp_art_street: { x: 1.55, y: 0.9, z: 1.5, yaw: -Math.PI / 2, scale: 1 },
+  jp_shelf_ledge: { x: 0.0, y: 1.2, z: 2.9, yaw: 0, scale: 1 },
+  jp_knit_pillow: { x: 0.5, y: 0, z: 1.3, yaw: 0.4, scale: 1 },
+  jp_rug_round: { x: 0.0, y: 0, z: 1.5, yaw: 0, scale: 1 },
+  jp_paper_lantern: { x: 0.0, y: 1.6, z: 1.5, yaw: 0, scale: 1 },
+  jp_art_py: { x: -1.55, y: 1.2, z: 0.9, yaw: Math.PI / 2, scale: 1 },
+  jp_art_wind: { x: 1.55, y: 1.2, z: 0.9, yaw: -Math.PI / 2, scale: 1 },
+  jp_art_py2: { x: -1.55, y: 1.2, z: 2.2, yaw: Math.PI / 2, scale: 1 },
+  jp_art_wind2: { x: 1.55, y: 1.2, z: 2.2, yaw: -Math.PI / 2, scale: 1 }
 };
 
-/** World-space street samples: lane near x=179.5, stepping north (−Z). */
-const CATALOG_STREET = {
-  x: 179.5,
-  z0: 17.0,
-  dz: -2.15, // tighter spacing for 9 pieces along the lane
-  yaw: Math.PI * 0.15
+/**
+ * Grass showcase grid east of the apt sandbox (outside asphalt lane).
+ * Sidewalk/grass Y≈0; cols grow +X, rows grow −Z (north).
+ */
+const CATALOG_GRASS = {
+  x0: 188.0,
+  z0: 28.0,
+  dx: 2.55,
+  dz: -2.55,
+  cols: 6,
+  yaw: Math.PI * 0.12,
+  y: 0.02 // sidewalk / grass top (ASPHALT is −0.15)
 };
 
 /**
@@ -73,7 +138,27 @@ const FIT = {
   plant: { targetHeight: 1.15, maxWidth: 0.55, maxDepth: 0.55 },
   tray: { targetHeight: 0.18, maxWidth: 0.45, maxDepth: 0.45 },
   wallart: { targetHeight: 0.85, maxWidth: 1.1, maxDepth: 0.12 },
-  rug: { targetHeight: 0.02, maxWidth: 2.4, maxDepth: 2.8 }
+  rug: { targetHeight: 0.02, maxWidth: 2.4, maxDepth: 2.8 },
+  jp_cushion: { targetHeight: 0.32, maxWidth: 1.1, maxDepth: 1.1 },
+  jp_tea_set: { targetHeight: 0.42, maxWidth: 0.85, maxDepth: 0.7 },
+  jp_geisha: { targetHeight: 1.55, maxWidth: 0.85, maxDepth: 0.95 },
+  jp_moongate: { targetHeight: 1.15, maxWidth: 1.2, maxDepth: 0.35 },
+  jp_stone_lantern: { targetHeight: 0.85, maxWidth: 0.75, maxDepth: 0.75 },
+  jp_mat_a: { targetHeight: 0.025, maxWidth: 1.8, maxDepth: 2.4 },
+  jp_mat_b: { targetHeight: 0.025, maxWidth: 1.7, maxDepth: 2.3 },
+  jp_slat_mat: { targetHeight: 0.06, maxWidth: 1.5, maxDepth: 2.2 },
+  jp_wood_bench: { targetHeight: 0.32, maxWidth: 0.85, maxDepth: 1.6 },
+  jp_table_geo: { targetHeight: 0.55, maxWidth: 1.7, maxDepth: 1.25 },
+  jp_art_roofs: { targetHeight: 0.85, maxWidth: 0.85, maxDepth: 0.12 },
+  jp_art_street: { targetHeight: 1.1, maxWidth: 0.7, maxDepth: 0.12 },
+  jp_shelf_ledge: { targetHeight: 0.08, maxWidth: 1.6, maxDepth: 0.3 },
+  jp_knit_pillow: { targetHeight: 0.32, maxWidth: 0.55, maxDepth: 0.55 },
+  jp_rug_round: { targetHeight: 0.025, maxWidth: 2.0, maxDepth: 2.0 },
+  jp_paper_lantern: { targetHeight: 0.7, maxWidth: 1.0, maxDepth: 1.0 },
+  jp_art_py: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
+  jp_art_wind: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
+  jp_art_py2: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
+  jp_art_wind2: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 }
 };
 
 const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
@@ -173,17 +258,30 @@ export function normalizePieceUpright(inner, pieceName = '') {
   } else if (name === 'sofa' || name.startsWith('sofa')) {
     // Real sofa (node_0) AABB ~[4.49, 1.81, 5.57] floored Y-up after extract.
     upAxis = 1;
-  } else if (name === 'rug' || name.startsWith('rug')) {
-    // Flat plane: shortest → up.
+  } else if (
+    name === 'rug' ||
+    name.startsWith('rug') ||
+    name === 'jp_rug_round' ||
+    name.startsWith('jp_mat') ||
+    name === 'jp_slat_mat'
+  ) {
+    // Flat plane / mat: shortest → up.
     upAxis = dims[0].axis;
   } else if (name === 'coffee' || name.startsWith('coffee') || name === 'tray' || name.startsWith('tray')) {
     // Thin tabletop / tray: shortest → up if clearly flat.
     if (dims[0].s < dims[1].s * 0.55) upAxis = dims[0].axis;
     else upAxis = 1;
-  } else if (name === 'wallart' || name.startsWith('wallart')) {
-    // Canvas slab: keep authored Y-up (tall face).
+  } else if (
+    name === 'wallart' ||
+    name.startsWith('wallart') ||
+    name.startsWith('jp_art_') ||
+    name === 'jp_moongate' ||
+    name === 'jp_shelf_ledge'
+  ) {
+    // Canvas / shelf slab: keep authored Y-up (tall face).
     upAxis = 1;
-  } else if (name === 'bar' || name.startsWith('bar')) {
+  } else if (name === 'bar' || name.startsWith('bar') || name.startsWith('jp_')) {
+    // Novopo JP extracts are already floored Y-up — never re-tip.
     upAxis = 1;
   } else if (sy < dims[2].s * 0.85 && (name === 'plant' || name.startsWith('plant'))) {
     upAxis = dims[2].axis;
@@ -256,16 +354,20 @@ function buildShell() {
 
 /**
  * Build pose Group → upright inner (MeshBasic loft clone).
- * @param {THREE.Object3D} loftRoot
+ * @param {THREE.Object3D|Map<string, THREE.Object3D>} loftRootOrMap
  * @param {string} name
  * @param {Map<string, THREE.MeshBasicMaterial>} matCache
  * @returns {THREE.Group|null}
  */
-function extractPiece(loftRoot, name, matCache) {
+function extractPiece(loftRootOrMap, name, matCache) {
   let src = null;
-  loftRoot.traverse((o) => {
-    if (o.name === name) src = o;
-  });
+  if (loftRootOrMap instanceof Map) {
+    src = loftRootOrMap.get(name) || null;
+  } else if (loftRootOrMap) {
+    loftRootOrMap.traverse((o) => {
+      if (o.name === name) src = o;
+    });
+  }
   if (!src) {
     console.warn('[apt-example] loft piece missing', name);
     return null;
@@ -442,34 +544,53 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   /** @type {Record<string, THREE.Object3D>} */
   const catalog = {};
   const matCache = new Map();
+  /** name → source Object3D from loft or novopo GLB */
+  /** @type {Map<string, THREE.Object3D>} */
+  const pieceSource = new Map();
   /** @type {THREE.Object3D|null} */
   let loftRoot = null;
 
+  function indexPieces(root, names) {
+    if (!root) return;
+    const want = new Set(names);
+    root.traverse((o) => {
+      if (want.has(o.name) && !pieceSource.has(o.name)) pieceSource.set(o.name, o);
+    });
+  }
+
   loftRoot = await loadGltf(LOFT_URL);
-  if (loftRoot) {
+  indexPieces(loftRoot, LOFT_CATALOG_NAMES);
+  const novopoRoot = await loadGltf(NOVOPO_URL);
+  indexPieces(novopoRoot, NOVOPO_CATALOG_NAMES);
+  // Keep loftRoot truthy if either kit loaded (addFromCatalog gate).
+  if (!loftRoot && novopoRoot) loftRoot = novopoRoot;
+
+  if (pieceSource.size) {
     for (let i = 0; i < CATALOG_NAMES.length; i++) {
       const name = CATALOG_NAMES[i];
-      const sample = extractPiece(loftRoot, name, matCache);
+      const sample = extractPiece(pieceSource, name, matCache);
       if (!sample) continue;
       sample.name = `catalog-${name}`;
       sample.userData.aptCatalogName = name;
       sample.userData.aptIsCatalog = true;
-      const wx = CATALOG_STREET.x;
-      const wz = CATALOG_STREET.z0 + i * CATALOG_STREET.dz;
-      sample.position.set(wx, ASPHALT_SURFACE_Y + 0.05, wz);
-      sample.rotation.y = CATALOG_STREET.yaw;
-      // Re-floor on asphalt after world place.
+      const col = i % CATALOG_GRASS.cols;
+      const row = Math.floor(i / CATALOG_GRASS.cols);
+      const wx = CATALOG_GRASS.x0 + col * CATALOG_GRASS.dx;
+      const wz = CATALOG_GRASS.z0 + row * CATALOG_GRASS.dz;
+      sample.position.set(wx, CATALOG_GRASS.y, wz);
+      sample.rotation.y = CATALOG_GRASS.yaw;
+      // Re-floor on grass after world place.
       sample.updateMatrixWorld(true);
       _box.setFromObject(sample);
       if (!_box.isEmpty()) {
-        sample.position.y -= _box.min.y - (ASPHALT_SURFACE_Y + 0.02);
+        sample.position.y -= _box.min.y - CATALOG_GRASS.y;
       }
       sample.add(makeLabelSprite(name));
       catalogGroup.add(sample);
       catalog[name] = sample;
     }
   } else {
-    console.warn('[apt-example] loft GLB failed — shell only');
+    console.warn('[apt-example] furniture GLBs failed — shell only');
   }
 
   parent.add(root);
@@ -485,7 +606,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     layout,
     catalogNames: [...CATALOG_NAMES],
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; furniture catalog GRID on grass east (~x=188–201, z=28→north) loft-5+novopo JP. Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -494,8 +615,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
      * @param {{x?:number,y?:number,z?:number,yaw?:number,scale?:number}} [pose]
      */
     addFromCatalog(name, pose = {}) {
-      if (!loftRoot) {
-        console.warn('[apt-example] no loft root — cannot add', name);
+      if (!pieceSource.size) {
+        console.warn('[apt-example] no furniture sources — cannot add', name);
         return false;
       }
       if (!DEFAULT_SLOTS[name] && !CATALOG_NAMES.includes(name)) {
@@ -509,7 +630,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
         delete layout[name];
         if (name === 'coffee') clearCoffeeLegs(roomGroup);
       }
-      const piece = extractPiece(loftRoot, name, matCache);
+      const piece = extractPiece(pieceSource, name, matCache);
       if (!piece) return false;
       piece.userData.aptIsCatalog = false;
       piece.userData.aptInRoom = true;
@@ -673,8 +794,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   function ensureGhost(name) {
     if (ghost && ghost.userData.aptCatalogName === name) return ghost;
     disposeGhost();
-    if (!loftRoot) return null;
-    ghost = extractPiece(loftRoot, name, matCache);
+    if (!pieceSource.size) return null;
+    ghost = extractPiece(pieceSource, name, matCache);
     if (!ghost) return null;
     ghost.userData.aptIsCatalog = false;
     ghost.userData.aptGhost = true;

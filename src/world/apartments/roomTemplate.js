@@ -18,6 +18,9 @@ import { loadGltf } from '../AssetLoader.js';
 /** Shared loft furniture kit (all furniture/decor; no architecture). */
 export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=chair-upright-1';
 
+/** Novopo Japanese loft-11 furniture/decor kit (sandbox catalog; no architecture). */
+export const NOVOPO_FURNITURE_URL = '/models/apartments/novopo_furniture.glb?v=jp11-1';
+
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
 

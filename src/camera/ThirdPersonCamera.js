@@ -104,7 +104,8 @@ export class ThirdPersonCamera {
 
   /**
    * While true, free-flight / follow look-drag is suppressed (furniture staging).
-   * Clears any in-progress look drag immediately.
+   * Clears any in-progress look drag immediately; orbit wheel (fly-speed) is ignored
+   * so apt sandbox can use scroll for height.
    */
   setLookBlocked(blocked) {
     this._lookBlocked = !!blocked;
@@ -169,6 +170,8 @@ export class ThirdPersonCamera {
       }
     };
     this._onWheel = (event) => {
+      // Furniture staging consumes wheel for height while look is blocked.
+      if (this._lookBlocked) return;
       if (this.mode !== 'orbit') return;
       if (event.target.closest?.(UI_BLOCK)) return;
       const factor = event.deltaY > 0 ? 0.9 : 1.1;

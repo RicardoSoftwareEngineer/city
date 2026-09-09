@@ -4,7 +4,8 @@
  * Collaborative staging: empty shell on the marked street corner + labeled
  * loft-furniture catalog on the road. Click or **drag** a catalog sample onto
  * the room floor (or call `addFromCatalog`) to place a piece; drag in-room
- * pieces to slide on the floor. NOT the InstancedMesh product bake
+ * pieces to slide on the floor. While dragging, **mouse wheel** raises/lowers
+ * Y (scroll up → raise; clamps ~0–2.5 m). NOT the InstancedMesh product bake
  * (`roomTemplate.pushLoftPiece`).
  *
  * MeshBasic only — no PointLight (Ultra night CPU).
@@ -73,6 +74,12 @@ const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
 
 /** Pointer move (px²) before a press becomes a furniture drag. */
 const DRAG_THRESH_SQ = 64;
+
+/** Drag lift: scroll up (negative deltaY on Windows/macOS) → raise. */
+const DRAG_Y_MIN = 0;
+const DRAG_Y_MAX = 2.5;
+/** Metres per wheel deltaY unit (≈0.2 m per typical 100-unit notch). */
+const DRAG_Y_WHEEL_SCALE = 0.002;
 
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
@@ -462,7 +469,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     layout,
     catalogNames: [...CATALOG_NAMES],
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°. Drag catalog→room or drag in-room pieces; click still adds.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; catalog on lane x≈179.5 z=17→3. Free-flight near HUD CASA APTS Large_3, look ~339°. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -503,7 +510,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return true;
     },
     /**
-     * Nudge one in-room piece. y=0 keeps feet on floor. yaw in radians.
+     * Nudge one in-room piece. y=0 keeps feet on floor; y>0 is lift (metres).
+     * yaw in radians.
      * @param {string} name
      * @param {{x?:number,y?:number,z?:number,yaw?:number,scale?:number}} pose
      */
@@ -552,7 +560,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   const lookControls = opts.lookControls || null;
   const mouseInput = opts.mouseInput || null;
 
-  /** @type {null | { kind:'catalog'|'room', name:string, downX:number, downY:number, dragging:boolean, yaw:number }} */
+  /** @type {null | { kind:'catalog'|'room', name:string, downX:number, downY:number, dragging:boolean, yaw:number, liftY:number }} */
   let gesture = null;
   /** @type {THREE.Object3D|null} ghost preview while dragging from catalog */
   let ghost = null;
@@ -560,6 +568,28 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   function setLookBlocked(blocked) {
     lookControls?.setLookBlocked?.(blocked);
     mouseInput?.setDragBlocked?.(blocked);
+  }
+
+  function clampDragY(y) {
+    return Math.max(DRAG_Y_MIN, Math.min(DRAG_Y_MAX, y));
+  }
+
+  /** y=0 → floor-snap path in applyPose; else absolute lift. */
+  function poseYFromLift(liftY) {
+    const y = clampDragY(liftY);
+    return y <= 1e-4 ? 0 : y;
+  }
+
+  function applyDragPose(name, kind, local) {
+    if (!local) return;
+    const y = poseYFromLift(gesture.liftY);
+    if (kind === 'catalog') {
+      const g = ensureGhost(name);
+      if (!g) return;
+      applyPose(g, { x: local.x, y, z: local.z, yaw: gesture.yaw, scale: 1 });
+      return;
+    }
+    api.setPose(name, { x: local.x, y, z: local.z, yaw: gesture.yaw });
   }
 
   function disposeGhost() {
@@ -679,7 +709,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
           downX: ev.clientX,
           downY: ev.clientY,
           dragging: false,
-          yaw: cur.yaw ?? 0
+          yaw: cur.yaw ?? 0,
+          liftY: clampDragY(cur.y ?? 0)
         };
         setLookBlocked(true);
         ev.stopImmediatePropagation();
@@ -699,7 +730,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
           downX: ev.clientX,
           downY: ev.clientY,
           dragging: false,
-          yaw: slot.yaw ?? 0
+          yaw: slot.yaw ?? 0,
+          liftY: 0
         };
         setLookBlocked(true);
         ev.stopImmediatePropagation();
@@ -730,14 +762,47 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
         disposeGhost();
         return;
       }
-      const g = ensureGhost(gesture.name);
-      if (!g) return;
-      applyPose(g, { x: local.x, y: 0, z: local.z, yaw: gesture.yaw, scale: 1 });
+      applyDragPose(gesture.name, 'catalog', local);
       return;
     }
 
     if (gesture.kind === 'room' && local) {
-      api.setPose(gesture.name, { x: local.x, y: 0, z: local.z, yaw: gesture.yaw });
+      applyDragPose(gesture.name, 'room', local);
+    }
+  }
+
+  /**
+   * While furniture drag is active: wheel → lift Y (scroll up / negative deltaY → raise).
+   * Consumes the event so free-flight fly-speed / follow zoom do not change.
+   */
+  function onWheel(ev) {
+    if (!gesture || !camera) return;
+    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn')) {
+      return;
+    }
+
+    if (!gesture.dragging) {
+      gesture.dragging = true;
+      setLookBlocked(true);
+    }
+
+    // Windows/macOS: wheel up → deltaY < 0 → raise.
+    gesture.liftY = clampDragY(gesture.liftY - ev.deltaY * DRAG_Y_WHEEL_SCALE);
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+
+    // Re-apply at last pointer floor hit if possible; else room piece keeps xz.
+    eventToNdc(ev);
+    _raycaster.setFromCamera(_ndc, camera);
+    const local = rayRoomFloorLocal();
+    if (gesture.kind === 'catalog') {
+      if (local) applyDragPose(gesture.name, 'catalog', local);
+      return;
+    }
+    if (gesture.kind === 'room') {
+      const cur = pieces[gesture.name]?.userData?.aptExamplePose;
+      const xz = local || (cur ? { x: cur.x, z: cur.z } : null);
+      if (xz) applyDragPose(gesture.name, 'room', xz);
     }
   }
 
@@ -766,7 +831,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
         if (local) {
           api.addFromCatalog(g.name, {
             x: local.x,
-            y: 0,
+            y: poseYFromLift(g.liftY),
             z: local.z,
             yaw: g.yaw,
             scale: 1
@@ -790,11 +855,14 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
+    // Capture + non-passive so height scroll wins over camera zoom / fly-speed.
+    window.addEventListener('wheel', onWheel, { capture: true, passive: false });
     api._unbindPick = () => {
       target.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('wheel', onWheel, { capture: true });
       disposeGhost();
       setLookBlocked(false);
     };
@@ -808,7 +876,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     cfg.yaw.toFixed(2),
     'catalog',
     Object.keys(catalog).join(',') || '(none)',
-    'room empty — click/drag street samples → room floor; drag in-room to slide; addFromCatalog(name)'
+    'room empty — click/drag street samples → room floor; drag in-room to slide; wheel while drag = height; addFromCatalog(name)'
   );
   return api;
 }

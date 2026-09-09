@@ -17,6 +17,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 - **MUST** closed / curtain-only shells = shared InstancedMesh sheer (ShareTextures Fabric 203, CC0) **MeshBasic** with color+**alphaMap** only (no normal/rough — VRAM + light-loop) — translucency for light/silhouettes; one material for all instances.
 - **MUST** shell intent live in `ApartmentDirector` (`_ensureFacadeShells` / `_stripToCurtainOnly`) — not scattered per-slot flags.
 - **MUST** sem per-room `PointLight`; room + curtain + shared glass = **MeshBasic** (emissive folded into color / opacity glass) — never join Ultra-night street Spot/Point light loop; compile `pause: false`; warm room+curtain **uma vez**.
+- **MUST** shared room bake include loft furniture shortlist (`/models/apartments/loft_furniture.glb`: sofa, plant, coffee+legs, console, lamp, chair) as **MeshBasic albedo-only** (textures ≤256) merged into the same InstancedMesh material buckets — never unique furniture per unit; rescale to the 3.2×3.6×2.75 template so silhouettes read through the pane. Do **not** import loft architecture (brick/beams/windows/cityscape) or loft Point light.
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
 - **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique furniture por unit; dispose shared curtain geo/mat no teardown.
 - Heap ≥0.6/≥0.72: demote farthest full interiors → **curtain-only** shells (keep sheer visible).
@@ -28,6 +29,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | `liveTarget` | `number` \| `'all'` (default) | HUD `#apts-budget` |
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
+| Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.
@@ -36,12 +38,12 @@ HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFaca
 
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake).
+`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake).
 
 ## Same-PR rule
 
-Glass, InstancedMesh, liveTarget/Todos, cortinas, marker ou apartment stream ownership → este arquivo.
+Glass, InstancedMesh, liveTarget/Todos, cortinas, marker, shared loft furniture bake ou apartment stream ownership → este arquivo.
 
 ## Out of scope
 
-Quality adapt / HOLD. Unique layouts. Drive-defer streets-only → `02`.
+Quality adapt / HOLD. Unique layouts. Drive-defer streets-only → `02`. Loft architecture / per-room lights.

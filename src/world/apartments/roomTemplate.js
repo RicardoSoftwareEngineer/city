@@ -5,12 +5,18 @@
  * ApartmentDirector stamps N instances → one draw per material for all live
  * rooms (≈10 draws total, not N meshes).
  *
+ * Furniture: shared loft shortlist GLB (sofa/plant/tables/lamp/chair) — albedo
+ * MeshBasic only, scaled into the shallow room so silhouettes read through glass.
  * Curtain: one shared PlaneGeometry + Fabric 203 sheer MeshBasic (InstancedMesh).
  * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { loadGltf } from '../AssetLoader.js';
+
+/** Shared loft furniture kit (extracted shortlist; no architecture). */
+export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb';
 
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
@@ -26,6 +32,20 @@ const CURTAIN_MAP_URLS = {
   normal: '/textures/curtain/fabric203_normal.png',
   rough: '/textures/curtain/fabric203_rough.png',
   opacity: '/textures/curtain/fabric203_opacity.png'
+};
+
+/**
+ * Near-glass loft placements (room: depth Z, width X, height Y).
+ * Uniform scale from authored loft metres → readable through the pane.
+ */
+const LOFT_PLACEMENTS = {
+  // Uniform scale = min(height, footprint) so loft metres fit the 3.6×3.2 pane view.
+  sofa: { targetHeight: 0.55, maxWidth: 1.65, maxDepth: 1.15, x: -0.15, z: 1.0, yaw: Math.PI },
+  plant: { targetHeight: 1.15, maxWidth: 0.65, maxDepth: 0.65, x: 1.2, z: 0.5, yaw: 0 },
+  coffee: { targetHeight: 0.22, maxWidth: 0.85, maxDepth: 0.7, x: -0.1, y: 0.2, z: 1.7, yaw: 0 },
+  console: { targetHeight: 0.52, maxWidth: 0.85, maxDepth: 0.55, x: 1.3, z: 2.0, yaw: -Math.PI / 2 },
+  lamp: { targetHeight: 0.36, maxWidth: 0.55, maxDepth: 0.55, x: -1.35, z: 0.8, yaw: 0 },
+  chair: { targetHeight: 0.7, maxWidth: 0.7, maxDepth: 0.7, x: -1.15, z: 1.5, yaw: Math.PI * 0.35 }
 };
 
 /**
@@ -67,6 +87,121 @@ function pushBox(buckets, material, w, h, d, x, y, z) {
   geo.translate(x, y, z);
   if (!buckets.has(material)) buckets.set(material, []);
   buckets.get(material).push(geo);
+}
+
+/**
+ * MeshBasic from a glTF material — albedo map only (drop normal/rough/metal).
+ * Mild lift so silhouettes read under ACES without PointLight.
+ * @param {THREE.Material} src
+ * @param {Map<string, THREE.MeshBasicMaterial>} cache
+ */
+function basicFromLoftMat(src, cache) {
+  const key =
+    (src?.map?.uuid || 'nomap') +
+    ':' +
+    (src?.name || '') +
+    ':' +
+    (src?.color ? src.color.getHexString() : 'fff');
+  if (cache.has(key)) return cache.get(key);
+  const color = src?.color ? src.color.clone() : new THREE.Color(0xffffff);
+  // Fold a touch of warm emissive into albedo for street readability.
+  color.multiplyScalar(0.72);
+  color.r = Math.min(1, color.r + 0.08);
+  color.g = Math.min(1, color.g + 0.05);
+  color.b = Math.min(1, color.b + 0.02);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    map: src?.map || null,
+    name: src?.name ? `loft-${src.name}` : 'loft-mat',
+    side: THREE.FrontSide,
+    toneMapped: true
+  });
+  if (mat.map) {
+    mat.map.colorSpace = THREE.SRGBColorSpace;
+    mat.map.anisotropy = 2;
+    // Shared across 128 instances — keep filtering cheap.
+    mat.map.generateMipmaps = true;
+    mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+    mat.map.magFilter = THREE.LinearFilter;
+  }
+  cache.set(key, mat);
+  return mat;
+}
+
+/**
+ * Strip non-merge-friendly attrs; keep position (+normal/uv when present).
+ * @param {THREE.BufferGeometry} geo
+ */
+function leanGeometry(geo) {
+  const keep = new Set(['position', 'normal', 'uv']);
+  for (const key of Object.keys(geo.attributes)) {
+    if (!keep.has(key)) geo.deleteAttribute(key);
+  }
+  if (geo.morphAttributes) {
+    geo.morphAttributes = {};
+  }
+  return geo;
+}
+
+/**
+ * Place one loft piece (floored + centered in GLB) into material buckets.
+ * @param {Map<object, THREE.BufferGeometry[]>} buckets
+ * @param {THREE.Object3D} root
+ * @param {string} pieceName
+ * @param {{targetHeight:number,x:number,z:number,yaw:number}} place
+ * @param {Map<string, THREE.MeshBasicMaterial>} matCache
+ */
+function pushLoftPiece(buckets, root, pieceName, place, matCache) {
+  let piece = null;
+  root.traverse((o) => {
+    if (o.name === pieceName) piece = o;
+  });
+  if (!piece) {
+    console.warn('[apartments] loft piece missing', pieceName);
+    return;
+  }
+
+  // Authored size from glTF extras (extract) or live AABB.
+  let sx = 1;
+  let sy = 1;
+  let sz = 1;
+  const ex = piece.userData || {};
+  if (Array.isArray(ex.size) && ex.size.length >= 3) {
+    sx = Math.max(ex.size[0], 1e-4);
+    sy = Math.max(ex.size[1], 1e-4);
+    sz = Math.max(ex.size[2], 1e-4);
+  } else {
+    const box = new THREE.Box3().setFromObject(piece);
+    const s = box.getSize(new THREE.Vector3());
+    sx = Math.max(s.x, 1e-4);
+    sy = Math.max(s.y, 1e-4);
+    sz = Math.max(s.z, 1e-4);
+  }
+  const scale = Math.min(
+    place.targetHeight / sy,
+    (place.maxWidth ?? place.targetHeight * 2) / sx,
+    (place.maxDepth ?? place.targetHeight * 2) / sz
+  );
+
+  piece.updateWorldMatrix(true, true);
+  piece.traverse((child) => {
+    if (!child.isMesh || !child.geometry) return;
+    const srcMats = Array.isArray(child.material) ? child.material : [child.material];
+    // Single-material path (our extract is one mat per prim).
+    const srcMat = srcMats[0];
+    const mat = basicFromLoftMat(srcMat, matCache);
+    const geo = leanGeometry(child.geometry.clone());
+
+    const m = new THREE.Matrix4();
+    const pos = new THREE.Vector3(place.x, place.y ?? 0, place.z);
+    const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), place.yaw);
+    const scl = new THREE.Vector3(scale, scale, scale);
+    m.compose(pos, quat, scl);
+    geo.applyMatrix4(m);
+
+    if (!buckets.has(mat)) buckets.set(mat, []);
+    buckets.get(mat).push(geo);
+  });
 }
 
 /**
@@ -167,6 +302,7 @@ export function getSharedCurtainGeometry() {
 
 /**
  * Merge each material bucket into one geometry (InstancedMesh = 1 mat each).
+ * Buckets must be attribute-compatible (box parts vs loft UV parts stay separate).
  * @param {Map<object, THREE.BufferGeometry[]>} buckets
  * @returns {{geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[]}
  */
@@ -176,18 +312,27 @@ function bakeRoomSpecs(buckets) {
   let i = 0;
   for (const [material, list] of buckets) {
     if (!list.length) continue;
-    const merged = list.length === 1 ? list[0] : mergeGeometries(list, false);
-    if (!merged) continue;
+    // mergeGeometries requires identical attribute sets — split if mixed.
+    const groups = new Map();
     for (const g of list) {
-      if (g !== merged) g.dispose();
+      const sig = Object.keys(g.attributes).sort().join(',');
+      if (!groups.has(sig)) groups.set(sig, []);
+      groups.get(sig).push(g);
     }
-    merged.computeBoundingBox();
-    merged.computeBoundingSphere();
-    specs.push({
-      geometry: merged,
-      material,
-      name: `apartment-room-part-${i++}`
-    });
+    for (const [, geos] of groups) {
+      const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      if (!merged) continue;
+      for (const g of geos) {
+        if (g !== merged) g.dispose();
+      }
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      specs.push({
+        geometry: merged,
+        material,
+        name: `apartment-room-part-${i++}`
+      });
+    }
   }
   return specs;
 }
@@ -213,21 +358,10 @@ export async function ensureApartmentRoomBaked() {
     emissive: 0xffe8c8,
     emissiveIntensity: 0.75
   });
-  const fabric = std(0x4a6fa5, {
-    roughness: 0.85,
-    emissive: 0x1a2a44,
-    emissiveIntensity: 0.45
-  });
-  const wood = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
-  const lampShade = std(0xfff4d6, { roughness: 0.55, emissive: 0xffe4a8, emissiveIntensity: 1.45 });
-  const plant = std(0x3d9a4a, { roughness: 0.8, emissive: 0x145022, emissiveIntensity: 0.55 });
-  const pot = std(0x9a7a60, { roughness: 0.8, emissive: 0x2a2018, emissiveIntensity: 0.3 });
-  const cushion = std(0xd4784a, {
-    roughness: 0.8,
-    emissive: 0x4a2810,
-    emissiveIntensity: 0.5
-  });
   const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.65 });
+  const artFrame = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
+  // Thin coffee top needs silhouette legs (loft Cube.007 is top-only).
+  const coffeeLegs = std(0x2a2a2a, { emissive: 0x101010, emissiveIntensity: 0.35, name: 'coffee-legs' });
 
   /** @type {Map<object, THREE.BufferGeometry[]>} */
   const buckets = new Map();
@@ -238,25 +372,70 @@ export async function ensureApartmentRoomBaked() {
   pushBox(buckets, plaster, wallT, height, depth, width * 0.5, height * 0.5, depth * 0.5);
   // Back wall (lean plaster — no Brick_InteriorWall glTF; keeps few shared geos).
   pushBox(buckets, plaster, width, height, wallT, 0, height * 0.5, depth);
-
-  // ——— Near-glass silhouette (small Z) so street view instantly reads “room” ———
-  pushBox(buckets, pot, 0.38, 0.28, 0.38, 1.15, 0.18, 0.55);
-  pushBox(buckets, plant, 0.48, 0.85, 0.48, 1.15, 0.72, 0.55);
-  pushBox(buckets, plant, 0.22, 0.35, 0.22, 1.15, 1.25, 0.55);
-  pushBox(buckets, fabric, 2.0, 0.48, 0.72, -0.15, 0.32, 0.95);
-  pushBox(buckets, fabric, 2.0, 0.42, 0.16, -0.15, 0.66, 1.22);
-  pushBox(buckets, fabric, 0.16, 0.42, 0.62, -1.07, 0.58, 0.95);
-  pushBox(buckets, fabric, 0.16, 0.42, 0.62, 0.77, 0.58, 0.95);
-  pushBox(buckets, cushion, 0.7, 0.14, 0.4, -0.15, 0.6, 0.85);
-  pushBox(buckets, wood, 0.9, 0.06, 0.5, -0.1, 0.4, 1.7);
-  pushBox(buckets, wood, 0.06, 0.36, 0.06, -0.42, 0.18, 1.55);
-  pushBox(buckets, wood, 0.06, 0.36, 0.06, 0.22, 0.18, 1.55);
-  pushBox(buckets, wood, 0.06, 0.36, 0.06, -0.42, 0.18, 1.85);
-  pushBox(buckets, wood, 0.06, 0.36, 0.06, 0.22, 0.18, 1.85);
-  pushBox(buckets, wood, 0.08, 1.2, 0.08, -1.35, 0.6, 0.7);
-  pushBox(buckets, lampShade, 0.48, 0.14, 0.48, -1.35, 1.28, 0.7);
-  pushBox(buckets, wood, 0.02, 0.5, 0.6, -width * 0.5 + 0.06, 1.55, 1.2);
+  // Small wall art (box proxy — not loft architecture).
+  pushBox(buckets, artFrame, 0.02, 0.5, 0.6, -width * 0.5 + 0.06, 1.55, 1.2);
   pushBox(buckets, art, 0.01, 0.42, 0.52, -width * 0.5 + 0.08, 1.55, 1.2);
+
+  /** @type {Map<string, THREE.MeshBasicMaterial>} */
+  const loftMatCache = new Map();
+  let loftOk = false;
+  try {
+    const loftRoot = await loadGltf(LOFT_FURNITURE_URL);
+    if (loftRoot) {
+      for (const [pieceName, place] of Object.entries(LOFT_PLACEMENTS)) {
+        pushLoftPiece(buckets, loftRoot, pieceName, place, loftMatCache);
+      }
+      // Coffee GLB is a flat top — add square metal legs so it reads through glass.
+      const cf = LOFT_PLACEMENTS.coffee;
+      const leg = 0.04;
+      const legH = 0.2;
+      const span = 0.28;
+      for (const [lx, lz] of [
+        [-span, -span],
+        [span, -span],
+        [-span, span],
+        [span, span]
+      ]) {
+        pushBox(buckets, coffeeLegs, leg, legH, leg, cf.x + lx, legH * 0.5, cf.z + lz);
+      }
+      loftOk = true;
+    }
+  } catch (err) {
+    console.warn('[apartments] loft furniture load failed; box fallback', err);
+  }
+
+  if (!loftOk) {
+    // Box silhouette fallback (same layout as pre-loft proxies).
+    const fabric = std(0x4a6fa5, {
+      roughness: 0.85,
+      emissive: 0x1a2a44,
+      emissiveIntensity: 0.45
+    });
+    const wood = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
+    const lampShade = std(0xfff4d6, { roughness: 0.55, emissive: 0xffe4a8, emissiveIntensity: 1.45 });
+    const plant = std(0x3d9a4a, { roughness: 0.8, emissive: 0x145022, emissiveIntensity: 0.55 });
+    const pot = std(0x9a7a60, { roughness: 0.8, emissive: 0x2a2018, emissiveIntensity: 0.3 });
+    const cushion = std(0xd4784a, {
+      roughness: 0.8,
+      emissive: 0x4a2810,
+      emissiveIntensity: 0.5
+    });
+    pushBox(buckets, pot, 0.38, 0.28, 0.38, 1.15, 0.18, 0.55);
+    pushBox(buckets, plant, 0.48, 0.85, 0.48, 1.15, 0.72, 0.55);
+    pushBox(buckets, plant, 0.22, 0.35, 0.22, 1.15, 1.25, 0.55);
+    pushBox(buckets, fabric, 2.0, 0.48, 0.72, -0.15, 0.32, 0.95);
+    pushBox(buckets, fabric, 2.0, 0.42, 0.16, -0.15, 0.66, 1.22);
+    pushBox(buckets, fabric, 0.16, 0.42, 0.62, -1.07, 0.58, 0.95);
+    pushBox(buckets, fabric, 0.16, 0.42, 0.62, 0.77, 0.58, 0.95);
+    pushBox(buckets, cushion, 0.7, 0.14, 0.4, -0.15, 0.6, 0.85);
+    pushBox(buckets, wood, 0.9, 0.06, 0.5, -0.1, 0.4, 1.7);
+    pushBox(buckets, wood, 0.06, 0.36, 0.06, -0.42, 0.18, 1.55);
+    pushBox(buckets, wood, 0.06, 0.36, 0.06, 0.22, 0.18, 1.55);
+    pushBox(buckets, wood, 0.06, 0.36, 0.06, -0.42, 0.18, 1.85);
+    pushBox(buckets, wood, 0.06, 0.36, 0.06, 0.22, 0.18, 1.85);
+    pushBox(buckets, wood, 0.08, 1.2, 0.08, -1.35, 0.6, 0.7);
+    pushBox(buckets, lampShade, 0.48, 0.14, 0.48, -1.35, 1.28, 0.7);
+  }
 
   const roomSpecs = bakeRoomSpecs(buckets);
   baked = {
@@ -265,7 +444,8 @@ export async function ensureApartmentRoomBaked() {
     kitWall: false,
     mergedAsset: true,
     instanced: true,
-    noPointLight: true
+    noPointLight: true,
+    loftFurniture: loftOk
   };
   return baked;
 }

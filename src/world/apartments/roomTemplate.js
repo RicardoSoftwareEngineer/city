@@ -5,8 +5,8 @@
  * ApartmentDirector stamps N instances → one draw per material for all live
  * rooms (≈10 draws total, not N meshes).
  *
- * Furniture: shared loft shortlist GLB (sofa/plant/tables/lamp/chair) — albedo
- * MeshBasic only, scaled into the shallow room so silhouettes read through glass.
+ * Furniture: shared loft shortlist GLB (sofa/plant/console/lamp/chair + box coffee) — albedo
+ * MeshBasic only (sofa atlas ≥1024), scaled into the shallow room so fabric reads through glass.
  * Curtain: one shared PlaneGeometry + Fabric 203 sheer MeshBasic (InstancedMesh).
  * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
@@ -16,7 +16,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { loadGltf } from '../AssetLoader.js';
 
 /** Shared loft furniture kit (extracted shortlist; no architecture). */
-export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb';
+export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=sofa-albedo-5';
 
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
@@ -106,11 +106,12 @@ function basicFromLoftMat(src, cache) {
     (src?.color ? src.color.getHexString() : 'fff');
   if (cache.has(key)) return cache.get(key);
   const color = src?.color ? src.color.clone() : new THREE.Color(0xffffff);
-  // Fold a touch of warm emissive into albedo for street readability.
-  color.multiplyScalar(0.72);
-  color.r = Math.min(1, color.r + 0.08);
-  color.g = Math.min(1, color.g + 0.05);
-  color.b = Math.min(1, color.b + 0.02);
+  // Mild lift so dark loft fabric (sofa atlas) reads outdoors under MeshBasic/ACES.
+  // Do not rejoin the street-light loop — color multiply only.
+  color.multiplyScalar(1.12);
+  color.r = Math.min(1, color.r + 0.1);
+  color.g = Math.min(1, color.g + 0.08);
+  color.b = Math.min(1, color.b + 0.05);
   const mat = new THREE.MeshBasicMaterial({
     color,
     map: src?.map || null,
@@ -370,7 +371,7 @@ export async function ensureApartmentRoomBaked() {
   });
   const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.65 });
   const artFrame = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
-  // Thin coffee top needs silhouette legs (loft Cube.007 is top-only).
+  // Coffee: loft Cube.007 was skull wall-art — use wood box top + metal legs.
   const coffeeLegs = std(0x2a2a2a, { emissive: 0x101010, emissiveIntensity: 0.35, name: 'coffee-legs' });
 
   /** @type {Map<object, THREE.BufferGeometry[]>} */
@@ -393,10 +394,13 @@ export async function ensureApartmentRoomBaked() {
     const loftRoot = await loadGltf(LOFT_FURNITURE_URL);
     if (loftRoot) {
       for (const [pieceName, place] of Object.entries(LOFT_PLACEMENTS)) {
+        if (pieceName === 'coffee') continue; // Cube.007 was skull wall-art — not a table
         pushLoftPiece(buckets, loftRoot, pieceName, place, loftMatCache);
       }
-      // Coffee GLB is a flat top — add square metal legs so it reads through glass.
+      // Wood box coffee top + metal legs (loft had no real coffee mesh).
       const cf = LOFT_PLACEMENTS.coffee;
+      const coffeeTop = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.35, name: 'coffee-top' });
+      pushBox(buckets, coffeeTop, 0.9, 0.06, 0.5, cf.x, (cf.y ?? 0) + 0.2, cf.z);
       const leg = 0.04;
       const legH = 0.2;
       const span = 0.28;

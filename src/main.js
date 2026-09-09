@@ -52,6 +52,7 @@ import { initPersonaHud } from './engine/personaHud.js';
 import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCache.js';
 import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
+import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
 const PREDICT_FOCUS_HORIZON = 2.5;
@@ -557,6 +558,7 @@ function addBootCityGround(parent) {
   mesh.name = 'boot-city-ground';
   mesh.receiveShadow = false;
   mesh.castShadow = false;
+  enableStreetWash(mesh);
   parent.add(mesh);
   return mesh;
 }

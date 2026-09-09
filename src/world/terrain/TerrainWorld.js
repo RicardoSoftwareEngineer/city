@@ -24,6 +24,7 @@ import {
   setTerrainPhysics
 } from './terrainCollision.js';
 import { ensureWhiteOrchardHeightmap } from './whiteOrchardHeight.js';
+import { enableStreetWash } from '../lightLayers.js';
 
 export { TERRAIN_TILE, TERRAIN_TILE_FAR, TERRAIN_NEAR_HALF };
 export const TERRAIN_PRIORITY = 4;
@@ -99,6 +100,8 @@ async function buildTileMesh(x0, z0, size, segs, label = "mesh") {
   mesh.position.set(x0 + size * 0.5, 0, z0 + size * 0.5);
   mesh.receiveShadow = false;
   mesh.castShadow = false;
+  // Curb-side grass wash from street Spot/Point pool (layer 1).
+  enableStreetWash(mesh);
   mesh.name = `terrain_${Math.round(x0 / size)}_${Math.round(z0 / size)}_${size}`;
 
   cpuMs += performance.now() - sliceStart;

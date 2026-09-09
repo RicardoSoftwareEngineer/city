@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { beginLoad, loadMark } from '../engine/loadLog.js';
 import { loadGovernor } from '../engine/LoadGovernor.js';
 import { yieldToMain } from './yield.js';
+import { enableStreetWash, isStreetWashReceiver } from './lightLayers.js';
 
 function batchSize() {
   return loadGovernor.instanceBatch;
@@ -57,6 +58,8 @@ function makeBatchMesh(parent, spec, capacity) {
   mesh.frustumCulled = true;
   mesh.count = 0;
   mesh.userData._streamInstancer = true;
+  // Night street Spot/Point wash asphalt + sidewalk (not building volumes).
+  if (isStreetWashReceiver(spec)) enableStreetWash(mesh);
   parent.add(mesh);
   loadMark('instancer', `${spec.name} x${capacity}`, performance.now() - t0);
   return mesh;

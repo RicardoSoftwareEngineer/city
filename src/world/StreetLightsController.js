@@ -14,6 +14,7 @@ import {
   STREETLIGHT_SCALE,
   getStreetlightBulbMaterials
 } from './streetFurniture/streetlight.js';
+import { STREET_WASH_LAYER } from './lightLayers.js';
 
 /** Raw GLB Inners AABB center (pre-scale). */
 const BULB_RAW = { x: -0.05, y: 79.05, z: 0 };
@@ -124,6 +125,8 @@ export function createStreetLightsController(opts) {
     spot.name = `streetLampSpot_${i}`;
     spot.castShadow = false;
     spot.visible = false;
+    // Wash asphalt / sidewalk / terrain only — not every downtown Standard mesh.
+    spot.layers.set(STREET_WASH_LAYER);
     spot.target.name = `streetLampSpotTarget_${i}`;
     scene.add(spot);
     scene.add(spot.target);
@@ -132,6 +135,7 @@ export function createStreetLightsController(opts) {
     point.name = `streetLampPoint_${i}`;
     point.castShadow = false;
     point.visible = false;
+    point.layers.set(STREET_WASH_LAYER);
     scene.add(point);
 
     slots.push({ spot, point });
@@ -341,6 +345,9 @@ export function createStreetLightsController(opts) {
    * @param {THREE.Camera} camera
    * @param {{ x: number, z: number } | null} [focus]
    */
+  let lightsDirty = true;
+  let lastSyncedNight = -1;
+
   function update(camera, focus = null) {
     const fx = focus?.x ?? camera.position.x;
     const fz = focus?.z ?? camera.position.z;
@@ -352,8 +359,13 @@ export function createStreetLightsController(opts) {
       hasFocus = true;
       forceRefocus = false;
       pickNearest(fx, fz);
+      lightsDirty = true;
     }
-    syncLights();
+    if (lightsDirty || nightFactor !== lastSyncedNight) {
+      syncLights();
+      lightsDirty = false;
+      lastSyncedNight = nightFactor;
+    }
   }
 
   function dispose() {

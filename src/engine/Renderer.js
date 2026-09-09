@@ -10,6 +10,7 @@ import { beginLoad, loadMark, snapshotDraw, setLoadPhase, clearLoadTag } from '.
 import { createBudget, waitIfSlow, yieldToMain } from '../world/yield.js';
 import { noteDecision } from './personaLog.js';
 import { getActivePreset } from './qualityPresets.js';
+import { STREET_WASH_LAYER } from '../world/lightLayers.js';
 
 export class Renderer {
   constructor(canvasElement) {
@@ -34,6 +35,8 @@ export class Renderer {
       4500
     );
     this.camera.position.set(0, 10, 20);
+    // See ground tagged for night street-lamp wash (lights on STREET_WASH_LAYER).
+    this.camera.layers.enable(STREET_WASH_LAYER);
 
     // WebGL Renderer
     this.renderer = new THREE.WebGLRenderer({

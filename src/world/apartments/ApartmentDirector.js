@@ -2,6 +2,7 @@
  * On-demand apartment interiors + curtain overlays for downtown facades.
  * Buildings stay InstancedMesh; live rooms/curtains are InstancedMesh too
  * (one draw per room material + one curtain draw for all slots).
+ * Room/curtain/glass use MeshBasic — no Ultra-night street-light loop.
  *
  * Intent:
  * - Shell: every registered facade slot has a closed sheer curtain instance
@@ -541,13 +542,22 @@ export class ApartmentDirector {
       this.parent.add(root);
       this._instancerRoot = root;
 
+      // Downtown-sized bound so free-flight away from the grid skips these draws.
+      // Pin computeBoundingSphere — InstancedMesh would otherwise rebuild from
+      // every instance (incl. scale-0 shells) every update.
+      const pinDowntownBound = (mesh) => {
+        mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 20, 0), 280);
+        mesh.computeBoundingSphere = () => {};
+      };
       this._roomInstancers = baked.roomSpecs.map((spec, i) => {
         const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
         mesh.name = `apartment-room-im-${i}`;
         mesh.count = 0;
         mesh.castShadow = false;
-        mesh.receiveShadow = true;
-        mesh.frustumCulled = false;
+        // Basic rooms — no shadow receive (ground owns PCF samples).
+        mesh.receiveShadow = false;
+        mesh.frustumCulled = true;
+        pinDowntownBound(mesh);
         mesh.renderOrder = 30;
         for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
         mesh.instanceMatrix.needsUpdate = true;
@@ -564,7 +574,8 @@ export class ApartmentDirector {
       curtain.count = 0;
       curtain.castShadow = false;
       curtain.receiveShadow = false;
-      curtain.frustumCulled = false;
+      curtain.frustumCulled = true;
+      pinDowntownBound(curtain);
       curtain.renderOrder = 40;
       for (let j = 0; j < cap; j++) curtain.setMatrixAt(j, _hideMat);
       curtain.instanceMatrix.needsUpdate = true;

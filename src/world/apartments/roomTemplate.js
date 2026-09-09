@@ -1,10 +1,11 @@
 /**
  * Apartment interior template — InstancedMesh-ready (spec 05):
- * bake **once** into per-material geometries + shared Standard materials with
- * emissive fill (no PointLight). ApartmentDirector stamps N instances → one
- * draw per material for all live rooms (≈10 draws total, not N meshes).
+ * bake **once** into per-material geometries + shared **MeshBasic** materials
+ * with emissive folded into color (no PointLight, no dynamic light loop).
+ * ApartmentDirector stamps N instances → one draw per material for all live
+ * rooms (≈10 draws total, not N meshes).
  *
- * Curtain: one shared PlaneGeometry + Fabric 203 sheer material (InstancedMesh).
+ * Curtain: one shared PlaneGeometry + Fabric 203 sheer MeshBasic (InstancedMesh).
  * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
 
@@ -27,12 +28,26 @@ const CURTAIN_MAP_URLS = {
   opacity: '/textures/curtain/fabric203_opacity.png'
 };
 
+/**
+ * Bake Standard-looking room colors into MeshBasic.
+ * Rooms are emissive-lit for street readability (spec 05) — they must not
+ * join the Ultra-night street Spot/Point light loop (CPU MAIN tax).
+ */
 function std(color, opts = {}) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: opts.roughness ?? 0.75,
-    metalness: opts.metalness ?? 0.05,
-    ...opts
+  const base = new THREE.Color(color);
+  const out = base.clone().multiplyScalar(0.35);
+  if (opts.emissive != null) {
+    const e = new THREE.Color(opts.emissive);
+    const ei = opts.emissiveIntensity ?? 1;
+    out.r = Math.min(1, out.r + e.r * ei);
+    out.g = Math.min(1, out.g + e.g * ei);
+    out.b = Math.min(1, out.b + e.b * ei);
+  }
+  return new THREE.MeshBasicMaterial({
+    color: out,
+    // Keep name for debug; Basic ignores roughness/metalness/emissive.
+    name: opts.name,
+    toneMapped: true
   });
 }
 
@@ -65,29 +80,27 @@ function ensureCurtainMaps() {
   const loader = new THREE.TextureLoader();
   /** @type {{map?: THREE.Texture, normalMap?: THREE.Texture, roughnessMap?: THREE.Texture, alphaMap?: THREE.Texture}} */
   const pending = {};
-  let remaining = 4;
+  let remaining = 2;
 
   const applyIfReady = () => {
     remaining -= 1;
     if (remaining > 0 || !sharedCurtainMat) return;
     try {
+      // MeshBasic: color + alpha only (skip normal/rough — would be no-ops / throws).
       if (pending.map) {
         pending.map.colorSpace = THREE.SRGBColorSpace;
         sharedCurtainMat.map = pending.map;
-      }
-      if (pending.normalMap) {
-        pending.normalMap.colorSpace = THREE.NoColorSpace;
-        sharedCurtainMat.normalMap = pending.normalMap;
-        sharedCurtainMat.normalScale.set(0.55, 0.55);
-      }
-      if (pending.roughnessMap) {
-        pending.roughnessMap.colorSpace = THREE.NoColorSpace;
-        sharedCurtainMat.roughnessMap = pending.roughnessMap;
+      } else {
+        pending.normalMap?.dispose?.();
+        pending.roughnessMap?.dispose?.();
       }
       if (pending.alphaMap) {
         pending.alphaMap.colorSpace = THREE.NoColorSpace;
         sharedCurtainMat.alphaMap = pending.alphaMap;
       }
+      // Drop unused PBR maps — save VRAM on RX 580 8GB Ultra night.
+      pending.normalMap?.dispose?.();
+      pending.roughnessMap?.dispose?.();
       sharedCurtainMat.needsUpdate = true;
     } catch (err) {
       // Keep cream fallback — never let map swap take down the render path.
@@ -118,25 +131,24 @@ function ensureCurtainMaps() {
     applyIfReady();
   };
 
+  // Basic curtain: albedo + alpha only (2 maps). Normal/rough unused → VRAM.
   loader.load(CURTAIN_MAP_URLS.color, onLoad('map'), undefined, applyIfReady);
-  loader.load(CURTAIN_MAP_URLS.normal, onLoad('normalMap'), undefined, applyIfReady);
-  loader.load(CURTAIN_MAP_URLS.rough, onLoad('roughnessMap'), undefined, applyIfReady);
   loader.load(CURTAIN_MAP_URLS.opacity, onLoad('alphaMap'), undefined, applyIfReady);
 }
 
 export function getSharedCurtainMaterial() {
   if (!sharedCurtainMat) {
     // Warm cream tint — map color drives look once Fabric 203 loads.
-    sharedCurtainMat = new THREE.MeshStandardMaterial({
+    // MeshBasic: sheer curtains must not join the street-light loop.
+    sharedCurtainMat = new THREE.MeshBasicMaterial({
       color: 0xf3ebe0,
-      roughness: 0.88,
-      metalness: 0,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 1,
       alphaTest: 0.05,
       depthTest: true,
-      depthWrite: false
+      depthWrite: false,
+      toneMapped: true
     });
     ensureCurtainMaps();
   }

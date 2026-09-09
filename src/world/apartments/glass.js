@@ -2,8 +2,8 @@
  * Convert FakeInterior + MI_Glass materials to shared transparent glass
  * on the building template before mergeBuilding so all instances get glass.
  *
- * Opacity-based (not transmission) so glass reads without an env map —
- * you can see sky / closed curtains / lit rooms through the pane.
+ * Opacity-based MeshBasic (not Physical/transmission) so glass reads without
+ * an env map or dynamic light loop — sky / curtains / lit rooms through pane.
  *
  * Also strips MegaKit MI_InteriorWall / MI_InteriorFloor shell meshes that
  * sit behind FakeInterior and would otherwise darken the view through glass.
@@ -15,16 +15,17 @@ let sharedGlass = null;
 
 export function getWindowGlassMaterial() {
   if (!sharedGlass) {
-    sharedGlass = new THREE.MeshPhysicalMaterial({
+    // MeshBasic glass: shared across every downtown window draw. Physical +
+    // Ultra-night street lights was a steady-state light-loop tax on CPU MAIN.
+    sharedGlass = new THREE.MeshBasicMaterial({
       name: 'MI_WindowGlass',
       color: 0xd8e8f4,
-      metalness: 0.02,
-      roughness: 0.18,
       transparent: true,
       // Slightly clearer than 0.14 so room emissive reads through outdoor glare.
       opacity: 0.09,
       depthWrite: false,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      toneMapped: true
     });
   }
   return sharedGlass;

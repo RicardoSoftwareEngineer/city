@@ -39,13 +39,15 @@ const CURTAIN_MAP_URLS = {
  * Uniform scale from authored loft metres → readable through the pane.
  */
 const LOFT_PLACEMENTS = {
-  // Uniform scale = min(height, footprint) so loft metres fit the 3.6×3.2 pane view.
-  sofa: { targetHeight: 0.55, maxWidth: 1.65, maxDepth: 1.15, x: -0.15, z: 1.0, yaw: Math.PI },
-  plant: { targetHeight: 1.15, maxWidth: 0.65, maxDepth: 0.65, x: 1.2, z: 0.5, yaw: 0 },
-  coffee: { targetHeight: 0.22, maxWidth: 0.85, maxDepth: 0.7, x: -0.1, y: 0.2, z: 1.7, yaw: 0 },
-  console: { targetHeight: 0.52, maxWidth: 0.85, maxDepth: 0.55, x: 1.3, z: 2.0, yaw: -Math.PI / 2 },
-  lamp: { targetHeight: 0.36, maxWidth: 0.55, maxDepth: 0.55, x: -1.35, z: 0.8, yaw: 0 },
-  chair: { targetHeight: 0.7, maxWidth: 0.7, maxDepth: 0.7, x: -1.15, z: 1.5, yaw: Math.PI * 0.35 }
+  // Room: X∈[-1.8,1.8], Z∈[0,3.2] (glass at z≈0, opening faces −Z; street looks +Z).
+  // GLB pieces are floored + Y-up — yaw-only here. Sofa faces window; coffee in front;
+  // chair angles in; plant near-glass corner; lamp by sofa; console on +X wall.
+  sofa: { targetHeight: 0.55, maxWidth: 1.8, maxDepth: 1.2, x: 0.05, z: 2.05, yaw: Math.PI },
+  plant: { targetHeight: 1.2, maxWidth: 0.55, maxDepth: 0.55, x: 1.35, z: 0.4, yaw: 0.25 },
+  coffee: { targetHeight: 0.22, maxWidth: 0.9, maxDepth: 0.65, x: 0.0, y: 0.2, z: 1.05, yaw: 0 },
+  console: { targetHeight: 0.5, maxWidth: 0.9, maxDepth: 0.5, x: 1.45, z: 1.85, yaw: -Math.PI / 2 },
+  lamp: { targetHeight: 0.38, maxWidth: 0.5, maxDepth: 0.5, x: -1.4, z: 2.0, yaw: 0.15 },
+  chair: { targetHeight: 0.75, maxWidth: 0.75, maxDepth: 0.85, x: -1.2, z: 1.15, yaw: Math.PI * 0.65 }
 };
 
 /**
@@ -144,11 +146,12 @@ function leanGeometry(geo) {
 }
 
 /**
- * Place one loft piece (floored + centered in GLB) into material buckets.
+ * Place one loft piece (GLB MUST be floored + Y-up + XZ-centered) into buckets.
+ * Bakes nested mesh local matrices (lamp multi-prim), then yaw/scale/translate.
  * @param {Map<object, THREE.BufferGeometry[]>} buckets
  * @param {THREE.Object3D} root
  * @param {string} pieceName
- * @param {{targetHeight:number,x:number,z:number,yaw:number}} place
+ * @param {{targetHeight:number,maxWidth?:number,maxDepth?:number,x:number,y?:number,z:number,yaw:number}} place
  * @param {Map<string, THREE.MeshBasicMaterial>} matCache
  */
 function pushLoftPiece(buckets, root, pieceName, place, matCache) {
@@ -161,7 +164,9 @@ function pushLoftPiece(buckets, root, pieceName, place, matCache) {
     return;
   }
 
-  // Authored size from glTF extras (extract) or live AABB.
+  piece.updateWorldMatrix(true, true);
+
+  // Authored size from glTF extras (extract) or live AABB (Y = up).
   let sx = 1;
   let sy = 1;
   let sz = 1;
@@ -183,7 +188,14 @@ function pushLoftPiece(buckets, root, pieceName, place, matCache) {
     (place.maxDepth ?? place.targetHeight * 2) / sz
   );
 
-  piece.updateWorldMatrix(true, true);
+  // Child → piece-local (keeps lamp shade/base registered after floor extract).
+  const pieceInv = new THREE.Matrix4().copy(piece.matrixWorld).invert();
+  const placeMat = new THREE.Matrix4().compose(
+    new THREE.Vector3(place.x, place.y ?? 0, place.z),
+    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), place.yaw),
+    new THREE.Vector3(scale, scale, scale)
+  );
+
   piece.traverse((child) => {
     if (!child.isMesh || !child.geometry) return;
     const srcMats = Array.isArray(child.material) ? child.material : [child.material];
@@ -192,12 +204,9 @@ function pushLoftPiece(buckets, root, pieceName, place, matCache) {
     const mat = basicFromLoftMat(srcMat, matCache);
     const geo = leanGeometry(child.geometry.clone());
 
-    const m = new THREE.Matrix4();
-    const pos = new THREE.Vector3(place.x, place.y ?? 0, place.z);
-    const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), place.yaw);
-    const scl = new THREE.Vector3(scale, scale, scale);
-    m.compose(pos, quat, scl);
-    geo.applyMatrix4(m);
+    const local = new THREE.Matrix4().multiplyMatrices(pieceInv, child.matrixWorld);
+    geo.applyMatrix4(local);
+    geo.applyMatrix4(placeMat);
 
     if (!buckets.has(mat)) buckets.set(mat, []);
     buckets.get(mat).push(geo);

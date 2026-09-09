@@ -47,6 +47,8 @@ const TEX_HERO = 1024;
 const PIECES = {
   // Real grey L-sofa (Material.005 / atlas img_11). Parent Rx(-90) → zUp.
   'node_0': { name: 'sofa', zUp: true, texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
+  // Sling chair: same FBX Rx(-90) as sofa. After extract, depth (Z) can exceed
+  // height (Y) — that is upright, not Z-tall. Do NOT flip zUp false.
   'node_0.001': { name: 'chair', zUp: true, texMax: TEX_DEFAULT },
   'node_0.002': { name: 'console', zUp: true, texMax: TEX_DEFAULT },
   // Bar/display cabinet (was wrongly mapped as sofa).

@@ -66,7 +66,7 @@ const CATALOG_STREET = {
  */
 const FIT = {
   sofa: { targetHeight: 0.72, maxWidth: 2.15, maxDepth: 1.7 },
-  chair: { targetHeight: 0.78, maxWidth: 0.8, maxDepth: 0.85 },
+  chair: { targetHeight: 0.78, maxWidth: 0.85, maxDepth: 1.05 },
   coffee: { targetHeight: 0.28, maxWidth: 0.95, maxDepth: 0.95 },
   console: { targetHeight: 0.55, maxWidth: 0.95, maxDepth: 0.55 },
   bar: { targetHeight: 0.95, maxWidth: 1.15, maxDepth: 0.55 },
@@ -138,8 +138,8 @@ function basicFromLoft(src, cache) {
 
 /**
  * Detect up axis from AABB, rotate so it becomes +Y, floor to y=0, center XZ.
- * Chair: tallest → Y (GLB still Z-tall). Coffee: shortest → Y (tabletop).
- * Sofa: keep authored Y-up (never flat-heuristic reorient).
+ * Chair/sofa: keep authored Y-up (sling depth can exceed height — never tallest→up).
+ * Coffee/tray/rug: shortest → Y when clearly flat. Plant: tallest → Y if Y short.
  * Mutates `inner` in place (child of a pose Group).
  * @param {THREE.Object3D} inner
  * @param {string} [pieceName] loft piece id
@@ -166,8 +166,10 @@ export function normalizePieceUpright(inner, pieceName = '') {
   let upAxis = 1;
   const name = pieceName || inner.name || '';
   if (name === 'chair' || name.startsWith('chair')) {
-    // Extract can still read Z-tall — tallest → up.
-    upAxis = dims[2].axis;
+    // Leather sling (node_0.001): extract Rx(-90) already floors Y-up.
+    // Authored depth often exceeds height (AABB ~[1.95, 1.86, 2.24]) — tallest→up
+    // would Rx(-90) again and tip the chair onto its side. Keep authored Y.
+    upAxis = 1;
   } else if (name === 'sofa' || name.startsWith('sofa')) {
     // Real sofa (node_0) AABB ~[4.49, 1.81, 5.57] floored Y-up after extract.
     upAxis = 1;

@@ -115,7 +115,8 @@ function basicFromLoftMat(src, cache) {
     color,
     map: src?.map || null,
     name: src?.name ? `loft-${src.name}` : 'loft-mat',
-    side: THREE.FrontSide,
+    // Authored loft mats are DoubleSide; FrontSide blacks out inverted top faces.
+    side: THREE.DoubleSide,
     toneMapped: true
   });
   if (mat.map) {

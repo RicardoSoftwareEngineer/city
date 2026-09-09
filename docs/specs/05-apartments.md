@@ -40,7 +40,7 @@ HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFaca
 
 ## Example sandbox (staging)
 
-Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — **empty shell** + labeled loft **street catalog** (sofa/plant/coffee/console/lamp/chair). Click a catalog sample or `addFromCatalog(name)` clones into the room; `setPose` / `clearRoom` for staging. MeshBasic only. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path. Hard-refresh or `?v=apt-example-3` on the loft GLB if cache sticks.
+Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — **empty shell** + labeled loft **street catalog** (sofa/plant/coffee/console/lamp/chair). **Drag** a catalog sample onto the room floor (or short-click / `addFromCatalog(name)`) to place; **drag** in-room pieces to slide on floor xz (`setPose` on release). Sofa stays authored Y-up + DoubleSide MeshBasic (no black pancake). `clearRoom` resets. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path. Hard-refresh or `?v=apt-example-4` on the loft GLB if cache sticks.
 
 ## Ownership
 

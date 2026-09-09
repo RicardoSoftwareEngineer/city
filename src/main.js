@@ -52,6 +52,7 @@ import { initPersonaHud } from './engine/personaHud.js';
 import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCache.js';
 import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
+import { spawnAptExampleSandbox } from './world/apartments/aptExampleSandbox.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -468,6 +469,14 @@ async function startGame() {
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer, apartmentDirector);
     streetLights.setPoses(stream.streetlightPoses || []);
     streetLights.setNightFactor(dayNight.getNightFactor());
+    // Freestanding apt sandbox at Large_3 corner — piece-by-piece layout (not InstancedMesh bake).
+    void spawnAptExampleSandbox(cityGroup)
+      .then((api) => {
+        window.__cityAptExample = api;
+      })
+      .catch((err) => {
+        console.warn('[apt-example] spawn failed', err);
+      });
     await yieldToMain();
 
     // Progressive campo boot:

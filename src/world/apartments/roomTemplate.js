@@ -16,7 +16,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { loadGltf } from '../AssetLoader.js';
 
 /** Shared loft furniture kit (all furniture/decor; no architecture). */
-export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=full-catalog-1';
+export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=chair-upright-1';
 
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
@@ -43,7 +43,7 @@ const LOFT_PLACEMENTS = {
   // GLB pieces are floored + Y-up — yaw-only. Full living-room subset of the loft catalog
   // (street sandbox exposes every piece via CATALOG_NAMES).
   sofa: { targetHeight: 0.6, maxWidth: 1.9, maxDepth: 1.35, x: 0.05, z: 2.05, yaw: Math.PI },
-  chair: { targetHeight: 0.75, maxWidth: 0.75, maxDepth: 0.85, x: -1.2, z: 1.15, yaw: Math.PI * 0.65 },
+  chair: { targetHeight: 0.75, maxWidth: 0.8, maxDepth: 1.0, x: -1.2, z: 1.15, yaw: Math.PI * 0.65 },
   coffee: { targetHeight: 0.26, maxWidth: 0.9, maxDepth: 0.9, x: 0.0, z: 1.05, yaw: 0 },
   console: { targetHeight: 0.5, maxWidth: 0.9, maxDepth: 0.5, x: 1.45, z: 1.85, yaw: -Math.PI / 2 },
   bar: { targetHeight: 0.85, maxWidth: 1.0, maxDepth: 0.5, x: -1.4, z: 2.0, yaw: Math.PI / 2 },

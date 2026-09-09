@@ -5,8 +5,8 @@
  * ApartmentDirector stamps N instances → one draw per material for all live
  * rooms (≈10 draws total, not N meshes).
  *
- * Furniture: shared loft shortlist GLB (sofa/plant/console/lamp/chair + box coffee) — albedo
- * MeshBasic only (sofa atlas ≥1024), scaled into the shallow room so fabric reads through glass.
+ * Furniture: shared loft catalog GLB (sofa/chair/coffee/console/bar/plant/tray/wallart/rug) — albedo
+ * MeshBasic only (sofa+bar atlas ≥1024), scaled into the shallow room so fabric reads through glass.
  * Curtain: one shared PlaneGeometry + Fabric 203 sheer MeshBasic (InstancedMesh).
  * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
@@ -15,8 +15,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { loadGltf } from '../AssetLoader.js';
 
-/** Shared loft furniture kit (extracted shortlist; no architecture). */
-export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=sofa-albedo-5';
+/** Shared loft furniture kit (all furniture/decor; no architecture). */
+export const LOFT_FURNITURE_URL = '/models/apartments/loft_furniture.glb?v=full-catalog-1';
 
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
@@ -40,14 +40,16 @@ const CURTAIN_MAP_URLS = {
  */
 const LOFT_PLACEMENTS = {
   // Room: X∈[-1.8,1.8], Z∈[0,3.2] (glass at z≈0, opening faces −Z; street looks +Z).
-  // GLB pieces are floored + Y-up — yaw-only here. Sofa faces window; coffee in front;
-  // chair angles in; plant near-glass corner; lamp by sofa; console on +X wall.
-  sofa: { targetHeight: 0.55, maxWidth: 1.8, maxDepth: 1.2, x: 0.05, z: 2.05, yaw: Math.PI },
-  plant: { targetHeight: 1.2, maxWidth: 0.55, maxDepth: 0.55, x: 1.35, z: 0.4, yaw: 0.25 },
-  coffee: { targetHeight: 0.22, maxWidth: 0.9, maxDepth: 0.65, x: 0.0, y: 0.2, z: 1.05, yaw: 0 },
+  // GLB pieces are floored + Y-up — yaw-only. Full living-room subset of the loft catalog
+  // (street sandbox exposes every piece via CATALOG_NAMES).
+  sofa: { targetHeight: 0.6, maxWidth: 1.9, maxDepth: 1.35, x: 0.05, z: 2.05, yaw: Math.PI },
+  chair: { targetHeight: 0.75, maxWidth: 0.75, maxDepth: 0.85, x: -1.2, z: 1.15, yaw: Math.PI * 0.65 },
+  coffee: { targetHeight: 0.26, maxWidth: 0.9, maxDepth: 0.9, x: 0.0, z: 1.05, yaw: 0 },
   console: { targetHeight: 0.5, maxWidth: 0.9, maxDepth: 0.5, x: 1.45, z: 1.85, yaw: -Math.PI / 2 },
-  lamp: { targetHeight: 0.38, maxWidth: 0.5, maxDepth: 0.5, x: -1.4, z: 2.0, yaw: 0.15 },
-  chair: { targetHeight: 0.75, maxWidth: 0.75, maxDepth: 0.85, x: -1.2, z: 1.15, yaw: Math.PI * 0.65 }
+  bar: { targetHeight: 0.85, maxWidth: 1.0, maxDepth: 0.5, x: -1.4, z: 2.0, yaw: Math.PI / 2 },
+  plant: { targetHeight: 1.15, maxWidth: 0.55, maxDepth: 0.55, x: 1.35, z: 0.4, yaw: 0.25 },
+  rug: { targetHeight: 0.015, maxWidth: 2.2, maxDepth: 2.4, x: 0.0, z: 1.5, yaw: 0 },
+  wallart: { targetHeight: 0.7, maxWidth: 0.9, maxDepth: 0.1, x: -1.55, y: 1.2, z: 1.55, yaw: Math.PI / 2 }
 };
 
 /**
@@ -371,9 +373,6 @@ export async function ensureApartmentRoomBaked() {
   });
   const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.65 });
   const artFrame = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
-  // Coffee: loft Cube.007 was skull wall-art — use wood box top + metal legs.
-  const coffeeLegs = std(0x2a2a2a, { emissive: 0x101010, emissiveIntensity: 0.35, name: 'coffee-legs' });
-
   /** @type {Map<object, THREE.BufferGeometry[]>} */
   const buckets = new Map();
 
@@ -394,23 +393,7 @@ export async function ensureApartmentRoomBaked() {
     const loftRoot = await loadGltf(LOFT_FURNITURE_URL);
     if (loftRoot) {
       for (const [pieceName, place] of Object.entries(LOFT_PLACEMENTS)) {
-        if (pieceName === 'coffee') continue; // Cube.007 was skull wall-art — not a table
         pushLoftPiece(buckets, loftRoot, pieceName, place, loftMatCache);
-      }
-      // Wood box coffee top + metal legs (loft had no real coffee mesh).
-      const cf = LOFT_PLACEMENTS.coffee;
-      const coffeeTop = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.35, name: 'coffee-top' });
-      pushBox(buckets, coffeeTop, 0.9, 0.06, 0.5, cf.x, (cf.y ?? 0) + 0.2, cf.z);
-      const leg = 0.04;
-      const legH = 0.2;
-      const span = 0.28;
-      for (const [lx, lz] of [
-        [-span, -span],
-        [span, -span],
-        [-span, span],
-        [span, span]
-      ]) {
-        pushBox(buckets, coffeeLegs, leg, legH, leg, cf.x + lx, legH * 0.5, cf.z + lz);
       }
       loftOk = true;
     }

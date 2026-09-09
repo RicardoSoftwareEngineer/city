@@ -5,5 +5,6 @@ are corrected with Rx(-90) at extract time; sofa/coffee stay local Y-up. Placeme
 
 Note: chair AABB can still read Z-tall after extract — the apt example sandbox
 (src/world/apartments/aptExampleSandbox.js) re-normalizes tallest→Y at load time.
-Sandbox loads this file with ?v=apt-example-2 (hard-refresh if the browser caches).
+Sandbox loads this file with ?v=apt-example-3 (hard-refresh if the browser caches).
+Street catalog picker: empty shell on asphalt + labeled samples on the road; click or __cityAptExample.addFromCatalog(name) to stage into the room.
 Mass InstancedMesh bake remains in roomTemplate.js (product path).

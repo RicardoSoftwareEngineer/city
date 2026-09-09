@@ -469,8 +469,11 @@ async function startGame() {
     const stream = await createCityStream(cityGroup, physicsWorld, originX, originZ, renderer, apartmentDirector);
     streetLights.setPoses(stream.streetlightPoses || []);
     streetLights.setNightFactor(dayNight.getNightFactor());
-    // Freestanding apt sandbox at Large_3 corner — piece-by-piece layout (not InstancedMesh bake).
-    void spawnAptExampleSandbox(cityGroup)
+    // Freestanding apt sandbox: empty shell on asphalt corner + street loft catalog picker.
+    void spawnAptExampleSandbox(cityGroup, {
+      camera: renderer.camera,
+      domElement: canvas
+    })
       .then((api) => {
         window.__cityAptExample = api;
       })

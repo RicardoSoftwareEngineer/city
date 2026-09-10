@@ -1,13 +1,13 @@
 /**
- * MouseInput — Tracks LMB drag (for camera orbit) and scroll (for zoom).
+ * MouseInput — Tracks LMB drag (for camera orbit).
  * RMB is left to ThirdPersonCamera for XZ pan.
  *
  * Provides:
  *   .yaw / .pitch   — accumulated orbit angles from dragging
- *   .zoomDistance    — current zoom level from scroll wheel
+ *   .zoomDistance    — fixed follow-camera distance (not changed by wheel)
  *
- * Ignores drags / wheel that start on HUD or UI buttons.
- * Zoom has a tiny floor only — no upper limit.
+ * Ignores drags that start on HUD or UI buttons.
+ * Mouse wheel never zooms — staging uses wheel for catalog cycle / furniture height.
  */
 
 import { pitchLimits, zoomLimits } from '../camera/cameraLimits.js';
@@ -58,24 +58,12 @@ export class MouseInput {
       this.isDragging = false;
     };
 
-    this.handleWheel = (event) => {
-      if (!this.enabled) return;
-      if (event.target.closest(UI_BLOCK)) return;
-      this.zoomDistance += event.deltaY * 0.035;
-      if (this.zoomDistance < this.minZoom) this.zoomDistance = this.minZoom;
-      if (Number.isFinite(this.maxZoom) && this.zoomDistance > this.maxZoom) {
-        this.zoomDistance = this.maxZoom;
-      }
-      event.preventDefault();
-    };
-
     window.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mouseup', this.handleMouseUp);
-    window.addEventListener('wheel', this.handleWheel, { passive: false });
   }
 
-  /** Staging / UI: cancel look drag without permanently disabling zoom. */
+  /** Staging / UI: cancel look drag. */
   setDragBlocked(blocked) {
     if (blocked) this.isDragging = false;
   }
@@ -98,6 +86,5 @@ export class MouseInput {
     window.removeEventListener('mousedown', this.handleMouseDown);
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('mouseup', this.handleMouseUp);
-    window.removeEventListener('wheel', this.handleWheel);
   }
 }

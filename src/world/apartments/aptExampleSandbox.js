@@ -7,7 +7,7 @@
  *
  * Staging UX:
  * - **Wheel** (not furniture-dragging, pointer near staging): cycle catalog selection
- *   + highlight, including a **(nenhum)** deselect slot; does not zoom / change fly-speed.
+ *   + highlight; slot **0 = (nenhum)** first, then items; never zooms / changes fly-speed.
  * - **HUD** bottom bar shows live thumbnail of the armed catalog sample (offscreen RT).
  * - **LMB** on ground (grass/asphalt plane or room floor): place the selected catalog
  *   item at hit xz, feet floored (no-op when nenhum). Over room footprint → shell; else world.
@@ -990,7 +990,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
 
   /** Catalog names that actually spawned on grass (cycle order). */
   const cycleNames = CATALOG_NAMES.filter((n) => catalog[n]);
-  let selectedIndex = cycleNames.length ? 0 : -1;
+  /** -1 = (nenhum) — boot unarmed so LMB look/pan works without placing. */
+  let selectedIndex = -1;
   /** @type {THREE.Object3D|null} */
   let selectRing = null;
   /** @type {'catalog'|'room'|'world'|null} */
@@ -1018,7 +1019,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return transformControls?.mode || 'translate';
     },
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog east (~x=188+). Staging: wheel cycles catalog incl. (nenhum); HUD live thumbnail; LMB ground places selected (noop if nenhum); RMB pan; Esc=nenhum; W/E/R or 1/2/3 gizmo; drag catalog→room + in-room slide; wheel while drag = height.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog east (~x=188+). Staging: wheel cycles catalog slot0=(nenhum) then items; HUD live thumbnail; LMB ground places selected (noop if nenhum); RMB pan; Esc=nenhum; W/E/R or 1/2/3 gizmo; drag catalog→room + in-room slide; wheel while drag = height.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -1432,15 +1433,15 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
         ? `${gizmoTargetKind}:${gizmoTargetName}`
         : 'nenhum';
     if (selectedIndex < 0 || !api.selectedName) {
-      hudEl.textContent = `Catálogo [—/${total}]: (nenhum)  ·  Gizmo: ${mode} (${tgt})  ·  Esc=nenhum  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
+      hudEl.textContent = `Catálogo [0/${total}]: (nenhum)  ·  Gizmo: ${mode} (${tgt})  ·  Esc=nenhum  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
     } else {
       hudEl.textContent = `Catálogo [${selectedIndex + 1}/${total}]: ${api.selectedName}  ·  Gizmo: ${mode} (${tgt})  ·  1/2/3 ou Alt+W/E/R  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
     }
   }
 
   /**
-   * Select catalog index, or -1 / length for (nenhum).
-   * Wheel uses {@link cycleCatalog} so wrapping includes the nenhum slot.
+   * Select catalog index, or -1 for (nenhum) (conceptual slot 0).
+   * Wheel uses {@link cycleCatalog}: nenhum → item0 → … → wrap.
    * @param {number} index
    */
   function setCatalogSelection(index) {
@@ -1453,7 +1454,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return;
     }
     const len = cycleNames.length;
-    // Sentinel: explicit none (also accept len as virtual slot).
+    // Sentinel: explicit none (-1). Accept len as nenhum for callers that still pass it.
     if (index === -1 || index === len) {
       selectedIndex = -1;
       clearCatalogHighlight();
@@ -1484,14 +1485,15 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     refreshPreview(name, sample || null);
   }
 
-  /** Wheel step across items + trailing (nenhum) sentinel. */
+  /** Wheel step: slot 0=(nenhum), then items 0..len-1, wrap. */
   function cycleCatalog(dir) {
     const len = cycleNames.length;
     if (!len) return;
     const span = len + 1;
-    const cur = selectedIndex < 0 ? len : selectedIndex;
+    // Conceptual slots: 0=nenhum, 1..len = items[0..len-1]
+    const cur = selectedIndex < 0 ? 0 : selectedIndex + 1;
     const next = (((cur + dir) % span) + span) % span;
-    setCatalogSelection(next === len ? -1 : next);
+    setCatalogSelection(next === 0 ? -1 : next - 1);
   }
 
   function syncPoseFromObject(obj, kind, name) {
@@ -1948,12 +1950,14 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return;
     }
 
-    // Cycle catalog (incl. nenhum) when pointer is over staging / showcase.
-    if (!cycleNames.length || !pointerOverStaging(ev)) return;
-    const dir = ev.deltaY > 0 ? 1 : -1;
-    cycleCatalog(dir);
+    // Cycle catalog (slot 0=nenhum first) when pointer is over staging / showcase.
+    // Always consume wheel over staging so nothing else can steal it.
+    if (!pointerOverStaging(ev)) return;
     ev.preventDefault();
     ev.stopImmediatePropagation();
+    if (!cycleNames.length) return;
+    const dir = ev.deltaY > 0 ? 1 : -1;
+    cycleCatalog(dir);
   }
 
   function onPointerUp(ev) {
@@ -2082,11 +2086,11 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
-    // Capture + non-passive so height scroll / catalog cycle wins over zoom.
+    // Capture + non-passive so height scroll / catalog cycle owns the wheel.
     window.addEventListener('wheel', onWheel, { capture: true, passive: false });
     window.addEventListener('keydown', onKeyDown);
 
-    setCatalogSelection(0);
+    setCatalogSelection(-1); // boot: (nenhum) — camera look free
 
     api._unbindPick = () => {
       target.removeEventListener('pointerdown', onPointerDown, true);

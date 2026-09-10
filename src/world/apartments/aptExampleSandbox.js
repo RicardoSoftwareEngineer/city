@@ -2,7 +2,8 @@
  * Freestanding apartment interior **sandbox** on asphalt near Large_3 (≈171,30).
  *
  * Collaborative staging: empty shell on the marked street corner + labeled
- * furniture catalog on the **grass** east of the room (loft-5 + novopo multi-pack).
+ * furniture + cars + architecture catalog on the **grass** east of the room
+ * (loft-5 + novopo furniture + novopo extras). Zones: furniture | cars | arch.
  * Click or **drag** a catalog sample onto the room floor (or call
  * `addFromCatalog`) to place a piece; drag in-room pieces to slide on the
  * floor. While dragging, **mouse wheel** raises/lowers Y (scroll up → raise;
@@ -14,11 +15,12 @@
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
 import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
-import { LOFT_FURNITURE_URL, NOVOPO_FURNITURE_URL } from './roomTemplate.js';
+import { LOFT_FURNITURE_URL, NOVOPO_FURNITURE_URL, NOVOPO_EXTRAS_URL } from './roomTemplate.js';
 
 /** Cache-bust so browser/disk cache cannot keep a tipped extract. */
 const LOFT_URL = LOFT_FURNITURE_URL; // cache-bust lives on LOFT_FURNITURE_URL
 const NOVOPO_URL = NOVOPO_FURNITURE_URL;
+const NOVOPO_EXTRAS = NOVOPO_EXTRAS_URL;
 
 /**
  * Large_3@171,30 east facade; green-rect corner on N–S asphalt (street x≈180).
@@ -46,7 +48,7 @@ export const LOFT_CATALOG_NAMES = [
   'rug'
 ];
 
-/** Novopo multi-pack furniture/decor (jp11 + remaining interiors; cars skipped). */
+/** Novopo multi-pack furniture/decor (jp11 + remaining interiors). */
 export const NOVOPO_CATALOG_NAMES = [
   'jp_cushion',
   'jp_tea_set',
@@ -142,8 +144,50 @@ export const NOVOPO_CATALOG_NAMES = [
   'clock_stand'
 ];
 
-/** Full catalog order (loft-5 first, then novopo packs). */
-export const CATALOG_NAMES = [...LOFT_CATALOG_NAMES, ...NOVOPO_CATALOG_NAMES];
+/** Cars from interior_9 (novopo_extras.glb). */
+export const CAR_CATALOG_NAMES = ['car_a', 'car_b'];
+
+/** Architecture panels / beams / windows / doors (novopo_extras.glb). */
+export const ARCH_CATALOG_NAMES = [
+  'arch_i9_slab',
+  'arch_i9_floor',
+  'arch_i9_wall',
+  'arch_i9_windows',
+  'arch_i9_wall_b',
+  'arch_i9_garage_door',
+  'arch_i9_wall_c',
+  'arch_l6_beam',
+  'arch_l6_ledge',
+  'arch_l6_plank',
+  'arch_l6_window',
+  'arch_l6_pane',
+  'arch_l2_beam',
+  'arch_l2_ledge',
+  'arch_l2_window',
+  'arch_l2_window_b',
+  'arch_l2_pipe',
+  'arch_l2_stair',
+  'arch_l13_beam',
+  'arch_l13_ceiling',
+  'arch_l13_plinth',
+  'arch_bed_structure',
+  'arch_bed_floor',
+  'arch_bed_window',
+  'arch_mini_shell',
+  'arch_mini_window',
+  'arch_jp_wall',
+  'arch_jp_wall_b',
+  'arch_jp_floor',
+  'arch_jp_window'
+];
+
+/** Full catalog order: furniture, then cars, then architecture. */
+export const CATALOG_NAMES = [
+  ...LOFT_CATALOG_NAMES,
+  ...NOVOPO_CATALOG_NAMES,
+  ...CAR_CATALOG_NAMES,
+  ...ARCH_CATALOG_NAMES
+];
 
 /**
  * Default in-room slots (room local: glass≈z=0, depth +Z, width X).
@@ -252,21 +296,53 @@ const DEFAULT_SLOTS = {
   chair2_4: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
   chair2_5: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
   chair2_6: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
-  clock_stand: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 }
+  clock_stand: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  // Cars + architecture — center drop; user drags (may be large)
+  car_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  car_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_slab: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_floor: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_wall: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_windows: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_wall_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_garage_door: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_i9_wall_c: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l6_beam: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l6_ledge: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l6_plank: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l6_window: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l6_pane: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_beam: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_ledge: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_window: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_window_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_pipe: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l2_stair: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l13_beam: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l13_ceiling: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_l13_plinth: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_bed_structure: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_bed_floor: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_bed_window: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_mini_shell: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_mini_window: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_jp_wall: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_jp_wall_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_jp_floor: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  arch_jp_window: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 }
 };
 
 /**
- * Grass showcase grid east of the apt sandbox (outside asphalt lane).
+ * Grass showcase zones east of the apt sandbox (outside asphalt lane).
  * Sidewalk/grass Y≈0; cols grow +X, rows grow −Z (north).
+ * Furniture first, then a gap, cars (wider spacing), gap, architecture.
  */
-const CATALOG_GRASS = {
-  x0: 188.0,
-  z0: 28.0,
-  dx: 1.7,
-  dz: -1.7,
-  cols: 10, // denser grid — ~100 catalog pieces
-  yaw: Math.PI * 0.12,
-  y: 0.02 // sidewalk / grass top (ASPHALT is −0.15)
+const CATALOG_Y = 0.02; // sidewalk / grass top (ASPHALT is −0.15)
+const CATALOG_YAW = Math.PI * 0.12;
+const CATALOG_ZONE = {
+  furniture: { x0: 188.0, z0: 28.0, dx: 1.7, dz: -1.7, cols: 10 },
+  cars: { x0: 188.0, dx: 4.0, dz: -4.0, cols: 2, gapRows: 2 },
+  architecture: { x0: 188.0, dx: 2.2, dz: -2.2, cols: 8, gapRows: 2 }
 };
 
 /**
@@ -375,8 +451,48 @@ const FIT = {
   chair2_4: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
   chair2_5: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
   chair2_6: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
-  clock_stand: { targetHeight: 1.85, maxWidth: 0.85, maxDepth: 0.7 }
+  clock_stand: { targetHeight: 1.85, maxWidth: 0.85, maxDepth: 0.7 },
+  car_a: { targetHeight: 1.15, maxWidth: 2.0, maxDepth: 4.2 },
+  car_b: { targetHeight: 1.35, maxWidth: 2.2, maxDepth: 4.5 },
+  // Architecture — shrink huge walls/floors to ~human-readable showcase size
+  arch_i9_slab: { targetHeight: 1.6, maxWidth: 2.4, maxDepth: 0.35 },
+  arch_i9_floor: { targetHeight: 0.08, maxWidth: 2.4, maxDepth: 2.6 },
+  arch_i9_wall: { targetHeight: 1.8, maxWidth: 0.35, maxDepth: 2.6 },
+  arch_i9_windows: { targetHeight: 1.2, maxWidth: 2.6, maxDepth: 2.6 },
+  arch_i9_wall_b: { targetHeight: 1.8, maxWidth: 2.4, maxDepth: 0.55 },
+  arch_i9_garage_door: { targetHeight: 1.8, maxWidth: 2.4, maxDepth: 0.25 },
+  arch_i9_wall_c: { targetHeight: 1.8, maxWidth: 0.35, maxDepth: 2.4 },
+  arch_l6_beam: { targetHeight: 0.55, maxWidth: 1.2, maxDepth: 2.6 },
+  arch_l6_ledge: { targetHeight: 0.08, maxWidth: 1.4, maxDepth: 2.6 },
+  arch_l6_plank: { targetHeight: 0.06, maxWidth: 2.2, maxDepth: 1.2 },
+  arch_l6_window: { targetHeight: 1.4, maxWidth: 2.2, maxDepth: 0.25 },
+  arch_l6_pane: { targetHeight: 1.4, maxWidth: 1.0, maxDepth: 0.15 },
+  arch_l2_beam: { targetHeight: 0.45, maxWidth: 2.6, maxDepth: 0.55 },
+  arch_l2_ledge: { targetHeight: 0.35, maxWidth: 2.6, maxDepth: 0.25 },
+  arch_l2_window: { targetHeight: 1.8, maxWidth: 2.6, maxDepth: 2.2 },
+  arch_l2_window_b: { targetHeight: 1.8, maxWidth: 2.6, maxDepth: 1.6 },
+  arch_l2_pipe: { targetHeight: 0.08, maxWidth: 0.15, maxDepth: 2.4 },
+  arch_l2_stair: { targetHeight: 1.6, maxWidth: 2.4, maxDepth: 1.6 },
+  arch_l13_beam: { targetHeight: 0.12, maxWidth: 2.4, maxDepth: 0.2 },
+  arch_l13_ceiling: { targetHeight: 0.1, maxWidth: 2.4, maxDepth: 2.4 },
+  arch_l13_plinth: { targetHeight: 0.12, maxWidth: 2.6, maxDepth: 2.2 },
+  arch_bed_structure: { targetHeight: 1.8, maxWidth: 2.6, maxDepth: 2.6 },
+  arch_bed_floor: { targetHeight: 0.04, maxWidth: 2.4, maxDepth: 2.4 },
+  arch_bed_window: { targetHeight: 1.4, maxWidth: 0.15, maxDepth: 1.2 },
+  arch_mini_shell: { targetHeight: 1.8, maxWidth: 2.6, maxDepth: 2.6 },
+  arch_mini_window: { targetHeight: 1.2, maxWidth: 0.15, maxDepth: 1.1 },
+  arch_jp_wall: { targetHeight: 1.8, maxWidth: 0.25, maxDepth: 2.6 },
+  arch_jp_wall_b: { targetHeight: 1.8, maxWidth: 2.6, maxDepth: 0.25 },
+  arch_jp_floor: { targetHeight: 0.04, maxWidth: 2.6, maxDepth: 2.6 },
+  arch_jp_window: { targetHeight: 1.8, maxWidth: 2.4, maxDepth: 0.15 }
 };
+
+function fitFor(name) {
+  if (FIT[name]) return FIT[name];
+  if (name.startsWith('car_')) return { targetHeight: 1.2, maxWidth: 2.1, maxDepth: 4.3 };
+  if (name.startsWith('arch_')) return { targetHeight: 1.6, maxWidth: 2.4, maxDepth: 2.4 };
+  return null;
+}
 
 const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
 
@@ -497,8 +613,14 @@ export function normalizePieceUpright(inner, pieceName = '') {
   ) {
     // Canvas / shelf slab: keep authored Y-up (tall face).
     upAxis = 1;
-  } else if (name === 'bar' || name.startsWith('bar') || name.startsWith('jp_')) {
-    // Novopo JP extracts are already floored Y-up — never re-tip.
+  } else if (
+    name === 'bar' ||
+    name.startsWith('bar') ||
+    name.startsWith('jp_') ||
+    name.startsWith('car_') ||
+    name.startsWith('arch_')
+  ) {
+    // Novopo extracts (JP / cars / arch) are already floored Y-up — never re-tip.
     upAxis = 1;
   } else if (sy < dims[2].s * 0.85 && (name === 'plant' || name.startsWith('plant'))) {
     upAxis = dims[2].axis;
@@ -608,7 +730,7 @@ function extractPiece(loftRootOrMap, name, matCache) {
   pose.name = name;
   pose.add(inner);
 
-  const fit = FIT[name];
+  const fit = fitFor(name);
   const fitScale = fit ? fitUniformScale(pose, fit) : 1;
   // Scale the pose group uniformly; re-floor inner after so feet stay on y=0.
   pose.scale.setScalar(fitScale);
@@ -781,35 +903,53 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   indexPieces(loftRoot, LOFT_CATALOG_NAMES);
   const novopoRoot = await loadGltf(NOVOPO_URL);
   indexPieces(novopoRoot, NOVOPO_CATALOG_NAMES);
-  // Keep loftRoot truthy if either kit loaded (addFromCatalog gate).
-  if (!loftRoot && novopoRoot) loftRoot = novopoRoot;
+  const extrasRoot = await loadGltf(NOVOPO_EXTRAS);
+  indexPieces(extrasRoot, [...CAR_CATALOG_NAMES, ...ARCH_CATALOG_NAMES]);
+  // Keep loftRoot truthy if any kit loaded (addFromCatalog gate).
+  if (!loftRoot && (novopoRoot || extrasRoot)) loftRoot = novopoRoot || extrasRoot;
 
-  if (pieceSource.size) {
-    for (let i = 0; i < CATALOG_NAMES.length; i++) {
-      const name = CATALOG_NAMES[i];
+  /**
+   * Place named samples on grass in a zone; returns next z0 (north of last row + gap).
+   * @param {string[]} names
+   * @param {{x0:number,z0:number,dx:number,dz:number,cols:number,gapRows?:number}} zone
+   */
+  function placeZone(names, zone) {
+    let lastRow = -1;
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
       const sample = extractPiece(pieceSource, name, matCache);
       if (!sample) continue;
       sample.name = `catalog-${name}`;
       sample.userData.aptCatalogName = name;
       sample.userData.aptIsCatalog = true;
-      const col = i % CATALOG_GRASS.cols;
-      const row = Math.floor(i / CATALOG_GRASS.cols);
-      const wx = CATALOG_GRASS.x0 + col * CATALOG_GRASS.dx;
-      const wz = CATALOG_GRASS.z0 + row * CATALOG_GRASS.dz;
-      sample.position.set(wx, CATALOG_GRASS.y, wz);
-      sample.rotation.y = CATALOG_GRASS.yaw;
-      // Re-floor on grass after world place.
+      const col = i % zone.cols;
+      const row = Math.floor(i / zone.cols);
+      lastRow = row;
+      const wx = zone.x0 + col * zone.dx;
+      const wz = zone.z0 + row * zone.dz;
+      sample.position.set(wx, CATALOG_Y, wz);
+      sample.rotation.y = CATALOG_YAW;
       sample.updateMatrixWorld(true);
       _box.setFromObject(sample);
       if (!_box.isEmpty()) {
-        sample.position.y -= _box.min.y - CATALOG_GRASS.y;
+        sample.position.y -= _box.min.y - CATALOG_Y;
       }
       sample.add(makeLabelSprite(name));
       catalogGroup.add(sample);
       catalog[name] = sample;
     }
+    const rowsUsed = Math.max(0, lastRow + 1);
+    const gap = zone.gapRows ?? 0;
+    return zone.z0 + (rowsUsed + gap) * zone.dz;
+  }
+
+  if (pieceSource.size) {
+    const furnNames = [...LOFT_CATALOG_NAMES, ...NOVOPO_CATALOG_NAMES];
+    let nextZ = placeZone(furnNames, CATALOG_ZONE.furniture);
+    nextZ = placeZone(CAR_CATALOG_NAMES, { ...CATALOG_ZONE.cars, z0: nextZ });
+    placeZone(ARCH_CATALOG_NAMES, { ...CATALOG_ZONE.architecture, z0: nextZ });
   } else {
-    console.warn('[apt-example] furniture GLBs failed — shell only');
+    console.warn('[apt-example] furniture/extras GLBs failed — shell only');
   }
 
   parent.add(root);
@@ -825,7 +965,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     layout,
     catalogNames: [...CATALOG_NAMES],
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; furniture catalog GRID on grass east (~x=188–205, z=28→north) loft-5+novopo packs. Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog zones east (~x=188+, z=28→north): furniture | cars | architecture (loft-5+novopo packs+extras). Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).

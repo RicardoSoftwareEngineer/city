@@ -30,7 +30,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
 | Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
-| Example sandbox | asphalt corner near `Large_3@171,30` + street catalog | `window.__cityAptExample` — empty shell + loft picker; staging only |
+| Example sandbox | asphalt corner near `Large_3@171,30` + grass catalog zones | `window.__cityAptExample` — empty shell + furniture/cars/arch picker; staging only |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.
@@ -40,7 +40,7 @@ HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFaca
 
 ## Example sandbox (staging)
 
-Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — **empty shell** + labeled loft **street catalog** (sofa/plant/console/lamp/chair; coffee = box proxy — loft Cube.007 was skull wall-art). **Drag** a catalog sample onto the room floor (or short-click / `addFromCatalog(name)`) to place; **drag** in-room pieces to slide on floor xz (`setPose` on release). While dragging, **mouse wheel** adjusts lift Y (scroll up / negative `deltaY` → raise; clamp 0–2.5 m); wheel is consumed so free-flight fly-speed / follow zoom do not change. Sofa/chair stay authored Y-up + DoubleSide MeshBasic (no black pancake / tipped sling). `clearRoom` resets. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path. Hard-refresh or `?v=chair-upright-1` on the loft GLB if cache sticks. Sofa albedo must stay ≥1024 so fabric cushions read (not black chassis).
+Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30.00` (`src/world/apartments/aptExampleSandbox.js`) — **empty shell** + labeled grass **catalog zones** (furniture | cars | architecture): loft-5 + novopo furniture (`novopo_furniture.glb`) + novopo extras (`novopo_extras.glb`, `car_*` / `arch_*`). **Drag** a catalog sample onto the room floor (or short-click / `addFromCatalog(name)`) to place; **drag** in-room pieces to slide on floor xz (`setPose` on release). While dragging, **mouse wheel** adjusts lift Y (scroll up / negative `deltaY` → raise; clamp 0–2.5 m); wheel is consumed so free-flight fly-speed / follow zoom do not change. Sofa/chair/cars/arch stay authored Y-up + DoubleSide MeshBasic. `clearRoom` resets. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path (loft furniture shortlist only). Hard-refresh or `?v=` cache-bust on GLBs if cache sticks.
 
 ## Ownership
 

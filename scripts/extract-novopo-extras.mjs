@@ -1,13 +1,13 @@
 /**
- * Extract remaining novopo packs (+ keep JP) → lean floored Y-up GLB.
+ * Extract novopo cars + architecture → lean floored Y-up GLB (`novopo_extras.glb`).
  *
- * Furniture/decor only — cars + architecture live in extract-novopo-extras.mjs.
- * Skip Point/Sun/Spot lights here.
- * FBX node packs: local mesh verts + Rx(-90) (same as loft_5 / jp11).
- * Hierarchical packs (shelves/chairs/clock): bake transforms under piece root.
+ * Cars: interior_9 node_0 / node_0.001 (steering-wheel atlases) → car_*.
+ * Architecture: separable wall/floor/window/beam/door panels from packs → arch_*.
+ * Skip HDRI spheres, Point/Sun/Spot lights, furniture already in novopo_furniture.glb.
+ * Dedup identical siblings. Lean textures (arch ≤256 JPEG; cars ≤512 / hero 1024 PNG).
  *
  * Usage:
- *   NODE_PATH=/tmp/loft-tools/node_modules node scripts/extract-novopo-packs.mjs
+ *   NODE_PATH=/tmp/loft-tools/node_modules node scripts/extract-novopo-extras.mjs
  */
 import fs from 'fs';
 import { createRequire } from 'module';
@@ -32,204 +32,101 @@ if (!sharp) throw new Error('sharp not found — npm i sharp in /tmp/loft-tools'
 
 const SRC_DIR = process.env.NOVOPO_SRC_DIR || '/workspace/uploads/novopo-interiors';
 const OUT =
-  process.env.NOVOPO_OUT ||
-  '/workspace/city/public/models/apartments/novopo_furniture.glb';
-const TEX_DEFAULT = 512;
-const TEX_HERO = 1024;
+  process.env.NOVOPO_EXTRAS_OUT ||
+  '/workspace/city/public/models/apartments/novopo_extras.glb';
+const TEX_ARCH = 256;
+const TEX_CAR = 512;
+const TEX_CAR_HERO = 1024;
 
 /**
- * Pack definitions.
- * pieces: parentName → { name, mode:'localZUp'|'bake', texMax?, texFormat?, brighten? }
- * For clock, synthetic multi-root via `combineRoots`.
+ * Pack definitions for cars + architecture only.
+ * pieces: parentName → { name, mode:'bake', texMax?, texFormat?, brighten? }
  */
 const PACKS = [
   {
-    id: 'jp11',
-    file: 'loft_japanese_11_free_interior.glb',
+    id: 'i9',
+    file: 'interior_9_free_with_cars.glb',
     pieces: {
-      node_0: { name: 'jp_cushion', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.005': { name: 'jp_tea_set', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'node_0.006': { name: 'jp_geisha', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.007': { name: 'jp_moongate', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.008': { name: 'jp_stone_lantern', mode: 'bake', texMax: TEX_DEFAULT },
-      Cube: { name: 'jp_mat_a', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.001': { name: 'jp_mat_b', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.002': { name: 'jp_slat_mat', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.003': { name: 'jp_wood_bench', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.009': { name: 'jp_table_geo', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'Cube.010': { name: 'jp_art_roofs', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.011': { name: 'jp_art_street', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'Cube.012': { name: 'jp_shelf_ledge', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.013': { name: 'jp_knit_pillow', mode: 'bake', texMax: TEX_DEFAULT },
-      Cylinder: { name: 'jp_rug_round', mode: 'bake', texMax: TEX_DEFAULT },
-      Sphere: { name: 'jp_paper_lantern', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.005': { name: 'jp_art_py', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.006': { name: 'jp_art_wind', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.007': { name: 'jp_art_py2', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.008': { name: 'jp_art_wind2', mode: 'bake', texMax: TEX_DEFAULT }
+      // Cars (previously skipped)
+      node_0: { name: 'car_a', mode: 'bake', texMax: TEX_CAR_HERO, texFormat: 'png', brighten: 1.05 },
+      'node_0.001': { name: 'car_b', mode: 'bake', texMax: TEX_CAR_HERO, texFormat: 'png' },
+      // Architecture
+      Cube: { name: 'arch_i9_slab', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.001': { name: 'arch_i9_floor', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.001': { name: 'arch_i9_wall', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.002': { name: 'arch_i9_windows', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.003': { name: 'arch_i9_wall_b', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.005': { name: 'arch_i9_garage_door', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.007': { name: 'arch_i9_wall_c', mode: 'bake', texMax: TEX_ARCH }
     },
-    skipNote: 'architecture Planes/Cubes, Point lights; JP siblings deduped'
+    skipNote: 'furniture i9_*; Point lights; Plane floor/ceil thin sheets; Cylinder window grid'
   },
   {
     id: 'l6',
     file: 'loft_interior_6_for_free.glb',
     pieces: {
-      // Living + kitchen furniture (skip room shell / HDRI / Sun)
-      node_0: { name: 'l6_sofa', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'node_0.001': { name: 'l6_kitchen', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.002': { name: 'l6_dining', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.003': { name: 'l6_cabinet', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.004': { name: 'l6_sofa_b', mode: 'bake', texMax: TEX_DEFAULT }, // .005 dupe
-      'node_0.006': { name: 'l6_tray', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.002': { name: 'l6_coffee_a', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.007': { name: 'l6_coffee_b', mode: 'bake', texMax: TEX_DEFAULT },
-      Cylinder: { name: 'l6_island', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.002': { name: 'l6_rug', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.005': { name: 'l6_art_tall', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.007': { name: 'l6_art', mode: 'bake', texMax: TEX_DEFAULT } // .008–.011 similar
+      'Cube.003': { name: 'arch_l6_beam', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.004': { name: 'arch_l6_ledge', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.005': { name: 'arch_l6_plank', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.006': { name: 'arch_l6_window', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.004': { name: 'arch_l6_pane', mode: 'bake', texMax: TEX_ARCH } // .006 dupe
     },
-    skipNote: 'Cube/Cube.001/003–006/008 walls+beams, Plane floor/ceil/windows, Sphere HDRI, Sun; sofa_b/art siblings deduped'
+    skipNote: 'furniture l6_*; Cube/Cube.001/008 room shells; Plane floor/ceil; Sphere HDRI; Sun; sofa_b twin'
   },
   {
     id: 'l2',
     file: 'loft2_free_interior.glb',
     pieces: {
-      'node_0.001': { name: 'l2_coffee', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.004': { name: 'l2_plant', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.005': { name: 'l2_chair', mode: 'bake', texMax: TEX_DEFAULT }, // .006/.007 dupe
-      'node_0.008': { name: 'l2_bust', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.002': { name: 'l2_side_table', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.003': { name: 'l2_art', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.005': { name: 'l2_pedestal', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.010': { name: 'l2_rug', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      Sphere: { name: 'l2_pendant', mode: 'bake', texMax: TEX_DEFAULT }
+      'Cube.001': { name: 'arch_l2_beam', mode: 'bake', texMax: TEX_ARCH }, // .010 dupe
+      'Cube.004': { name: 'arch_l2_ledge', mode: 'bake', texMax: TEX_ARCH }, // .011 dupe
+      'Cube.006': { name: 'arch_l2_window', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.009': { name: 'arch_l2_window_b', mode: 'bake', texMax: TEX_ARCH },
+      Cylinder: { name: 'arch_l2_pipe', mode: 'bake', texMax: TEX_ARCH }, // metal pipe siblings deduped
+      'Plane.001': { name: 'arch_l2_stair', mode: 'bake', texMax: TEX_ARCH } // .006 dupe
     },
-    skipNote: 'Cube.006/008/009 window frames, metal pipe Cylinders, floor/wall Planes, Camera/Point/Spot; LC3 chairs deduped'
+    skipNote: 'furniture l2_*; LC3 chair twins; pipe Cylinder siblings; floor/wall Planes; Camera/Point/Spot'
   },
   {
     id: 'l13',
     file: 'loft_13_living_room_interior.glb',
     pieces: {
-      node_0: { name: 'l13_sofa', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'node_0.001': { name: 'l13_chair_a', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.002': { name: 'l13_chair_b', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.003': { name: 'l13_ottoman', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.004': { name: 'l13_decor_small', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.005': { name: 'l13_chair_c', mode: 'bake', texMax: TEX_DEFAULT }, // .006 rotated dupe-ish
-      'node_0.007': { name: 'l13_table', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.008': { name: 'l13_console', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.002': { name: 'l13_rug', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cylinder.002': { name: 'l13_plant_a', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cylinder.003': { name: 'l13_plant_b', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cylinder.006': { name: 'l13_pot', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cylinder.010': { name: 'l13_plant_c', mode: 'bake', texMax: TEX_DEFAULT },
-      'af939a6810faf504959fd49dac667515-no-bg-preview (carve.photos)': {
-        name: 'l13_pillow_a',
-        mode: 'bake',
-        texMax: TEX_DEFAULT
-      },
-      'af939a6810faf504959fd49dac667515-no-bg-preview (carve.photos).001': {
-        name: 'l13_pillow_b',
-        mode: 'bake',
-        texMax: TEX_DEFAULT
-      },
-      'bb1df458974c08eead98c145cac0afff-no-bg-preview (carve.photos).001': {
-        name: 'l13_art_carve',
-        mode: 'bake',
-        texMax: TEX_DEFAULT
-      }
+      Cube: { name: 'arch_l13_beam', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.001': { name: 'arch_l13_ceiling', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.001': { name: 'arch_l13_plinth', mode: 'bake', texMax: TEX_ARCH }
     },
-    skipNote: 'Plane room shell, Cube ceiling beams, Sphere lights-as-mesh, Point lights, photo wall planes'
+    skipNote: 'furniture l13_*; Plane room shell; Sphere light meshes; Point/Spot; photo-wall planes'
   },
   {
     id: 'bed',
     file: 'interior_8_bedroom.glb',
     pieces: {
-      node_0: { name: 'bed_platform', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'node_0.001': { name: 'bed_plant', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.002': { name: 'bed_egg_chair', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'Plane.003': { name: 'bed_rug', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.007': { name: 'bed_art_a', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.008': { name: 'bed_art_b', mode: 'bake', texMax: TEX_DEFAULT },
-      Cylinder: { name: 'bed_pendant', mode: 'bake', texMax: TEX_DEFAULT }, // .001 dupe
-      'Cube.001': { name: 'bed_nightstand', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.003': { name: 'bed_books', mode: 'bake', texMax: TEX_DEFAULT }
+      Cube: { name: 'arch_bed_structure', mode: 'bake', texMax: TEX_ARCH },
+      Plane: { name: 'arch_bed_floor', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.005': { name: 'arch_bed_window', mode: 'bake', texMax: TEX_ARCH } // .006 dupe
     },
-    skipNote: 'Cube/Cube.007 room shell, floor/wall Planes, Point lights; pendant sibling deduped'
+    skipNote: 'furniture bed_*; Cube.007 full shell; pendant twin; Point lights'
   },
   {
     id: 'mini',
     file: 'interior_15_mini_loft.glb',
     pieces: {
-      node_0: { name: 'mini_sofa', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'node_0.001': { name: 'mini_lounge', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.002': { name: 'mini_table', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.003': { name: 'mini_console', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.004': { name: 'mini_shelf', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      Cube: { name: 'mini_kitchen', mode: 'bake', texMax: TEX_DEFAULT },
-      'Cube.002': { name: 'mini_coffee', mode: 'bake', texMax: TEX_DEFAULT },
-      'Plane.001': { name: 'mini_rug', mode: 'bake', texMax: TEX_DEFAULT }
+      Plane: { name: 'arch_mini_shell', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.002': { name: 'arch_mini_window', mode: 'bake', texMax: TEX_ARCH } // .004 similar
     },
-    skipNote: 'Plane room shell, Sphere HDRI, wall art Planes.002/.004'
+    skipNote: 'furniture mini_*; Sphere HDRI; Plane.004 window twin'
   },
   {
-    id: 'i9',
-    file: 'interior_9_free_with_cars.glb',
+    id: 'jp11',
+    file: 'loft_japanese_11_free_interior.glb',
     pieces: {
-      // SKIP node_0 + node_0.001 (cars — steering-wheel atlases)
-      'node_0.002': { name: 'i9_rack', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'node_0.003': { name: 'i9_tire_rack', mode: 'bake', texMax: TEX_DEFAULT },
-      'node_0.004': { name: 'i9_bed', mode: 'bake', texMax: TEX_HERO, texFormat: 'png', brighten: 1.05 },
-      'Plane.004': { name: 'i9_rug', mode: 'bake', texMax: TEX_DEFAULT }
+      'Cube.006': { name: 'arch_jp_wall', mode: 'bake', texMax: TEX_ARCH },
+      'Cube.007': { name: 'arch_jp_wall_b', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.002': { name: 'arch_jp_floor', mode: 'bake', texMax: TEX_ARCH },
+      'Plane.003': { name: 'arch_jp_window', mode: 'bake', texMax: TEX_ARCH }
     },
-    skipNote: 'CARS + architecture → extract-novopo-extras.mjs; Point lights kept skipped here'
-  },
-  {
-    id: 'shelf',
-    file: 'loft_style_shelfs.glb',
-    pieces: {
-      'Shelf 1': { name: 'shelf_1', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 2': { name: 'shelf_2', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 3': { name: 'shelf_3', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 4': { name: 'shelf_4', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 5.002': { name: 'shelf_5', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 6': { name: 'shelf_6', mode: 'bake', texMax: TEX_DEFAULT },
-      'Shelf 7': { name: 'shelf_7', mode: 'bake', texMax: TEX_DEFAULT }
-    },
-    skipNote: 'none — all shelf units are furniture'
-  },
-  {
-    id: 'chair2',
-    file: 'loft_style_chairs.glb',
-    pieces: {
-      // Prefer Beweld high-poly when duplicate silhouette exists
-      Chair_1_0_ALIAS: null, // placeholder removed below
-      'Chair 1_0': { name: 'chair2_1', mode: 'bake', texMax: TEX_DEFAULT },
-      'Chair 2 Beweld_1': { name: 'chair2_2', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'Chair 3 Beweld_7': { name: 'chair2_3', mode: 'bake', texMax: TEX_HERO, texFormat: 'png' },
-      'Chair 4_3': { name: 'chair2_4', mode: 'bake', texMax: TEX_DEFAULT },
-      'Chair 5 Beweld_6': { name: 'chair2_5', mode: 'bake', texMax: TEX_DEFAULT },
-      'Chair 6_5': { name: 'chair2_6', mode: 'bake', texMax: TEX_DEFAULT }
-    },
-    skipNote: 'low-poly Chair 2_8 / 3_2 / 5_4 skipped (Beweld kept)'
-  },
-  {
-    id: 'clock',
-    file: 'vintage_stand_clock.glb',
-    combine: {
-      name: 'clock_stand',
-      roots: ['Clock_Exterior', 'Pendalo', 'Clock'],
-      mode: 'bake',
-      texMax: TEX_HERO,
-      texFormat: 'png'
-    },
-    pieces: {},
-    skipNote: 'none — whole clock assembled as one piece'
+    skipNote: 'furniture jp_*; Cube.004/005 huge floors; Sphere.002 HDRI; cushion/pillow siblings; Point'
   }
 ];
-
-// clean placeholder
-delete PACKS.find((p) => p.id === 'chair2').pieces.Chair_1_0_ALIAS;
 
 function rxNeg90(arr) {
   const out = new Float32Array(arr.length);
@@ -369,20 +266,21 @@ function collectBakedPrims(roots) {
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const doc = new Document();
 const buffer = doc.createBuffer();
-const scene = doc.createScene('novopo_furniture');
+const scene = doc.createScene('novopo_extras');
 const matMap = new Map();
 const texMap = new Map();
 const packCounts = {};
+const kindCounts = { car: 0, arch: 0 };
 
 function rank(opts) {
-  const max = opts.texMax || TEX_DEFAULT;
+  const max = opts.texMax || TEX_ARCH;
   const fmt = opts.texFormat === 'png' ? 2 : 1;
   return max * 10 + fmt;
 }
 
 async function cloneTexture(tex, opts = {}) {
   if (!tex) return null;
-  const texMax = opts.texMax || TEX_DEFAULT;
+  const texMax = opts.texMax || TEX_ARCH;
   const texFormat = opts.texFormat || 'jpeg';
   const brighten = opts.brighten || 1;
   const cacheKey = `${texMax}:${texFormat}:${brighten}`;
@@ -405,7 +303,7 @@ async function cloneTexture(tex, opts = {}) {
       img = await pipeline.png({ compressionLevel: 6 }).toBuffer();
       mime = 'image/png';
     } else {
-      img = await pipeline.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+      img = await pipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer();
       mime = 'image/jpeg';
     }
   }
@@ -422,7 +320,7 @@ async function cloneMaterial(mat, opts = {}) {
       .setMetallicFactor(0)
       .setRoughnessFactor(1);
   }
-  const key = `${mat.getName() || 'mat'}::${opts.texMax || TEX_DEFAULT}:${opts.texFormat || 'jpeg'}:${opts.brighten || 1}`;
+  const key = `${mat.getName() || 'mat'}::${opts.texMax || TEX_ARCH}:${opts.texFormat || 'jpeg'}:${opts.brighten || 1}`;
   if (matMap.has(key)) return matMap.get(key);
   const nm = doc
     .createMaterial(mat.getName() || 'mat')
@@ -461,7 +359,7 @@ async function emitPiece(pieceName, packId, meta, baked) {
   const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
   if (size[1] < 1e-4) size[1] = 0.002;
   const texOpts = {
-    texMax: meta.texMax || TEX_DEFAULT,
+    texMax: meta.texMax || TEX_ARCH,
     texFormat: meta.texFormat || 'jpeg',
     brighten: meta.brighten || 1
   };
@@ -504,13 +402,16 @@ async function emitPiece(pieceName, packId, meta, baked) {
     outMesh.addPrimitive(outPrim);
   }
   const node = doc.createNode(pieceName).setMesh(outMesh);
+  const kind = pieceName.startsWith('car_') ? 'car' : 'arch';
   node.setExtras({
     size: size.map((x) => +x.toFixed(4)),
     loftPiece: pieceName,
-    pack: packId
+    pack: packId,
+    kind
   });
   scene.addChild(node);
   packCounts[packId] = (packCounts[packId] || 0) + 1;
+  kindCounts[kind] = (kindCounts[kind] || 0) + 1;
   return true;
 }
 
@@ -548,21 +449,10 @@ for (const pack of PACKS) {
     continue;
   }
   console.log('\n====', pack.id, pack.file);
-  // Reset tex/mat maps per pack so shared atlases don't cross-contaminate rank across packs
   texMap.clear();
   matMap.clear();
   const src = await io.read(path);
   const root = src.getRoot();
-
-  if (pack.combine) {
-    const roots = pack.combine.roots.map((n) => findNamed(root, n)).filter(Boolean);
-    if (roots.length !== pack.combine.roots.length) {
-      console.warn('  combine missing roots', pack.combine.roots);
-    } else {
-      const baked = collectBakedPrims(roots);
-      await emitPiece(pack.combine.name, pack.id, pack.combine, baked);
-    }
-  }
 
   for (const [srcName, meta] of Object.entries(pack.pieces)) {
     if (!meta) continue;
@@ -587,6 +477,7 @@ fs.mkdirSync('/workspace/city/public/models/apartments', { recursive: true });
 await io.write(OUT, doc);
 console.log('\nWrote', OUT, (fs.statSync(OUT).size / 1024 / 1024).toFixed(2), 'MB');
 console.log('Pack counts:', packCounts);
+console.log('Kind counts:', kindCounts);
 console.log(
   'Total pieces',
   Object.values(packCounts).reduce((a, b) => a + b, 0)
@@ -600,3 +491,4 @@ console.log(
     .map((n) => n.getName())
     .join(', ')
 );
+console.log('tex', check.getRoot().listTextures().length, 'mats', check.getRoot().listMaterials().length);

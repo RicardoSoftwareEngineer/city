@@ -1,8 +1,9 @@
 /**
  * ThirdPersonCamera — two modes:
- *   'follow' — centered on the car (drag orbit + scroll zoom)
+ *   'follow' — centered on the car (drag orbit; fixed zoomDistance — no wheel zoom)
  *   'orbit'  — free flight: WASD + LMB look + RMB pan (XZ), car input disabled
  *
+ * Mouse wheel never zooms or changes fly-speed (staging owns wheel near catalog).
  * Toggle with the on-screen button or the C key.
  */
 
@@ -108,8 +109,8 @@ export class ThirdPersonCamera {
 
   /**
    * While true, free-flight / follow look-drag is suppressed (furniture staging).
-   * Clears any in-progress look drag immediately; orbit wheel (fly-speed) is ignored
-   * so apt sandbox can use scroll for height.
+   * Clears any in-progress look drag immediately so apt sandbox can use scroll
+   * for furniture height / catalog cycle.
    */
   setLookBlocked(blocked) {
     this._lookBlocked = !!blocked;
@@ -235,22 +236,13 @@ export class ThirdPersonCamera {
       // Keep RMB for pan — suppress browser menu on the canvas.
       event.preventDefault();
     };
-    this._onWheel = (event) => {
-      // Furniture staging consumes wheel for height while look is blocked.
-      if (this._lookBlocked) return;
-      if (this.mode !== 'orbit') return;
-      if (event.target.closest?.(UI_BLOCK)) return;
-      const factor = event.deltaY > 0 ? 0.9 : 1.1;
-      this.flySpeed = Math.max(8, Math.min(420, this.flySpeed * factor));
-      event.preventDefault();
-    };
     // pointer* events give movementX reliably while captured.
+    // No wheel listener — flySpeed stays at BASE_SPEED (Shift/Ctrl still multiply).
     dom.addEventListener('pointerdown', this._onDown);
     window.addEventListener('pointermove', this._onMove);
     window.addEventListener('pointerup', this._onUp);
     window.addEventListener('pointercancel', this._onUp);
     dom.addEventListener('contextmenu', this._onContextMenu);
-    dom.addEventListener('wheel', this._onWheel, { passive: false });
   }
 
   _syncFlyFromCamera() {

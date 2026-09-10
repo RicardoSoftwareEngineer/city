@@ -35,6 +35,12 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 - Escala visual = `PORSCHE_TARGET_LENGTH` (`RoadDimensions`); física do chassis inalterada.
 - Rodas: discovery por nome legado ou cluster XZ em meshes mesclados (Porsche Sketchfab / Mercedes por material `TARMAC_*`); se <4 cantos, corpo ok e animação de roda degrada.
 
+
+## Camera / staging wheel
+
+- **MUST NOT** use mouse wheel to zoom the follow camera or change free-flight fly-speed.
+- Near apt staging: wheel cycles catalog (**slot 0 = (nenhum)** first); while furniture-drag, wheel adjusts height. RMB pan / LMB look unchanged.
+
 ## Ownership
 
 Pitch/milestone: este arquivo. Knobs: `02`–`05`. Presets: `qualityPresets`. Sky/sun cycle: `DayNightController` (`src/world/DayNightController.js`).

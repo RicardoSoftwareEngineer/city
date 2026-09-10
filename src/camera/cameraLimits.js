@@ -1,6 +1,6 @@
 /**
  * Follow/orbit limits.
- * Zoom has no practical ceiling — free flight and follow can go as far as needed.
+ * zoomDistance is a fixed follow offset (session restore may set it); wheel does not zoom.
  * DEV_FREE_CAMERA still unlocks pitch through the ground for inspection.
  */
 

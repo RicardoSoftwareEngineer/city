@@ -582,7 +582,7 @@ async function startGame() {
       .catch((err) => {
         console.warn('[wall-showroom] spawn failed', err);
       });
-    // 100 layout review strip west-south of wall showroom — fire-and-forget.
+    // 100 layout review arena (inward multi-floor ring) west-south of wall showroom — fire-and-forget.
     void spawnAptLayoutReviewStrip(cityGroup)
       .then((api) => {
         window.__cityAptLayouts = api;

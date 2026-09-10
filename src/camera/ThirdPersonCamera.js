@@ -151,7 +151,7 @@ export class ThirdPersonCamera {
    * Translate free-flight camera from screen deltas (no look rotation).
    * Horizontal: XZ strafe along look-right. Vertical: world Y elevate.
    * Drag right → world slides with cursor (camera moves left).
-   * Drag down → camera lowers on world Y.
+   * Drag down → camera raises on world Y.
    */
   _applyPanDelta(dx, dy) {
     if (!dx && !dy) return;
@@ -165,7 +165,7 @@ export class ThirdPersonCamera {
     this._panRight.crossVectors(this._panForward, this._up).normalize();
     const sens = Math.max(0.012, Math.abs(this.camera.position.y) * 0.0014 + 0.008);
     this.camera.position.addScaledVector(this._panRight, -dx * sens);
-    this.camera.position.addScaledVector(this._up, -dy * sens);
+    this.camera.position.addScaledVector(this._up, dy * sens);
     this.orbitControls.target
       .copy(this.camera.position)
       .addScaledVector(this._forward, 12);

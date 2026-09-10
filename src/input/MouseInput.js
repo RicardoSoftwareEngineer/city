@@ -1,5 +1,6 @@
 /**
- * MouseInput — Tracks mouse drag (for camera orbit) and scroll (for zoom).
+ * MouseInput — Tracks LMB drag (for camera orbit) and scroll (for zoom).
+ * RMB is left to ThirdPersonCamera for XZ pan.
  *
  * Provides:
  *   .yaw / .pitch   — accumulated orbit angles from dragging
@@ -32,6 +33,8 @@ export class MouseInput {
 
     this.handleMouseDown = (event) => {
       if (!this.enabled) return;
+      // LMB only — RMB is reserved for camera pan (ThirdPersonCamera).
+      if (event.button != null && event.button !== 0) return;
       if (event.target.closest(UI_BLOCK)) return;
       this.isDragging = true;
       this.previousX = event.clientX;

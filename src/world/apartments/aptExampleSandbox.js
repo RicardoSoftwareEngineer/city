@@ -4,15 +4,24 @@
  * Collaborative staging: empty shell on the marked street corner + labeled
  * furniture + cars + architecture catalog on the **grass** east of the room
  * (loft-5 + novopo furniture + novopo extras). Zones: furniture | cars | arch.
- * Click or **drag** a catalog sample onto the room floor (or call
- * `addFromCatalog`) to place a piece; drag in-room pieces to slide on the
- * floor. While dragging, **mouse wheel** raises/lowers Y (scroll up → raise;
- * clamps ~0–2.5 m). NOT the InstancedMesh product bake (`roomTemplate.pushLoftPiece`).
  *
+ * Staging UX:
+ * - **Wheel** (not furniture-dragging, pointer near staging): cycle catalog selection
+ *   + highlight; does not zoom / change fly-speed in that mode.
+ * - **LMB** on ground (grass/asphalt plane or room floor): place the selected catalog
+ *   item at hit xz, feet floored. Over room footprint → into shell; else world group.
+ * - **RMB drag**: camera pan (see ThirdPersonCamera) — not handled here.
+ * - **1 / 2 / 3** (or Alt+W / Alt+E / Alt+R): Unreal-style TransformControls mode
+ *   (translate / rotate / scale) on the selected placed or showcase piece.
+ * - Click / drag catalog→room and in-room slide still work; while dragging a piece,
+ *   wheel raises/lowers Y (0–2.5 m). Gizmo drag blocks camera look.
+ *
+ * NOT the InstancedMesh product bake (`roomTemplate.pushLoftPiece`).
  * MeshBasic only — no PointLight (Ultra night CPU).
  */
 
 import * as THREE from 'three';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { loadGltf } from '../AssetLoader.js';
 import { ASPHALT_SURFACE_Y } from '../RoadDimensions.js';
 import { LOFT_FURNITURE_URL, NOVOPO_FURNITURE_URL, NOVOPO_EXTRAS_URL } from './roomTemplate.js';
@@ -505,6 +514,11 @@ const DRAG_Y_MAX = 2.5;
 /** Metres per wheel deltaY unit (≈0.2 m per typical 100-unit notch). */
 const DRAG_Y_WHEEL_SCALE = 0.002;
 
+/** World AABB around room + grass catalog — wheel cycle / LMB place only here. */
+const STAGING_BOUNDS = { minX: 168, maxX: 228, minZ: -60, maxZ: 48 };
+
+const UI_PICK_BLOCK = '#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn, #apt-staging-hud';
+
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
@@ -954,18 +968,47 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
 
   parent.add(root);
 
+  /** World-space placements (grass/asphalt) outside the shell. */
+  const worldGroup = new THREE.Group();
+  worldGroup.name = 'apt-example-world-placed';
+  parent.add(worldGroup);
+
   const layout = {};
+  /** @type {Record<string, THREE.Object3D>} */
+  const worldPieces = {};
+  let worldSeq = 0;
+
+  /** Catalog names that actually spawned on grass (cycle order). */
+  const cycleNames = CATALOG_NAMES.filter((n) => catalog[n]);
+  let selectedIndex = cycleNames.length ? 0 : -1;
+  /** @type {THREE.Object3D|null} */
+  let selectRing = null;
+  /** @type {'catalog'|'room'|'world'|null} */
+  let gizmoTargetKind = null;
+  /** @type {string|null} */
+  let gizmoTargetName = null;
 
   const api = {
     root,
     roomGroup,
     catalogGroup,
+    worldGroup,
     pieces,
+    worldPieces,
     catalog,
     layout,
     catalogNames: [...CATALOG_NAMES],
+    get selectedIndex() {
+      return selectedIndex;
+    },
+    get selectedName() {
+      return selectedIndex >= 0 ? cycleNames[selectedIndex] || null : null;
+    },
+    get gizmoMode() {
+      return transformControls?.mode || 'translate';
+    },
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog zones east (~x=188+, z=28→north): furniture | cars | architecture (loft-5+novopo packs+extras). Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog east (~x=188+). Staging: wheel cycles catalog (near staging); LMB ground places selected (room floor→shell, else worldGroup at y floored); RMB pan camera; W/E/R or 1/2/3 gizmo translate/rotate/scale; drag catalog→room + in-room slide; wheel while drag = height.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -984,6 +1027,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       }
       // Remove prior instance of same name.
       if (pieces[name]) {
+        if (gizmoTargetKind === 'room' && gizmoTargetName === name) detachGizmo();
         roomGroup.remove(pieces[name]);
         delete pieces[name];
         delete layout[name];
@@ -993,13 +1037,83 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       if (!piece) return false;
       piece.userData.aptIsCatalog = false;
       piece.userData.aptInRoom = true;
+      piece.userData.aptInWorld = false;
       const slot = { ...(DEFAULT_SLOTS[name] || { x: 0, y: 0, z: 1.2, yaw: 0, scale: 1 }), ...pose };
       applyPose(piece, slot);
       roomGroup.add(piece);
       pieces[name] = piece;
       layout[name] = { ...piece.userData.aptExamplePose };
-      // Real loft coffee mesh (Cube.008) — no box-leg proxy.
       console.info('[apt-example] added', name, layout[name]);
+      return true;
+    },
+    /**
+     * Place selected (or named) piece at world xz. Over shell floor → room local;
+     * else into worldGroup with feet floored to ground Y.
+     * @param {number} worldX
+     * @param {number} worldZ
+     * @param {string} [name]
+     */
+    placeAtGround(worldX, worldZ, name) {
+      const n = name || api.selectedName;
+      if (!n) return false;
+      roomGroup.updateMatrixWorld(true);
+      _localHit.set(worldX, CATALOG_Y, worldZ);
+      roomGroup.worldToLocal(_localHit);
+      const inRoom =
+        _localHit.x >= -ROOM.width * 0.55 &&
+        _localHit.x <= ROOM.width * 0.55 &&
+        _localHit.z >= -0.35 &&
+        _localHit.z <= ROOM.depth + 0.2;
+      if (inRoom) {
+        const xz = clampRoomXZ(_localHit.x, _localHit.z);
+        const slot = DEFAULT_SLOTS[n] || { yaw: 0, scale: 1 };
+        const ok = api.addFromCatalog(n, {
+          x: xz.x,
+          y: 0,
+          z: xz.z,
+          yaw: slot.yaw ?? 0,
+          scale: slot.scale ?? 1
+        });
+        if (ok) selectPlaced('room', n);
+        return ok;
+      }
+      return api.addToWorld(n, worldX, worldZ);
+    },
+    /**
+     * @param {string} name
+     * @param {number} worldX
+     * @param {number} worldZ
+     * @param {{yaw?:number,scale?:number}} [pose]
+     */
+    addToWorld(name, worldX, worldZ, pose = {}) {
+      if (!pieceSource.size) return false;
+      if (!CATALOG_NAMES.includes(name) && !DEFAULT_SLOTS[name]) {
+        console.warn('[apt-example] unknown catalog piece', name);
+        return false;
+      }
+      const piece = extractPiece(pieceSource, name, matCache);
+      if (!piece) return false;
+      const id = `${name}#${++worldSeq}`;
+      piece.name = id;
+      piece.userData.aptIsCatalog = false;
+      piece.userData.aptInRoom = false;
+      piece.userData.aptInWorld = true;
+      piece.userData.aptCatalogName = name;
+      piece.userData.aptWorldId = id;
+      const yaw = pose.yaw ?? (DEFAULT_SLOTS[name]?.yaw ?? CATALOG_YAW);
+      const scale = pose.scale ?? 1;
+      applyPose(piece, { x: worldX, y: 0, z: worldZ, yaw, scale });
+      // applyPose floors relative to parent; ensure world Y after add.
+      worldGroup.add(piece);
+      piece.updateMatrixWorld(true);
+      _box.setFromObject(piece);
+      if (!_box.isEmpty()) {
+        piece.position.y -= _box.min.y - CATALOG_Y;
+        if (piece.userData.aptExamplePose) piece.userData.aptExamplePose.y = piece.position.y;
+      }
+      worldPieces[id] = piece;
+      console.info('[apt-example] world place', id, worldX.toFixed(2), worldZ.toFixed(2));
+      selectPlaced('world', id);
       return true;
     },
     /**
@@ -1030,6 +1144,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     },
     /** Remove all furniture from the room (catalog stays on the street). */
     clearRoom() {
+      if (gizmoTargetKind === 'room') detachGizmo();
       for (const name of Object.keys(pieces)) {
         roomGroup.remove(pieces[name]);
         delete pieces[name];
@@ -1038,21 +1153,44 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       clearCoffeeLegs(roomGroup);
       return true;
     },
+    clearWorld() {
+      if (gizmoTargetKind === 'world') detachGizmo();
+      for (const id of Object.keys(worldPieces)) {
+        worldGroup.remove(worldPieces[id]);
+        delete worldPieces[id];
+      }
+      return true;
+    },
+    setSelectedIndex(i) {
+      setCatalogSelection(i);
+    },
+    setGizmoMode(mode) {
+      setGizmoMode(mode);
+    },
     getPoseRoom() {
       return { x: cfg.x, y: cfg.y, z: cfg.z, yaw: cfg.yaw };
     }
   };
 
-  // ── Pointer: click-to-add + drag catalog→room + drag in-room slide ──
+  // ── Staging HUD + TransformControls + pointer ──
   const camera = opts.camera || null;
   const dom = opts.domElement || null;
   const lookControls = opts.lookControls || null;
   const mouseInput = opts.mouseInput || null;
 
-  /** @type {null | { kind:'catalog'|'room', name:string, downX:number, downY:number, dragging:boolean, yaw:number, liftY:number }} */
+  /** @type {TransformControls|null} */
+  let transformControls = null;
+  /** @type {THREE.Object3D|null} */
+  let transformHelper = null;
+  let gizmoDragging = false;
+
+  /** @type {null | { kind:'catalog'|'room'|'world', name:string, downX:number, downY:number, dragging:boolean, yaw:number, liftY:number }} */
   let gesture = null;
   /** @type {THREE.Object3D|null} ghost preview while dragging from catalog */
   let ghost = null;
+
+  /** @type {HTMLElement|null} */
+  let hudEl = null;
 
   function setLookBlocked(blocked) {
     lookControls?.setLookBlocked?.(blocked);
@@ -1069,6 +1207,135 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     return y <= 1e-4 ? 0 : y;
   }
 
+  function ensureSelectRing() {
+    if (selectRing) return selectRing;
+    const geo = new THREE.RingGeometry(0.42, 0.58, 40);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.9,
+      toneMapped: false
+    });
+    selectRing = new THREE.Mesh(geo, mat);
+    selectRing.name = 'apt-catalog-select-ring';
+    selectRing.rotation.x = -Math.PI / 2;
+    selectRing.renderOrder = 10;
+    return selectRing;
+  }
+
+  function clearCatalogHighlight() {
+    if (selectRing?.parent) selectRing.parent.remove(selectRing);
+    for (const name of cycleNames) {
+      const s = catalog[name];
+      if (!s?.userData) continue;
+      if (s.userData._aptSelScale != null) {
+        s.scale.setScalar(s.userData._aptSelScale);
+        delete s.userData._aptSelScale;
+      }
+    }
+  }
+
+  function updateHud() {
+    if (!hudEl) return;
+    const cat = api.selectedName || '—';
+    const mode = transformControls?.mode || 'translate';
+    const tgt =
+      gizmoTargetKind && gizmoTargetName
+        ? `${gizmoTargetKind}:${gizmoTargetName}`
+        : 'none';
+    hudEl.textContent = `Catálogo [${selectedIndex + 1}/${cycleNames.length || 0}]: ${cat}  ·  Gizmo: ${mode} (${tgt})  ·  1/2/3 ou Alt+W/E/R  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
+  }
+
+  function setCatalogSelection(index) {
+    if (!cycleNames.length) {
+      selectedIndex = -1;
+      clearCatalogHighlight();
+      updateHud();
+      return;
+    }
+    const len = cycleNames.length;
+    selectedIndex = ((index % len) + len) % len;
+    clearCatalogHighlight();
+    const name = cycleNames[selectedIndex];
+    const sample = catalog[name];
+    if (sample) {
+      const ring = ensureSelectRing();
+      sample.add(ring);
+      // Ring in sample local space at feet.
+      ring.position.set(0, 0.03, 0);
+      if (sample.userData._aptSelScale == null) {
+        sample.userData._aptSelScale = sample.scale.x || 1;
+      }
+      sample.scale.setScalar(sample.userData._aptSelScale * 1.06);
+      // Showcase selection also drives the gizmo when not editing a placed piece.
+      if (gizmoTargetKind !== 'room' && gizmoTargetKind !== 'world') {
+        attachGizmo(sample, 'catalog', name);
+      }
+    }
+    updateHud();
+  }
+
+  function syncPoseFromObject(obj, kind, name) {
+    if (!obj) return;
+    const fit = obj.userData.aptExampleFitScale || 1;
+    const scl = fit > 1e-6 ? obj.scale.x / fit : 1;
+    const pose = {
+      x: obj.position.x,
+      y: obj.position.y,
+      z: obj.position.z,
+      yaw: obj.rotation.y,
+      scale: scl
+    };
+    obj.userData.aptExamplePose = { ...pose };
+    if (kind === 'room' && layout[name] != null) {
+      layout[name] = { ...pose };
+    }
+  }
+
+  function detachGizmo() {
+    if (transformControls) {
+      transformControls.detach();
+    }
+    gizmoTargetKind = null;
+    gizmoTargetName = null;
+    updateHud();
+  }
+
+  function attachGizmo(obj, kind, name) {
+    if (!transformControls || !obj) return;
+    transformControls.attach(obj);
+    gizmoTargetKind = kind;
+    gizmoTargetName = name;
+    updateHud();
+  }
+
+  function selectPlaced(kind, name) {
+    let obj = null;
+    if (kind === 'room') obj = pieces[name];
+    else if (kind === 'world') obj = worldPieces[name];
+    else if (kind === 'catalog') obj = catalog[name];
+    if (!obj) return;
+    // Keep catalog index in sync when picking a showcase sample.
+    if (kind === 'catalog') {
+      const idx = cycleNames.indexOf(name);
+      if (idx >= 0) {
+        gizmoTargetKind = null; // allow setCatalogSelection to attach
+        setCatalogSelection(idx);
+        return;
+      }
+    }
+    attachGizmo(obj, kind, name);
+  }
+
+  function setGizmoMode(mode) {
+    if (!transformControls) return;
+    if (mode !== 'translate' && mode !== 'rotate' && mode !== 'scale') return;
+    transformControls.setMode(mode);
+    updateHud();
+  }
+
   function applyDragPose(name, kind, local) {
     if (!local) return;
     const y = poseYFromLift(gesture.liftY);
@@ -1078,7 +1345,28 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       applyPose(g, { x: local.x, y, z: local.z, yaw: gesture.yaw, scale: 1 });
       return;
     }
-    api.setPose(name, { x: local.x, y, z: local.z, yaw: gesture.yaw });
+    if (kind === 'room') {
+      api.setPose(name, { x: local.x, y, z: local.z, yaw: gesture.yaw });
+      return;
+    }
+    // world drag on ground plane — local is world xz here
+    const p = worldPieces[name];
+    if (!p) return;
+    applyPose(p, {
+      x: local.x,
+      y: y <= 1e-4 ? 0 : y,
+      z: local.z,
+      yaw: gesture.yaw,
+      scale: p.userData.aptExamplePose?.scale ?? 1
+    });
+    if (y <= 1e-4) {
+      p.updateMatrixWorld(true);
+      _box.setFromObject(p);
+      if (!_box.isEmpty()) {
+        p.position.y -= _box.min.y - CATALOG_Y;
+        if (p.userData.aptExamplePose) p.userData.aptExamplePose.y = p.position.y;
+      }
+    }
   }
 
   function disposeGhost() {
@@ -1122,6 +1410,18 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     return null;
   }
 
+  function worldPieceIdFromHit(obj) {
+    let o = obj;
+    while (o && o !== worldGroup) {
+      if (o.userData?.aptInWorld && o.userData?.aptWorldId && worldPieces[o.userData.aptWorldId] === o) {
+        return o.userData.aptWorldId;
+      }
+      if (typeof o.name === 'string' && worldPieces[o.name] === o) return o.name;
+      o = o.parent;
+    }
+    return null;
+  }
+
   function eventToNdc(ev) {
     const rect = (dom || ev.target)?.getBoundingClientRect?.() || {
       left: 0,
@@ -1131,6 +1431,36 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     };
     _ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     _ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  function inStagingXZ(x, z) {
+    return (
+      x >= STAGING_BOUNDS.minX &&
+      x <= STAGING_BOUNDS.maxX &&
+      z >= STAGING_BOUNDS.minZ &&
+      z <= STAGING_BOUNDS.maxZ
+    );
+  }
+
+  /** Ray → y=CATALOG_Y ground plane world hit, or null. */
+  function rayGroundWorld() {
+    if (!camera) return null;
+    _floorNormal.set(0, 1, 0);
+    _floorPlane.setFromNormalAndCoplanarPoint(_floorNormal, new THREE.Vector3(0, CATALOG_Y, 0));
+    if (!_raycaster.ray.intersectPlane(_floorPlane, _hitPoint)) return null;
+    return { x: _hitPoint.x, y: CATALOG_Y, z: _hitPoint.z };
+  }
+
+  /** True when pointer ray hits catalog/room/world piece or staging ground. */
+  function pointerOverStaging(ev) {
+    if (!camera) return false;
+    eventToNdc(ev);
+    _raycaster.setFromCamera(_ndc, camera);
+    if (_raycaster.intersectObjects(catalogGroup.children, true).length) return true;
+    if (_raycaster.intersectObjects(roomGroup.children, true).length) return true;
+    if (_raycaster.intersectObjects(worldGroup.children, true).length) return true;
+    const g = rayGroundWorld();
+    return !!(g && inStagingXZ(g.x, g.z));
   }
 
   /** Ray → room-local floor xz, or null if miss / outside. */
@@ -1175,17 +1505,25 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     return ghost;
   }
 
+  function isGizmoHit() {
+    return !!(transformControls && (transformControls.axis || transformControls.dragging || gizmoDragging));
+  }
+
   function onPointerDown(ev) {
     if (ev.button != null && ev.button !== 0) return;
-    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn')) {
+    if (ev.target?.closest?.(UI_PICK_BLOCK)) return;
+    if (!camera) return;
+
+    // Let TransformControls own the gesture when a handle is under the cursor.
+    if (isGizmoHit()) {
+      setLookBlocked(true);
       return;
     }
-    if (!camera) return;
 
     eventToNdc(ev);
     _raycaster.setFromCamera(_ndc, camera);
 
-    // Prefer in-room piece, then catalog (so placed furniture is easy to grab).
+    // Prefer in-room piece, then world-placed, then catalog.
     const roomHits = _raycaster.intersectObjects(roomGroup.children, true);
     for (const hit of roomHits) {
       if (hit.object?.userData?.aptGhost) continue;
@@ -1201,6 +1539,29 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
           yaw: cur.yaw ?? 0,
           liftY: clampDragY(cur.y ?? 0)
         };
+        selectPlaced('room', name);
+        setLookBlocked(true);
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        return;
+      }
+    }
+
+    const worldHits = _raycaster.intersectObjects(worldGroup.children, true);
+    for (const hit of worldHits) {
+      const id = worldPieceIdFromHit(hit.object);
+      if (id) {
+        const cur = worldPieces[id]?.userData?.aptExamplePose || {};
+        gesture = {
+          kind: 'world',
+          name: id,
+          downX: ev.clientX,
+          downY: ev.clientY,
+          dragging: false,
+          yaw: cur.yaw ?? 0,
+          liftY: clampDragY(cur.y ?? 0)
+        };
+        selectPlaced('world', id);
         setLookBlocked(true);
         ev.stopImmediatePropagation();
         ev.preventDefault();
@@ -1222,31 +1583,85 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
           yaw: slot.yaw ?? 0,
           liftY: 0
         };
+        const idx = cycleNames.indexOf(name);
+        if (idx >= 0) setCatalogSelection(idx);
+        else selectPlaced('catalog', name);
         setLookBlocked(true);
         ev.stopImmediatePropagation();
         ev.preventDefault();
         return;
       }
     }
+
+    // LMB on staging ground / room floor → place currently selected catalog item.
+    if (api.selectedName) {
+      const roomLocal = rayRoomFloorLocal();
+      if (roomLocal) {
+        const slot = DEFAULT_SLOTS[api.selectedName] || { yaw: 0, scale: 1 };
+        api.addFromCatalog(api.selectedName, {
+          x: roomLocal.x,
+          y: 0,
+          z: roomLocal.z,
+          yaw: slot.yaw ?? 0,
+          scale: slot.scale ?? 1
+        });
+        selectPlaced('room', api.selectedName);
+        setLookBlocked(true);
+        // Release look on next up via a tiny marker gesture.
+        gesture = {
+          kind: 'place',
+          name: api.selectedName,
+          downX: ev.clientX,
+          downY: ev.clientY,
+          dragging: false,
+          yaw: 0,
+          liftY: 0
+        };
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        return;
+      }
+      const ground = rayGroundWorld();
+      if (ground && inStagingXZ(ground.x, ground.z)) {
+        api.placeAtGround(ground.x, ground.z, api.selectedName);
+        setLookBlocked(true);
+        gesture = {
+          kind: 'place',
+          name: api.selectedName,
+          downX: ev.clientX,
+          downY: ev.clientY,
+          dragging: false,
+          yaw: 0,
+          liftY: 0
+        };
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        return;
+      }
+    }
+
     // Miss — let free-flight orbit handle the gesture.
     gesture = null;
   }
 
   function onPointerMove(ev) {
     if (!gesture || !camera) return;
+    if (gesture.kind === 'place') return;
     const dx = ev.clientX - gesture.downX;
     const dy = ev.clientY - gesture.downY;
     if (!gesture.dragging) {
       if (dx * dx + dy * dy < DRAG_THRESH_SQ) return;
       gesture.dragging = true;
       setLookBlocked(true);
+      // Detach gizmo while free-dragging so it does not fight.
+      if (transformControls?.object) transformControls.detach();
     }
 
     eventToNdc(ev);
     _raycaster.setFromCamera(_ndc, camera);
-    const local = rayRoomFloorLocal();
 
     if (gesture.kind === 'catalog') {
+      const local = rayRoomFloorLocal();
       if (!local) {
         disposeGhost();
         return;
@@ -1255,53 +1670,87 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return;
     }
 
-    if (gesture.kind === 'room' && local) {
-      applyDragPose(gesture.name, 'room', local);
+    if (gesture.kind === 'room') {
+      const local = rayRoomFloorLocal();
+      if (local) applyDragPose(gesture.name, 'room', local);
+      return;
+    }
+
+    if (gesture.kind === 'world') {
+      const g = rayGroundWorld();
+      if (g) applyDragPose(gesture.name, 'world', { x: g.x, z: g.z });
     }
   }
 
   /**
-   * While furniture drag is active: wheel → lift Y (scroll up / negative deltaY → raise).
-   * Consumes the event so free-flight fly-speed / follow zoom do not change.
+   * While furniture drag is active: wheel → lift Y.
+   * Otherwise near staging: cycle catalog selection (no zoom / fly-speed).
    */
   function onWheel(ev) {
-    if (!gesture || !camera) return;
-    if (ev.target?.closest?.('#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn')) {
+    if (!camera) return;
+    if (ev.target?.closest?.(UI_PICK_BLOCK)) return;
+
+    // Gizmo drag: leave wheel unused (do not zoom).
+    if (gizmoDragging || transformControls?.dragging) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
       return;
     }
 
-    if (!gesture.dragging) {
-      gesture.dragging = true;
-      setLookBlocked(true);
+    if (gesture && gesture.kind !== 'place') {
+      if (!gesture.dragging) {
+        gesture.dragging = true;
+        setLookBlocked(true);
+      }
+
+      // Windows/macOS: wheel up → deltaY < 0 → raise.
+      gesture.liftY = clampDragY(gesture.liftY - ev.deltaY * DRAG_Y_WHEEL_SCALE);
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+
+      eventToNdc(ev);
+      _raycaster.setFromCamera(_ndc, camera);
+      if (gesture.kind === 'catalog') {
+        const local = rayRoomFloorLocal();
+        if (local) applyDragPose(gesture.name, 'catalog', local);
+        return;
+      }
+      if (gesture.kind === 'room') {
+        const local = rayRoomFloorLocal();
+        const cur = pieces[gesture.name]?.userData?.aptExamplePose;
+        const xz = local || (cur ? { x: cur.x, z: cur.z } : null);
+        if (xz) applyDragPose(gesture.name, 'room', xz);
+        return;
+      }
+      if (gesture.kind === 'world') {
+        const g = rayGroundWorld();
+        const cur = worldPieces[gesture.name]?.userData?.aptExamplePose;
+        const xz = g || (cur ? { x: cur.x, z: cur.z } : null);
+        if (xz) applyDragPose(gesture.name, 'world', xz);
+      }
+      return;
     }
 
-    // Windows/macOS: wheel up → deltaY < 0 → raise.
-    gesture.liftY = clampDragY(gesture.liftY - ev.deltaY * DRAG_Y_WHEEL_SCALE);
+    // Cycle catalog when pointer is over staging / showcase.
+    if (!cycleNames.length || !pointerOverStaging(ev)) return;
+    const dir = ev.deltaY > 0 ? 1 : -1;
+    setCatalogSelection(selectedIndex + dir);
     ev.preventDefault();
     ev.stopImmediatePropagation();
-
-    // Re-apply at last pointer floor hit if possible; else room piece keeps xz.
-    eventToNdc(ev);
-    _raycaster.setFromCamera(_ndc, camera);
-    const local = rayRoomFloorLocal();
-    if (gesture.kind === 'catalog') {
-      if (local) applyDragPose(gesture.name, 'catalog', local);
-      return;
-    }
-    if (gesture.kind === 'room') {
-      const cur = pieces[gesture.name]?.userData?.aptExamplePose;
-      const xz = local || (cur ? { x: cur.x, z: cur.z } : null);
-      if (xz) applyDragPose(gesture.name, 'room', xz);
-    }
   }
 
   function onPointerUp(ev) {
     if (!gesture) {
-      setLookBlocked(false);
+      if (!gizmoDragging) setLookBlocked(false);
       return;
     }
     const g = gesture;
     gesture = null;
+
+    if (g.kind === 'place') {
+      if (!gizmoDragging) setLookBlocked(false);
+      return;
+    }
 
     const dx = ev.clientX - g.downX;
     const dy = ev.clientY - g.downY;
@@ -1309,9 +1758,10 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
 
     if (g.kind === 'catalog') {
       if (!wasDrag) {
-        // Short click fallback — default slot.
+        // Short click — select + add default slot into room (legacy).
         disposeGhost();
         api.addFromCatalog(g.name);
+        selectPlaced('room', g.name);
       } else {
         eventToNdc(ev);
         if (camera) _raycaster.setFromCamera(_ndc, camera);
@@ -1325,34 +1775,110 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
             yaw: g.yaw,
             scale: 1
           });
+          selectPlaced('room', g.name);
         }
         // Drop outside room → cancel (no add).
       }
     } else if (g.kind === 'room' && wasDrag) {
-      // Final floor snap already applied during move; refresh coffee legs etc.
       const pose = api.getPose(g.name);
       if (pose) api.setPose(g.name, pose);
+      selectPlaced('room', g.name);
+    } else if (g.kind === 'room' && !wasDrag) {
+      selectPlaced('room', g.name);
+    } else if (g.kind === 'world') {
+      selectPlaced('world', g.name);
     }
 
-    setLookBlocked(false);
+    if (!gizmoDragging) setLookBlocked(false);
+  }
+
+  function onKeyDown(ev) {
+    if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
+    const k = ev.code;
+    // 1/2/3 always; Alt+W/E/R mirrors Unreal without stealing WASD freefly.
+    const ueChord = ev.altKey;
+    if (k === 'Digit1' || (ueChord && k === 'KeyW')) {
+      setGizmoMode('translate');
+      ev.preventDefault();
+    } else if (k === 'Digit2' || (ueChord && k === 'KeyE')) {
+      setGizmoMode('rotate');
+      ev.preventDefault();
+    } else if (k === 'Digit3' || (ueChord && k === 'KeyR')) {
+      setGizmoMode('scale');
+      ev.preventDefault();
+    }
   }
 
   if (camera && typeof window !== 'undefined') {
     const target = dom || window;
+
+    if (typeof document !== 'undefined') {
+      hudEl = document.createElement('div');
+      hudEl.id = 'apt-staging-hud';
+      hudEl.style.cssText =
+        'position:fixed;left:12px;bottom:12px;z-index:40;padding:8px 12px;' +
+        'background:rgba(15,23,42,0.82);color:#ecfdf5;font:12px/1.35 system-ui,sans-serif;' +
+        'border:1px solid #4ade80;border-radius:8px;pointer-events:none;max-width:min(920px,92vw);';
+      document.body.appendChild(hudEl);
+    }
+
+    try {
+      transformControls = new TransformControls(camera, target === window ? document.body : target);
+      transformControls.setSize(0.85);
+      transformControls.setSpace('world');
+      transformHelper = transformControls.getHelper();
+      parent.add(transformHelper);
+      transformControls.detach();
+      transformControls.addEventListener('dragging-changed', (e) => {
+        gizmoDragging = !!e.value;
+        setLookBlocked(gizmoDragging);
+        if (!gizmoDragging && transformControls.object) {
+          syncPoseFromObject(transformControls.object, gizmoTargetKind, gizmoTargetName);
+        }
+      });
+      transformControls.addEventListener('objectChange', () => {
+        if (transformControls?.object) {
+          syncPoseFromObject(transformControls.object, gizmoTargetKind, gizmoTargetName);
+        }
+      });
+    } catch (err) {
+      console.warn('[apt-example] TransformControls init failed', err);
+      transformControls = null;
+    }
+
     // Capture phase so we can consume furniture hits before free-flight look.
     target.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
-    // Capture + non-passive so height scroll wins over camera zoom / fly-speed.
+    // Capture + non-passive so height scroll / catalog cycle wins over zoom.
     window.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    window.addEventListener('keydown', onKeyDown);
+
+    setCatalogSelection(0);
+
     api._unbindPick = () => {
       target.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('wheel', onWheel, { capture: true });
+      window.removeEventListener('keydown', onKeyDown);
       disposeGhost();
+      detachGizmo();
+      clearCatalogHighlight();
+      if (transformControls) {
+        try {
+          transformControls.dispose();
+        } catch (_) {
+          /* ignore */
+        }
+        transformControls = null;
+      }
+      if (transformHelper?.parent) transformHelper.parent.remove(transformHelper);
+      transformHelper = null;
+      if (hudEl?.parentNode) hudEl.parentNode.removeChild(hudEl);
+      hudEl = null;
       setLookBlocked(false);
     };
   }
@@ -1364,8 +1890,8 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     'yaw',
     cfg.yaw.toFixed(2),
     'catalog',
-    Object.keys(catalog).join(',') || '(none)',
-    'room empty — click/drag street samples → room floor; drag in-room to slide; wheel while drag = height; addFromCatalog(name)'
+    Object.keys(catalog).length,
+    'staging: wheel cycle · LMB ground place · W/E/R gizmo · RMB pan'
   );
   return api;
 }

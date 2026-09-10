@@ -1,4 +1,4 @@
-Loft + novopo furniture/decor catalogs (Sketchfab free interiors).
+Loft + novopo furniture/decor + cars/architecture catalogs (Sketchfab free interiors).
 
 ── loft_furniture.glb (loft_5_interior_for_free)
 Pieces (no architecture):
@@ -18,7 +18,7 @@ No separable floor lamp — the dome lamp is part of `bar`.
 Re-extract: `node scripts/extract-loft-furniture.mjs` (needs sharp + @gltf-transform;
 source GLB at LOFT_SRC, default /workspace/uploads/loft_5_interior_for_free.glb).
 
-── novopo_furniture.glb (multi-pack)
+── novopo_furniture.glb (multi-pack furniture/decor)
 Sources under /workspace/uploads/novopo-interiors/. World-bake extract
 (floored Y-up, lean ≤512 JPEG / hero 1024 PNG). Runtime MeshBasic.
 
@@ -29,27 +29,36 @@ Pack piece counts (catalog prefixes):
   l13    16  loft_13_living_room_interior     (l13_*)
   bed     9  interior_8_bedroom               (bed_*)
   mini    8  interior_15_mini_loft            (mini_*)
-  i9      4  interior_9_free_with_cars        (i9_*) — CARS skipped
+  i9      4  interior_9_free_with_cars        (i9_*) — cars live in extras
   shelf   7  loft_style_shelfs                (shelf_*)
   chair2  6  loft_style_chairs                (chair2_*) — Beweld kept
   clock   1  vintage_stand_clock              (clock_stand)
   TOTAL  92
 
-Skipped across packs: room shells (walls/floors/ceilings/beams/windows),
-Point/Sun/Spot lights, HDRI spheres, garage door, and cars in interior_9
-(node_0 + node_0.001 steering-wheel atlases). Duplicate siblings deduped
-(JP cushions/pillows, l6 sofa_b twin, l2 LC3 chairs, bed pendants, chair2
-low-poly duplicates).
+Skipped here: room shells, lights, HDRI spheres, and cars (see extras).
 
-Re-extract all packs:
+Re-extract furniture:
   NODE_PATH=/tmp/loft-tools/node_modules node scripts/extract-novopo-packs.mjs
-(JP-only legacy: scripts/extract-novopo-furniture.mjs)
+
+── novopo_extras.glb (cars + architecture)
+Lean separate kit so furniture VRAM stays stable (RX 580 8GB). Arch ≤256 JPEG;
+cars ≤1024 PNG. Same floored Y-up / MeshBasic catalog UX.
+
+  cars    2  interior_9 node_0 / node_0.001   (car_a, car_b)
+  arch   30  wall/floor/window/beam/door panels from i9,l6,l2,l13,bed,mini,jp11
+  TOTAL  32
+
+Skipped: HDRI spheres, Point/Sun/Spot lights, furniture already in novopo_furniture,
+duplicate siblings (pipes, panes, windows, cushions).
+
+Re-extract extras:
+  NODE_PATH=/tmp/loft-tools/node_modules node scripts/extract-novopo-extras.mjs
 
 ── Shared
-Albedo: default ≤512 JPEG q90; hero atlases 1024 PNG. Each piece floored (minY=0),
-XZ-centered, Y-up (world-bake). Placement is yaw-only.
+Albedo: furniture default ≤512 JPEG q90 / hero 1024 PNG; extras arch ≤256 / cars 1024.
+Each piece floored (minY=0), XZ-centered, Y-up (world-bake). Placement is yaw-only.
 
-Sandbox loads loft + novopo kits (?v=… cache-bust). Grass catalog grid
-(CATALOG_NAMES = LOFT_CATALOG_NAMES + NOVOPO_CATALOG_NAMES) east of apt shell
-near Large_3 — denser 10-col grid for ~100 pieces. Mass InstancedMesh bake in
-roomTemplate.js still uses loft living-room subset only.
+Sandbox loads loft + novopo furniture + novopo extras (?v=… cache-bust). Grass catalog
+zones east of apt shell near Large_3: furniture (10-col) | cars (2-col wide) |
+architecture (8-col). Mass InstancedMesh bake in roomTemplate.js still uses loft
+living-room subset only.

@@ -2,7 +2,7 @@
  * Freestanding apartment interior **sandbox** on asphalt near Large_3 (≈171,30).
  *
  * Collaborative staging: empty shell on the marked street corner + labeled
- * furniture catalog on the **grass** east of the room (loft-5 + novopo JP packs).
+ * furniture catalog on the **grass** east of the room (loft-5 + novopo multi-pack).
  * Click or **drag** a catalog sample onto the room floor (or call
  * `addFromCatalog`) to place a piece; drag in-room pieces to slide on the
  * floor. While dragging, **mouse wheel** raises/lowers Y (scroll up → raise;
@@ -46,7 +46,7 @@ export const LOFT_CATALOG_NAMES = [
   'rug'
 ];
 
-/** Novopo Japanese loft-11 furniture/decor (deduped siblings). */
+/** Novopo multi-pack furniture/decor (jp11 + remaining interiors; cars skipped). */
 export const NOVOPO_CATALOG_NAMES = [
   'jp_cushion',
   'jp_tea_set',
@@ -67,10 +67,82 @@ export const NOVOPO_CATALOG_NAMES = [
   'jp_art_py',
   'jp_art_wind',
   'jp_art_py2',
-  'jp_art_wind2'
+  'jp_art_wind2',
+  'l6_sofa',
+  'l6_sofa_b',
+  'l6_dining',
+  'l6_kitchen',
+  'l6_cabinet',
+  'l6_island',
+  'l6_coffee_a',
+  'l6_coffee_b',
+  'l6_tray',
+  'l6_rug',
+  'l6_art_tall',
+  'l6_art',
+  'l2_chair',
+  'l2_coffee',
+  'l2_side_table',
+  'l2_plant',
+  'l2_bust',
+  'l2_pedestal',
+  'l2_art',
+  'l2_rug',
+  'l2_pendant',
+  'l13_sofa',
+  'l13_chair_a',
+  'l13_chair_b',
+  'l13_chair_c',
+  'l13_ottoman',
+  'l13_table',
+  'l13_console',
+  'l13_rug',
+  'l13_plant_a',
+  'l13_plant_b',
+  'l13_plant_c',
+  'l13_pot',
+  'l13_pillow_a',
+  'l13_pillow_b',
+  'l13_decor_small',
+  'l13_art_carve',
+  'bed_platform',
+  'bed_egg_chair',
+  'bed_nightstand',
+  'bed_plant',
+  'bed_pendant',
+  'bed_books',
+  'bed_rug',
+  'bed_art_a',
+  'bed_art_b',
+  'mini_sofa',
+  'mini_lounge',
+  'mini_table',
+  'mini_coffee',
+  'mini_console',
+  'mini_shelf',
+  'mini_kitchen',
+  'mini_rug',
+  'i9_bed',
+  'i9_rack',
+  'i9_tire_rack',
+  'i9_rug',
+  'shelf_1',
+  'shelf_2',
+  'shelf_3',
+  'shelf_4',
+  'shelf_5',
+  'shelf_6',
+  'shelf_7',
+  'chair2_1',
+  'chair2_2',
+  'chair2_3',
+  'chair2_4',
+  'chair2_5',
+  'chair2_6',
+  'clock_stand'
 ];
 
-/** Full catalog order (loft-5 first, then novopo JP). */
+/** Full catalog order (loft-5 first, then novopo packs). */
 export const CATALOG_NAMES = [...LOFT_CATALOG_NAMES, ...NOVOPO_CATALOG_NAMES];
 
 /**
@@ -107,7 +179,80 @@ const DEFAULT_SLOTS = {
   jp_art_py: { x: -1.55, y: 1.2, z: 0.9, yaw: Math.PI / 2, scale: 1 },
   jp_art_wind: { x: 1.55, y: 1.2, z: 0.9, yaw: -Math.PI / 2, scale: 1 },
   jp_art_py2: { x: -1.55, y: 1.2, z: 2.2, yaw: Math.PI / 2, scale: 1 },
-  jp_art_wind2: { x: 1.55, y: 1.2, z: 2.2, yaw: -Math.PI / 2, scale: 1 }
+  jp_art_wind2: { x: 1.55, y: 1.2, z: 2.2, yaw: -Math.PI / 2, scale: 1 },
+  // Remaining novopo packs — center drop; user drags
+  l6_sofa: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_sofa_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_dining: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_kitchen: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_cabinet: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_island: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_coffee_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_coffee_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_tray: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_art_tall: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l6_art: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_chair: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_coffee: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_side_table: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_plant: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_bust: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_pedestal: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_art: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l2_pendant: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_sofa: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_chair_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_chair_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_chair_c: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_ottoman: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_table: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_console: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_plant_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_plant_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_plant_c: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_pot: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_pillow_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_pillow_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_decor_small: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  l13_art_carve: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_platform: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_egg_chair: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_nightstand: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_plant: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_pendant: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_books: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_art_a: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  bed_art_b: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_sofa: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_lounge: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_table: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_coffee: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_console: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_shelf: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_kitchen: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  mini_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  i9_bed: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  i9_rack: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  i9_tire_rack: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  i9_rug: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_1: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_2: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_3: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_4: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_5: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_6: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  shelf_7: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_1: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_2: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_3: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_4: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_5: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  chair2_6: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 },
+  clock_stand: { x: 0.0, y: 0, z: 1.4, yaw: 0.15, scale: 1 }
 };
 
 /**
@@ -117,9 +262,9 @@ const DEFAULT_SLOTS = {
 const CATALOG_GRASS = {
   x0: 188.0,
   z0: 28.0,
-  dx: 2.55,
-  dz: -2.55,
-  cols: 6,
+  dx: 1.7,
+  dz: -1.7,
+  cols: 10, // denser grid — ~100 catalog pieces
   yaw: Math.PI * 0.12,
   y: 0.02 // sidewalk / grass top (ASPHALT is −0.15)
 };
@@ -158,7 +303,79 @@ const FIT = {
   jp_art_py: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
   jp_art_wind: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
   jp_art_py2: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
-  jp_art_wind2: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 }
+  jp_art_wind2: { targetHeight: 0.55, maxWidth: 0.75, maxDepth: 0.1 },
+  l6_sofa: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  l6_sofa_b: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  l6_dining: { targetHeight: 0.85, maxWidth: 2.2, maxDepth: 1.6 },
+  l6_kitchen: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  l6_cabinet: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  l6_island: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l6_coffee_a: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l6_coffee_b: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l6_tray: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l6_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  l6_art_tall: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  l6_art: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  l2_chair: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  l2_coffee: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l2_side_table: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l2_plant: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  l2_bust: { targetHeight: 0.85, maxWidth: 0.7, maxDepth: 0.7 },
+  l2_pedestal: { targetHeight: 0.85, maxWidth: 0.7, maxDepth: 0.7 },
+  l2_art: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  l2_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  l2_pendant: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  l13_sofa: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  l13_chair_a: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  l13_chair_b: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  l13_chair_c: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  l13_ottoman: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  l13_table: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  l13_console: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  l13_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  l13_plant_a: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  l13_plant_b: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  l13_plant_c: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  l13_pot: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  l13_pillow_a: { targetHeight: 0.85, maxWidth: 0.7, maxDepth: 0.7 },
+  l13_pillow_b: { targetHeight: 0.85, maxWidth: 0.7, maxDepth: 0.7 },
+  l13_decor_small: { targetHeight: 0.85, maxWidth: 0.7, maxDepth: 0.7 },
+  l13_art_carve: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  bed_platform: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  bed_egg_chair: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  bed_nightstand: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  bed_plant: { targetHeight: 1.15, maxWidth: 0.85, maxDepth: 0.85 },
+  bed_pendant: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  bed_books: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  bed_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  bed_art_a: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  bed_art_b: { targetHeight: 0.85, maxWidth: 1, maxDepth: 0.35 },
+  mini_sofa: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  mini_lounge: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  mini_table: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  mini_coffee: { targetHeight: 0.45, maxWidth: 1.4, maxDepth: 1.2 },
+  mini_console: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  mini_shelf: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  mini_kitchen: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  mini_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  i9_bed: { targetHeight: 0.75, maxWidth: 2.3, maxDepth: 2.2 },
+  i9_rack: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  i9_tire_rack: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  i9_rug: { targetHeight: 0.025, maxWidth: 2.2, maxDepth: 2.6 },
+  shelf_1: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_2: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_3: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_4: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_5: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_6: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  shelf_7: { targetHeight: 1.8, maxWidth: 1.6, maxDepth: 0.9 },
+  chair2_1: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  chair2_2: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  chair2_3: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  chair2_4: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  chair2_5: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  chair2_6: { targetHeight: 0.9, maxWidth: 1, maxDepth: 1.05 },
+  clock_stand: { targetHeight: 1.85, maxWidth: 0.85, maxDepth: 0.7 }
 };
 
 const ROOM = { width: 3.6, depth: 3.2, height: 2.75, wallT: 0.07 };
@@ -481,7 +698,7 @@ function makeLabelSprite(text) {
   ctx.lineWidth = 4;
   ctx.stroke();
   ctx.fillStyle = '#ecfdf5';
-  ctx.font = 'bold 32px system-ui, sans-serif';
+  ctx.font = text.length > 12 ? 'bold 24px system-ui, sans-serif' : 'bold 30px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2 + 1);
@@ -495,8 +712,10 @@ function makeLabelSprite(text) {
       transparent: true
     })
   );
-  spr.scale.set(1.6, 0.4, 1);
-  spr.position.y = 1.45;
+  // Compact labels for dense multi-pack grass grid
+  const labelW = Math.min(1.55, 0.55 + text.length * 0.07);
+  spr.scale.set(labelW, 0.32, 1);
+  spr.position.y = 1.25;
   spr.renderOrder = 1000;
   spr.frustumCulled = false;
   spr.name = `label-${text}`;
@@ -606,7 +825,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     layout,
     catalogNames: [...CATALOG_NAMES],
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; furniture catalog GRID on grass east (~x=188–201, z=28→north) loft-5+novopo JP. Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; furniture catalog GRID on grass east (~x=188–205, z=28→north) loft-5+novopo packs. Free-flight near HUD CASA APTS Large_3. Drag catalog→room or drag in-room pieces; while dragging, scroll wheel raises/lowers (scroll up→raise, 0–2.5 m); click still adds.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).

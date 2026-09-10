@@ -1,4 +1,5 @@
 /**
+ * @deprecated Prefer `scripts/extract-novopo-packs.mjs` (all packs).
  * Extract Japanese loft furniture/decor → lean floored Y-up GLB (no architecture).
  *
  * Source: loft_japanese_11_free_interior (Sketchfab free / novopo).

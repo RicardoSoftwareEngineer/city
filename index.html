@@ -24,6 +24,15 @@
   <button type="button" id="radius-rings-btn" aria-pressed="false">Anéis do raio</button>
   <button type="button" id="clear-asset-cache-btn" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button>
   <button type="button" id="car-visual-btn" data-mode="box">Carro: quadrado</button>
+  <button type="button" id="car-compare-btn" aria-pressed="false" title="Mercedes otimizado vs original lado a lado">Comparar A/B</button>
+  <div id="car-load-hud" data-min-id="car-load" aria-label="Load carros">
+    <button type="button" class="hud-min-toggle" data-min-toggle>
+      Load carros <span data-min-chev>▾</span>
+    </button>
+    <div data-min-body>
+      <ul id="car-load-list"><li>aguardando loads…</li></ul>
+    </div>
+  </div>
 
   <div id="apts-house-hud" hidden></div>
   <div id="apts-budget" title="Interiores Todos (boot)">

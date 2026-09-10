@@ -58,6 +58,10 @@ Interactive: `pause: false`. Terrain Mesh: `instancersOnly: false` (senão first
 
 Budgets, hitch thresholds, ship bar, leftover → este arquivo. **Quando** deferir stream → `02-loading.md`.
 
+## GLB optimize study (Windows ruler)
+
+Para o estudo híbrido de import GLB (`08-glb-import.md`): **≥30 FPS sólido no PC Windows do Ricardo** (DESKTOP-PVUSTUO / RX 580 / 32 GB) é a régua de accept. Box/VM mais fraco **não** conta como barra. Load mais longo é OK se o frame steady-state passa no Windows. Inventário/plaza A/B completo = próximo PR.
+
 ## Out of scope
 
 Essay de drive-defer / per-job abort → `02`. Adaptive FPS / HOLD.

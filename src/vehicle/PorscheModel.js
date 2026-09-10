@@ -55,7 +55,7 @@ const GLTF_CARS = {
     url: '/models/mercedes/mercedes.glb',
     tag: 'mercedes.glb',
     wrapName: 'mercedes-gltf',
-    label: 'Mercedes',
+    label: 'Mercedes (otimizada)',
     rootOffsetY: 0,
     floorWheels: true,
     isTireMesh(obj) {
@@ -70,7 +70,7 @@ const GLTF_CARS = {
     url: '/models/mercedes/mercedes.original.glb',
     tag: 'mercedes.original.glb',
     wrapName: 'mercedes-original-gltf',
-    label: 'Mercedes (orig)',
+    label: 'Mercedes (high-poly)',
     rootOffsetY: 0,
     floorWheels: true,
     isTireMesh(obj) {
@@ -193,12 +193,12 @@ export class PorscheModel {
     return this.loadGltf('porsche');
   }
 
-  /** Load optimized Mercedes GLB (lazy HUD). */
+  /** Load optimized Mercedes GLB (boot preload + HUD). */
   async loadMercedes() {
     return this.loadGltf('mercedes');
   }
 
-  /** Load preserved Mercedes original for A/B. */
+  /** Load high-poly pre-pipeline Mercedes for A/B. */
   async loadMercedesOriginal() {
     return this.loadGltf('mercedesOriginal');
   }

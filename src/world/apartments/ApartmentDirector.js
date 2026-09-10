@@ -1,22 +1,25 @@
 /**
  * On-demand apartment interiors + curtain overlays for downtown facades.
- * Buildings stay InstancedMesh; live rooms/curtains are InstancedMesh too
- * (one draw per room material + one curtain draw for all slots).
- * Room/curtain/glass use MeshBasic — no Ultra-night street-light loop.
+ * Buildings stay InstancedMesh; live rooms/curtains are InstancedMesh too.
+ * 100 distinct layouts via shared furniture×wall InstancedMesh pools
+ * (layoutId = stableHash(facadeId, slotIndex) % 100) — no unique Mesh clones,
+ * no per-room PointLight. Room/curtain/glass = MeshBasic.
  *
  * Intent:
  * - Shell: every registered facade slot has a closed sheer curtain instance
  *   until a full interior is ready (then curtain snap-hides via scale 0).
  * - Live: stream pump upgrades shells → rooms up to liveTarget / heap cap;
- *   demotion strips back to curtain-only (never blank glass).
+ *   demotion strips back to curtain-only (never blank glass). Same layoutId
+ *   on demote/reopen for a given slot.
  */
 
 import * as THREE from 'three';
 import {
-  ensureApartmentRoomBaked,
   getSharedCurtainGeometry,
   getSharedCurtainMaterial
 } from './roomTemplate.js';
+import { ensureApartmentVariantsBaked } from './aptVariantBake.js';
+import { layoutIdFromSlot, getLayout } from './aptLayouts.js';
 import { throughValve, yieldToMain } from '../yield.js';
 import { memoryGuardian } from '../../engine/memoryGuardian.js';
 import {
@@ -248,10 +251,16 @@ export class ApartmentDirector {
     this._gpuWarmed = false;
     /** @type {THREE.Group|null} */
     this._instancerRoot = null;
-    /** @type {THREE.InstancedMesh[]|null} one InstancedMesh per room material */
+    /** @type {THREE.InstancedMesh[][]|null} [furnitureVariant][part] */
+    this._furnitureInstancers = null;
+    /** @type {THREE.InstancedMesh[][]|null} [wallVariant][part] */
+    this._wallInstancers = null;
+    /** @deprecated kept null — variants replace single room pool */
     this._roomInstancers = null;
     /** @type {THREE.InstancedMesh|null} */
     this._curtainInstancer = null;
+    this._furnitureVariantCount = 0;
+    this._wallVariantCount = 0;
     /** @type {Promise<void>|null} serializes first instancer create (many registerFacade). */
     this._instancersReady = null;
     this._instanceCapacity = ALL_CEILING;
@@ -527,14 +536,14 @@ export class ApartmentDirector {
    * Bake template once; one InstancedMesh per room material + one curtain mesh.
    */
   async _ensureInstancers() {
-    if (this._roomInstancers) return;
+    if (this._furnitureInstancers) return;
     if (this._instancersReady) {
       await this._instancersReady;
       return;
     }
     this._instancersReady = (async () => {
-      const baked = await ensureApartmentRoomBaked();
-      if (this._roomInstancers) return;
+      const baked = await ensureApartmentVariantsBaked();
+      if (this._furnitureInstancers) return;
       const cap = this._instanceCapacity;
       const root = new THREE.Group();
       root.name = 'apartment-instancers';
@@ -542,28 +551,38 @@ export class ApartmentDirector {
       this.parent.add(root);
       this._instancerRoot = root;
 
-      // Downtown-sized bound so free-flight away from the grid skips these draws.
-      // Pin computeBoundingSphere — InstancedMesh would otherwise rebuild from
-      // every instance (incl. scale-0 shells) every update.
       const pinDowntownBound = (mesh) => {
         mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 20, 0), 280);
         mesh.computeBoundingSphere = () => {};
       };
-      this._roomInstancers = baked.roomSpecs.map((spec, i) => {
-        const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
-        mesh.name = `apartment-room-im-${i}`;
-        mesh.count = 0;
-        mesh.castShadow = false;
-        // Basic rooms — no shadow receive (ground owns PCF samples).
-        mesh.receiveShadow = false;
-        mesh.frustumCulled = true;
-        pinDowntownBound(mesh);
-        mesh.renderOrder = 30;
-        for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
-        mesh.instanceMatrix.needsUpdate = true;
-        root.add(mesh);
-        return mesh;
-      });
+
+      const makeIMs = (specs, namePrefix) => {
+        return specs.map((spec, i) => {
+          const mesh = new THREE.InstancedMesh(spec.geometry, spec.material, cap);
+          mesh.name = `${namePrefix}-${i}`;
+          mesh.count = 0;
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
+          mesh.frustumCulled = true;
+          pinDowntownBound(mesh);
+          mesh.renderOrder = 30;
+          for (let j = 0; j < cap; j++) mesh.setMatrixAt(j, _hideMat);
+          mesh.instanceMatrix.needsUpdate = true;
+          root.add(mesh);
+          return mesh;
+        });
+      };
+
+      this._furnitureVariantCount = baked.furnitureVariants.length;
+      this._wallVariantCount = baked.wallVariants.length;
+      this._furnitureInstancers = baked.furnitureVariants.map((fv, v) =>
+        makeIMs(fv.roomSpecs, `apartment-furn-${v}`)
+      );
+      this._wallInstancers = baked.wallVariants.map((wv, v) =>
+        makeIMs(wv.roomSpecs, `apartment-wall-${v}`)
+      );
+      // Legacy alias: first furniture variant parts (warm / debug)
+      this._roomInstancers = this._furnitureInstancers[0] || [];
 
       const curtain = new THREE.InstancedMesh(
         getSharedCurtainGeometry(),
@@ -592,14 +611,16 @@ export class ApartmentDirector {
   _allocInstanceId() {
     if (this._freeInstanceIds.length) return this._freeInstanceIds.pop();
     if (this._nextInstanceId >= this._instanceCapacity) {
-      // Should not happen under ALL_CEILING + live budget; reuse a free hole if any.
       console.warn('[apartments] instance capacity exhausted', this._instanceCapacity);
       return this._freeInstanceIds.length ? this._freeInstanceIds.pop() : 0;
     }
     const id = this._nextInstanceId++;
     const count = id + 1;
-    for (const mesh of this._roomInstancers || []) {
-      mesh.count = count;
+    for (const parts of this._furnitureInstancers || []) {
+      for (const mesh of parts) mesh.count = count;
+    }
+    for (const parts of this._wallInstancers || []) {
+      for (const mesh of parts) mesh.count = count;
     }
     if (this._curtainInstancer) this._curtainInstancer.count = count;
     return id;
@@ -612,15 +633,34 @@ export class ApartmentDirector {
     this._freeInstanceIds.push(id);
   }
 
-  _writeRoomMatrix(id, matrix) {
-    for (const mesh of this._roomInstancers || []) {
-      mesh.setMatrixAt(id, matrix);
+  /**
+   * Stamp furniture + wall pools for one instance id.
+   * Only the unit's furnitureVariant / wallVariant receive `matrix`; others hide.
+   */
+  _writeRoomMatrix(id, matrix, furnitureVariant = 0, wallVariant = 0) {
+    const fv = furnitureVariant | 0;
+    const wv = wallVariant | 0;
+    const furn = this._furnitureInstancers || [];
+    for (let v = 0; v < furn.length; v++) {
+      const m = v === fv ? matrix : _hideMat;
+      for (const mesh of furn[v]) mesh.setMatrixAt(id, m);
+    }
+    const walls = this._wallInstancers || [];
+    for (let v = 0; v < walls.length; v++) {
+      const m = v === wv ? matrix : _hideMat;
+      for (const mesh of walls[v]) mesh.setMatrixAt(id, m);
     }
     this._roomMatricesDirty = true;
   }
 
   _writeRoomHidden(id) {
-    this._writeRoomMatrix(id, _hideMat);
+    for (const parts of this._furnitureInstancers || []) {
+      for (const mesh of parts) mesh.setMatrixAt(id, _hideMat);
+    }
+    for (const parts of this._wallInstancers || []) {
+      for (const mesh of parts) mesh.setMatrixAt(id, _hideMat);
+    }
+    this._roomMatricesDirty = true;
   }
 
   _writeCurtainMatrix(id, matrix) {
@@ -635,8 +675,11 @@ export class ApartmentDirector {
 
   _flushInstanceMatrices() {
     if (this._roomMatricesDirty) {
-      for (const mesh of this._roomInstancers || []) {
-        mesh.instanceMatrix.needsUpdate = true;
+      for (const parts of this._furnitureInstancers || []) {
+        for (const mesh of parts) mesh.instanceMatrix.needsUpdate = true;
+      }
+      for (const parts of this._wallInstancers || []) {
+        for (const mesh of parts) mesh.instanceMatrix.needsUpdate = true;
       }
       this._roomMatricesDirty = false;
     }
@@ -969,6 +1012,9 @@ export class ApartmentDirector {
   _spawnCurtainOnly(facade, slot, key) {
     const slotWorld = this._slotWorldMatrix(facade, slot, new THREE.Matrix4());
     const instanceId = this._allocInstanceId();
+    // Stable layout for this facade slot — demote/reopen keeps the same id.
+    const layoutId = layoutIdFromSlot(facade.id, slot.id);
+    const layout = getLayout(layoutId);
 
     this._composeCurtainMatrix(slotWorld, slot, 1, _roomLocal);
     this._writeCurtainMatrix(instanceId, _roomLocal);
@@ -982,6 +1028,9 @@ export class ApartmentDirector {
       slot,
       instanceId,
       slotWorld,
+      layoutId,
+      furnitureVariant: layout.furnitureVariant,
+      wallVariant: layout.wallVariant,
       hasRoom: false,
       room: null,
       curtain: null,
@@ -1005,9 +1054,22 @@ export class ApartmentDirector {
 
     await this._ensureInstancers();
 
-    // Phase 1: transparent glass + instanced 3D room (emissive, no PointLight).
+    // Ensure layoutId (stable across demote/reopen).
+    if (unit.layoutId == null) {
+      unit.layoutId = layoutIdFromSlot(unit.facadeId, unit.slotId);
+      const layout = getLayout(unit.layoutId);
+      unit.furnitureVariant = layout.furnitureVariant;
+      unit.wallVariant = layout.wallVariant;
+    }
+
+    // Transparent glass + instanced 3D room (furniture×wall pools, no PointLight).
     this._composeRoomMatrix(unit.slotWorld, unit.slot, _roomLocal);
-    this._writeRoomMatrix(unit.instanceId, _roomLocal);
+    this._writeRoomMatrix(
+      unit.instanceId,
+      _roomLocal,
+      unit.furnitureVariant ?? 0,
+      unit.wallVariant ?? 0
+    );
     unit.hasRoom = true;
     unit.room = true; // legacy truthy for any external checks
     unit.reveal = null;
@@ -1066,5 +1128,11 @@ export class ApartmentDirector {
     this._flushInstanceMatrices();
     this.units.delete(key);
     this._loadOrder = this._loadOrder.filter((k) => k !== key);
+  }
+
+  /** Debug: stable layout id + recipe for a facade slot. */
+  layoutIdFor(facadeId, slotIndex) {
+    const id = layoutIdFromSlot(facadeId, slotIndex);
+    return { layoutId: id, layout: getLayout(id) };
   }
 }

@@ -40,6 +40,7 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 
 - **MUST NOT** use mouse wheel to zoom the follow camera or change free-flight fly-speed.
 - Near apt staging: wheel cycles catalog (**slot 0 = (nenhum)** first); while furniture-drag, wheel adjusts height. RMB pan / LMB look unchanged.
+- Free-flight RMB pan: horizontal = XZ strafe; vertical = world Y elevate (drag down → camera down). No look rotate.
 
 ## Ownership
 

@@ -25,7 +25,7 @@ Contrato de chrome dos painéis HUD minimizáveis com lista/corpo scrollável. R
 | Ferramentas / Vista | Malha, Câmera, Anéis do raio, Limpar cache (`.hud-action-row`) |
 | Load carros | lista de loads + Comparar A/B |
 | Cena / Ambiente | Ultra/Simples + Interiores (−/+/Todos) |
-| Hora | slider + Play (minimizable) |
+| Hora | slider + Play (minimizable); hours → `city-day-night-v1` |
 | Iluminação | study knobs (JS) |
 | Bússola | widget não-lista (ok fora do padrão de lista) |
 

@@ -62,3 +62,11 @@ Sandbox loads loft + novopo furniture + novopo extras (?v=… cache-bust). Grass
 zones east of apt shell near Large_3: furniture (10-col) | cars (2-col wide) |
 architecture (8-col). Mass InstancedMesh bake in roomTemplate.js still uses loft
 living-room subset only.
+
+── kit/furniture_kit.glb (CC0)
+Quaternius Ultimate House Interior (FBX→GLB): fridge, oven, oven_large, sink,
+cabinet, q_couch, q_couch_s, q_chair, q_plant, q_plant_b, q_bookshelf, q_table,
+q_table_s.
+Poly Haven 1k diffuse: ph_sofa, ph_tv, ph_shelf, ph_coffee.
+Floored Y-up. See kit/LICENSE. Re-extract: node scripts/extract-apt-kit.mjs
+Aquarium: no solid CC0 glTF at import — omitted.

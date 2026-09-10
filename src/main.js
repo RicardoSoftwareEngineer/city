@@ -58,6 +58,7 @@ import { spawnOptStudyPlaza } from './world/optStudyPlaza.js';
 import { spawnShowFlatInterior } from './world/apartments/showFlatInterior.js';
 import { spawnAptInteriorCandidates } from './world/apartments/aptInteriorCandidates.js';
 import { spawnWallPaintShowroom } from './world/apartments/wallPaintShowroom.js';
+import { spawnAptLayoutReviewStrip } from './world/apartments/aptLayoutReviewStrip.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -580,6 +581,14 @@ async function startGame() {
       })
       .catch((err) => {
         console.warn('[wall-showroom] spawn failed', err);
+      });
+    // 100 layout review strip west-south of wall showroom — fire-and-forget.
+    void spawnAptLayoutReviewStrip(cityGroup)
+      .then((api) => {
+        window.__cityAptLayouts = api;
+      })
+      .catch((err) => {
+        console.warn('[apt-layouts] spawn failed', err);
       });
     await yieldToMain();
 

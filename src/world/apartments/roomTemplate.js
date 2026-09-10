@@ -25,6 +25,9 @@ export const NOVOPO_FURNITURE_URL = '/models/apartments/novopo_furniture.glb?v=p
 /** Novopo cars + architecture extras (sandbox grass catalog zones). */
 export const NOVOPO_EXTRAS_URL = '/models/apartments/novopo_extras.glb?v=cars-arch-1';
 
+/** Quaternius + Poly Haven CC0 kit (fridge/oven/TV/sofa/…). */
+export const KIT_FURNITURE_URL = '/models/apartments/kit/furniture_kit.glb?v=kit-1';
+
 /** @type {{ roomSpecs: {geometry:THREE.BufferGeometry,material:THREE.Material,name:string}[], phase:number }|null} */
 let baked = null;
 

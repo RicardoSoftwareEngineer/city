@@ -7,7 +7,9 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 ## Invariants / MUST / MUST NOT
 
 - **MUST** janelas = vidro transparente real (não FakeInterior emissive).
-- **MUST** um room template; slots via **InstancedMesh** (não Mesh clones); on-demand only.
+- **MUST** shared room bake via **InstancedMesh** pools (não Mesh clones); on-demand only.
+- **MUST** **100 distinct layouts** (`layoutId = stableHash(facadeId, slotIndex) % 100`) stamped from **shared** furniture×wall InstancedMesh pools (20 furniture variants × 20 wall albedos) — unique *layouts* OK; still **MUST NOT** unique Mesh clones / per-room PointLight.
+- **MUST** demote/reopen keep the same `layoutId` for that facade slot.
 - **MUST** `liveTarget` default `'all'` / **Todos** = `want = ranked.length` — stream upgrades shells to full open interiors (curtain snap-hide on ready).
 - **MUST** every registered facade window slot **without** a ready/open interior show a **visible closed sheer curtain** (Fabric 203 shared InstancedMesh) outside the glass — including idle, waiting-in-pump, and heap-demoted slots. Never blank white/black holes.
 - **MUST** stream pump (`throughValve` + yields) owns pacing — nunca for-loop sync no click.
@@ -17,10 +19,11 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 - **MUST** closed / curtain-only shells = shared InstancedMesh sheer (ShareTextures Fabric 203, CC0) **MeshBasic** with color+**alphaMap** only (no normal/rough — VRAM + light-loop) — translucency for light/silhouettes; one material for all instances.
 - **MUST** shell intent live in `ApartmentDirector` (`_ensureFacadeShells` / `_stripToCurtainOnly`) — not scattered per-slot flags.
 - **MUST** sem per-room `PointLight`; room + curtain + shared glass = **MeshBasic** (emissive folded into color / opacity glass) — never join Ultra-night street Spot/Point light loop; compile `pause: false`; warm room+curtain **uma vez**.
-- **MUST** shared room bake include loft furniture shortlist (`/models/apartments/loft_furniture.glb`: sofa, plant, console, lamp, chair + box coffee/legs) as **MeshBasic albedo-only** (textures ≤512; sofa atlas 1024 PNG) merged into the same InstancedMesh material buckets — never unique furniture per unit; rescale to the 3.2×3.6×2.75 template so silhouettes read through the pane. GLB pieces MUST be floored + Y-up (extract Rx(-90) for Z-up FBX meshes); yaw-only coherent living layout. Do **not** import loft architecture (brick/beams/windows/cityscape) or loft Point light.
-- **MUST** plaster walls on the official bake use one shared **MeshBasic** + Poly Haven **CC0** albedo (`painted_plaster_wall` 1k diffuse under `/textures/walls/…`; no normal/rough). Staging candidates each use a **distinct** CC0 wall albedo (see Official interior candidates).
+- **MUST** shared furniture kit include loft + novopo + kit CC0 pieces (`loft_furniture.glb`, `novopo_furniture.glb`, `kit/furniture_kit.glb`: fridge/oven/sink/couches/TV/sofa/shelf/coffee/plants…) as **MeshBasic albedo-only** (textures ≤512; hero atlases ≤1024) merged into InstancedMesh material buckets per furniture variant — never unique furniture Mesh per unit; rescale to the 3.6×3.2×2.75 template. GLB pieces MUST be floored + Y-up; yaw-only. Do **not** import loft architecture or loft Point light.
+- **MUST** plaster walls use shared **MeshBasic** + Poly Haven **CC0** albedos from `/textures/walls/…` (no normal/rough). Building path: 20 wall InstancedMesh pools (`WALL_POOL` in `aptLayouts.js`). Staging review strip may cycle the full ~58 showroom set.
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
-- **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique furniture por unit; dispose shared curtain geo/mat no teardown.
+- **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique Mesh clones / per-room PointLight; dispose shared curtain geo/mat no teardown.
+- Unique **layouts** via shared instances are **OK** (100 recipes); unique Mesh clones are **NOT**.
 - Heap ≥0.6/≥0.72: demote farthest full interiors → **curtain-only** shells (keep sheer visible).
 
 ## Knobs
@@ -30,8 +33,10 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | `liveTarget` | `number` \| `'all'` (default) | HUD `#apts-budget` |
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
-| Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
-| Room walls | Poly Haven CC0 plaster 1k | Shared MeshBasic albedo (`painted_plaster_wall`); candidates each unique |
+| Room furniture | loft + novopo + kit CC0 | 20 furniture InstancedMesh variants; MeshBasic albedo |
+| Room walls | Poly Haven CC0 (20 pool / 58 staging) | Wall InstancedMesh pools; layout picks wallVariant |
+| Layouts | 100 recipes (`aptLayouts.js`) | `layoutId = stableHash(facadeId, slotIndex) % 100` |
+| Review strip | grass near wall showroom | `window.__cityAptLayouts` — visit(1..100) |
 | Example sandbox | asphalt corner near `Large_3@171,30` + grass catalog zones | `window.__cityAptExample` — empty shell + furniture/cars/arch picker; staging only |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
@@ -81,12 +86,22 @@ Reuses the five candidate wall albedos plus many more under `/public/textures/wa
 
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat) · `aptInteriorCandidates` (official-size bake candidates) · `wallPaintShowroom` (CC0 wall paint browse grid).
+`ApartmentDirector` (intent/stamp/pump/HUD + layoutId) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` / `aptVariantBake` (furniture×wall InstancedMesh pools) · `aptLayouts` (100 recipes + hash) · `aptLayoutReviewStrip` (staging grid) · `aptExampleSandbox` · `showFlatInterior` · `aptInteriorCandidates` · `wallPaintShowroom`.
 
 ## Same-PR rule
 
 Glass, InstancedMesh, liveTarget/Todos, cortinas, marker, shared loft furniture bake ou apartment stream ownership → este arquivo.
 
+## 100 layouts (product)
+
+Recipes in `src/world/apartments/aptLayouts.js` (seeded, reproducible). Each layout: theme, furniture piece poses (x,z,yaw), wall albedo id, `furnitureVariant` (0..19), `wallVariant` (0..19).
+
+**Building curtains:** `ApartmentDirector` assigns `layoutId` on shell spawn; `_finishLoad` stamps furniture pool `[furnitureVariant]` + wall pool `[wallVariant]` with the same instance matrix. Demote → curtain-only hides room pools but keeps `layoutId`.
+
+**Staging:** `aptLayoutReviewStrip.js` spawns all 100 official-size shells on grass west-south of the wall paint showroom (keeps showroom). API `window.__cityAptLayouts` `{ count:100, visit(i), howToFind, layout(i) }`.
+
+**Kit:** `public/models/apartments/kit/furniture_kit.glb` (+ `LICENSE`) — Quaternius Ultimate House Interior (fridge/oven/…) + Poly Haven Sofa/TV/Shelf/CoffeeTable 1k. Aquarium: no solid CC0 found — skipped.
+
 ## Out of scope
 
-Quality adapt / HOLD. Unique layouts. Drive-defer streets-only → `02`. Loft architecture / per-room lights.
+Quality adapt / HOLD. Drive-defer streets-only → `02`. Loft architecture / per-room lights. Full 100 merged room geos (use variant pools instead).

@@ -164,6 +164,7 @@ export function initStreetLightsHud(streetLights) {
   } else {
     root.setAttribute('data-min-id', 'street-lights');
   }
+  root.classList.add('hud-list-panel');
 
   /** @type {Map<string, number | string>} last value while row toggle is off */
   const remembered = new Map();
@@ -199,7 +200,7 @@ export function initStreetLightsHud(streetLights) {
   root.innerHTML =
     `<button type="button" class="hud-min-toggle" id="street-lights-label" data-min-toggle>` +
     `Iluminação <span data-min-chev>▾</span></button>` +
-    `<div data-min-body class="sl-body">` +
+    `<div data-min-body class="sl-body hud-scroll-list">` +
     `<div class="sl-rows"></div>` +
     `<button type="button" id="street-lights-reset" class="sl-reset">Restaurar padrão</button>` +
     `</div>`;

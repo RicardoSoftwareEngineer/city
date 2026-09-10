@@ -25,12 +25,12 @@
   <button type="button" id="clear-asset-cache-btn" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button>
   <button type="button" id="car-visual-btn" data-mode="box">Carro: quadrado</button>
   <button type="button" id="car-compare-btn" aria-pressed="false" title="Mercedes otimizado vs original lado a lado">Comparar A/B</button>
-  <div id="car-load-hud" data-min-id="car-load" aria-label="Load carros">
+  <div id="car-load-hud" class="hud-list-panel" data-min-id="car-load" aria-label="Load carros">
     <button type="button" class="hud-min-toggle" data-min-toggle>
       Load carros <span data-min-chev>▾</span>
     </button>
     <div data-min-body>
-      <ul id="car-load-list"><li>aguardando loads…</li></ul>
+      <ul id="car-load-list" class="hud-scroll-list"><li>aguardando loads…</li></ul>
     </div>
   </div>
 
@@ -73,18 +73,18 @@
 
   <!-- Heads-Up Display -->
 
-  <div id="resource-hud" data-min-id="resource">
+  <div id="resource-hud" class="hud-list-panel" data-min-id="resource">
     <button type="button" class="hud-min-toggle" id="resource-label" data-min-toggle>
       Recursos <span data-min-chev>▾</span>
     </button>
-    <div data-min-body></div>
+    <div data-min-body class="hud-scroll-list"></div>
   </div>
 
-  <div id="perf-hud" data-min-id="perf">
+  <div id="perf-hud" class="hud-list-panel" data-min-id="perf">
     <button type="button" class="hud-min-toggle" id="perf-label" data-min-toggle>
       FPS / Carga <span data-min-chev>▾</span>
     </button>
-    <div data-min-body>
+    <div data-min-body class="hud-scroll-list">
       <div class="perf-row">
         <span class="perf-label">FPS</span>
         <span id="fps-value">—</span>
@@ -105,35 +105,35 @@
     </div>
   </div>
 
-  <div id="hitch-load-hud" data-min-id="hitch-load">
+  <div id="hitch-load-hud" class="hud-list-panel" data-min-id="hitch-load">
     <button type="button" class="hud-min-toggle" id="hitch-label" data-min-toggle>
       Hitches — carga <span data-min-chev>▾</span>
     </button>
-    <ol id="hitch-list" class="hitch-list" data-min-body></ol>
+    <ol id="hitch-list" class="hitch-list hud-scroll-list" data-min-body></ol>
   </div>
 
-  <div id="play-hitch-hud" data-min-id="hitch-fps">
+  <div id="play-hitch-hud" class="hud-list-panel" data-min-id="hitch-fps">
     <button type="button" class="hud-min-toggle" id="play-hitch-label" data-min-toggle>
       Hitches — FPS <span data-min-chev>▾</span>
     </button>
     <div data-min-body>
       <div id="fps-sacred-stats">gate — · compile — · worst —</div>
-      <ol id="play-hitch-list" class="hitch-list"></ol>
+      <ol id="play-hitch-list" class="hitch-list hud-scroll-list"></ol>
     </div>
   </div>
 
-  <div id="load-order-async-hud" class="load-order-hud" data-min-id="load-order-async">
+  <div id="load-order-async-hud" class="load-order-hud hud-list-panel" data-min-id="load-order-async">
     <button type="button" class="hud-min-toggle" id="load-order-async-label" data-min-toggle>
       Ordem de carga — async <span data-min-chev>▾</span>
     </button>
-    <ul id="load-order-async-list" class="load-order-list" data-min-body></ul>
+    <ul id="load-order-async-list" class="load-order-list hud-scroll-list" data-min-body></ul>
   </div>
 
-  <div id="load-remain-hud" class="load-order-hud" data-min-id="load-remain">
+  <div id="load-remain-hud" class="load-order-hud hud-list-panel" data-min-id="load-remain">
     <button type="button" class="hud-min-toggle" id="load-remain-label" data-min-toggle>
       Fila do foco <span data-min-chev>▾</span>
     </button>
-    <div data-min-body>
+    <div data-min-body class="hud-scroll-list">
       <div id="load-remain-status" class="lo-remain-status">—</div>
       <div id="load-remain-total" class="lo-remain-total">Restante —</div>
       <ul id="load-remain-list" class="load-order-list"></ul>
@@ -142,19 +142,19 @@
     </div>
   </div>
 
-  <div id="load-order-sync-hud" class="load-order-hud" data-min-id="load-order-sync">
+  <div id="load-order-sync-hud" class="load-order-hud hud-list-panel" data-min-id="load-order-sync">
     <button type="button" class="hud-min-toggle" id="load-order-sync-label" data-min-toggle>
       Ordem de carga — sync <span data-min-chev>▾</span>
     </button>
-    <ul id="load-order-sync-list" class="load-order-list" data-min-body></ul>
+    <ul id="load-order-sync-list" class="load-order-list hud-scroll-list" data-min-body></ul>
   </div>
 
-  <div id="ring-load-hud" data-min-id="ring-load">
+  <div id="ring-load-hud" class="hud-list-panel" data-min-id="ring-load">
     <button type="button" class="hud-min-toggle" id="ring-load-label" data-min-toggle>
       Anel (últimos) <span data-min-chev>▾</span>
     </button>
     <div data-min-body>
-      <ul id="ring-load-list"></ul>
+      <ul id="ring-load-list" class="hud-scroll-list"></ul>
       <div id="ring-load-footer">—</div>
     </div>
   </div>

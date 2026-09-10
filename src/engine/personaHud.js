@@ -60,14 +60,14 @@ export function initPersonaHud(opts = {}) {
     let root = document.querySelector(`[data-min-id="persona-${sid}"]`);
     if (!root) {
       root = document.createElement('div');
-      root.className = 'persona-panel';
+      root.className = 'persona-panel hud-list-panel';
       root.id = `persona-${sid}`;
       root.setAttribute('data-min-id', `persona-${sid}`);
       root.innerHTML =
         `<button type="button" class="hud-min-toggle persona-label" data-min-toggle ` +
         `style="color:${PERSONA_COLOR[id] || '#94a3b8'}">` +
         `${id} <span data-min-chev>▾</span></button>` +
-        `<div data-min-body>` +
+        `<div data-min-body class="hud-scroll-list">` +
         `<div class="persona-card" data-persona="${id}">` +
         `<div class="persona-head">` +
         `<span class="persona-pct" data-pct>—</span>` +

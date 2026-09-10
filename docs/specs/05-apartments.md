@@ -18,6 +18,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 - **MUST** shell intent live in `ApartmentDirector` (`_ensureFacadeShells` / `_stripToCurtainOnly`) — not scattered per-slot flags.
 - **MUST** sem per-room `PointLight`; room + curtain + shared glass = **MeshBasic** (emissive folded into color / opacity glass) — never join Ultra-night street Spot/Point light loop; compile `pause: false`; warm room+curtain **uma vez**.
 - **MUST** shared room bake include loft furniture shortlist (`/models/apartments/loft_furniture.glb`: sofa, plant, console, lamp, chair + box coffee/legs) as **MeshBasic albedo-only** (textures ≤512; sofa atlas 1024 PNG) merged into the same InstancedMesh material buckets — never unique furniture per unit; rescale to the 3.2×3.6×2.75 template so silhouettes read through the pane. GLB pieces MUST be floored + Y-up (extract Rx(-90) for Z-up FBX meshes); yaw-only coherent living layout. Do **not** import loft architecture (brick/beams/windows/cityscape) or loft Point light.
+- **MUST** plaster walls on the official bake use one shared **MeshBasic** + Poly Haven **CC0** albedo (`painted_plaster_wall` 1k diffuse under `/textures/walls/…`; no normal/rough). Staging candidates each use a **distinct** CC0 wall albedo (see Official interior candidates).
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
 - **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique furniture por unit; dispose shared curtain geo/mat no teardown.
 - Heap ≥0.6/≥0.72: demote farthest full interiors → **curtain-only** shells (keep sheer visible).
@@ -30,6 +31,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
 | Room furniture | shared loft shortlist GLB | InstancedMesh + MeshBasic albedo; box fallback if GLB missing |
+| Room walls | Poly Haven CC0 plaster 1k | Shared MeshBasic albedo (`painted_plaster_wall`); candidates each unique |
 | Example sandbox | asphalt corner near `Large_3@171,30` + grass catalog zones | `window.__cityAptExample` — empty shell + furniture/cars/arch picker; staging only |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
@@ -51,15 +53,17 @@ Dedicated **Apartamento estudo** open loft on grass west of the opt-study showro
 
 ## Official interior candidates (staging bake)
 
-Five **official-size** shells (`3.6 × 2.75 × 3.2` m, open face **−Z**, same local convention as `roomTemplate` / InstancedMesh) on free grass **east of the show flat** / west-south of opt-study pads (`src/world/apartments/aptInteriorCandidates.js`, row origin ~`x=238,z=-10`, spacing 5.5 m). Each pad has a distinct furniture theme using loft / novopo pieces scaled to fit the building room — **not** oversized opt-study lofts:
+Five **official-size** shells (`3.6 × 2.75 × 3.2` m, open face **−Z**, same local convention as `roomTemplate` / InstancedMesh) on free grass **east of the show flat** / west-south of opt-study pads (`src/world/apartments/aptInteriorCandidates.js`, row origin ~`x=238,z=-10`, spacing 5.5 m). Each pad has a distinct furniture theme using loft / novopo pieces scaled to fit the building room — **not** oversized opt-study lofts. Each candidate also has a **unique Poly Haven CC0** plaster wall albedo (MeshBasic `map`, UV repeat ~1–2; floor/ceiling stay flat tint):
 
-1. Living clássico (sofa + coffee + plant + console)
-2. Compact TV / lounge
-3. Dining / mesa + cadeiras
-4. Study / desk + chair + plant
-5. Minimal / sparse modern
+1. Living clássico (sofa + coffee + plant + console) — `painted_plaster_wall`
+2. Compact TV / lounge — `patterned_plaster_wall`
+3. Dining / mesa + cadeiras — `plastered_wall`
+4. Study / desk + chair + plant — `white_plaster_02`
+5. Minimal / sparse modern — `white_stucco`
 
-Show flat stays untouched (hero / screenshot loft). These candidates are the staging path toward an official bake into `roomTemplate`. Exposes `window.__cityAptCandidates` `{ root, rowOrigin, roomSize, candidates[], themes, howToFind, visit(i) }`. Lazy after playCore like the show flat.
+Official `roomTemplate` bake default wall albedo: **`painted_plaster_wall`** (shared one material for InstancedMesh). Textures under `/public/textures/walls/<id>/<id>_diff_1k.jpg` + `LICENSE.txt` (CC0).
+
+Show flat stays untouched (hero / screenshot loft). These candidates are the staging path toward an official bake into `roomTemplate`. Exposes `window.__cityAptCandidates` `{ root, rowOrigin, roomSize, candidates[], themes, wallTextures, howToFind, visit(i) }`. Lazy after playCore like the show flat.
 
 ## Ownership
 

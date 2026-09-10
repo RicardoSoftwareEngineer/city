@@ -1,0 +1,12 @@
+Poly Haven wall plaster / paint albedo textures (CC0 1.0 Universal).
+
+Assets (diffuse/albedo 1k JPG only):
+- painted_plaster_wall
+- patterned_plaster_wall
+- plastered_wall
+- white_plaster_02
+- white_stucco
+
+Source: https://polyhaven.com/
+License: CC0 — no attribution required; free for any use.
+Only diffuse maps are bundled (MeshBasic albedo; no normal/rough).

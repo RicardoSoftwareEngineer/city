@@ -11,8 +11,9 @@ Specs = **contrato vivo**. Código segue specs; discordância → corrige códig
 3. Mudar fence / biome / paved / vista → lê `04-world.md`.
 4. Mudar vidro / interiores / cortinas / Todos → lê `05-apartments.md`.
 5. Mudar hero car / optimize GLB / A/B / load times → lê `06-vehicles.md`.
-6. **Same-PR:** mudança intencional de contrato atualiza a spec matching.
-7. `OPTIMIZATION_*.md` = diários históricos — **não** contrato.
+6. Mudar chrome HUD lista/resize/minimize → lê `07-hud.md`.
+7. **Same-PR:** mudança intencional de contrato atualiza a spec matching.
+8. `OPTIMIZATION_*.md` = diários históricos — **não** contrato.
 
 ## Index
 
@@ -24,6 +25,7 @@ Specs = **contrato vivo**. Código segue specs; discordância → corrige códig
 | [04-world.md](./04-world.md) | Fence, orchard, biomes, vista, paved |
 | [05-apartments.md](./05-apartments.md) | Glass, InstancedMesh, liveTarget, cortinas |
 | [06-vehicles.md](./06-vehicles.md) | Hero GLB pipeline, originals A/B, load times HUD |
+| [07-hud.md](./07-hud.md) | Minimizable list panels: resize/clip, persist |
 
 ## Workflow
 

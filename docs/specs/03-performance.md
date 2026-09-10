@@ -30,6 +30,8 @@ HUD hora: `#day-night-float` (scrub; Play opcional). DayNight **não** regenera 
 
 **hitch** = frame spike. HUD: **Hitches** (carga + FPS).
 
+Chrome dos painéis Hitches (resize/clip): **`07-hud.md`**.
+
 | Tier | frameMs | Badge |
 |------|---------|-------|
 | **ok** | ≤ 100 ms | ACEITÁVEL |

@@ -7,12 +7,14 @@
  *
  * Staging UX:
  * - **Wheel** (not furniture-dragging, pointer near staging): cycle catalog selection
- *   + highlight; does not zoom / change fly-speed in that mode.
+ *   + highlight, including a **(nenhum)** deselect slot; does not zoom / change fly-speed.
+ * - **HUD** bottom bar shows live thumbnail of the armed catalog sample (offscreen RT).
  * - **LMB** on ground (grass/asphalt plane or room floor): place the selected catalog
- *   item at hit xz, feet floored. Over room footprint → into shell; else world group.
+ *   item at hit xz, feet floored (no-op when nenhum). Over room footprint → shell; else world.
  * - **RMB drag**: camera pan (see ThirdPersonCamera) — not handled here.
  * - **1 / 2 / 3** (or Alt+W / Alt+E / Alt+R): Unreal-style TransformControls mode
  *   (translate / rotate / scale) on the selected placed or showcase piece.
+ * - **Esc**: jump to (nenhum) — clear catalog arming without touching room/world gizmo.
  * - Click / drag catalog→room and in-room slide still work; while dragging a piece,
  *   wheel raises/lowers Y (0–2.5 m). Gizmo drag blocks camera look.
  *
@@ -517,7 +519,11 @@ const DRAG_Y_WHEEL_SCALE = 0.002;
 /** World AABB around room + grass catalog — wheel cycle / LMB place only here. */
 const STAGING_BOUNDS = { minX: 168, maxX: 228, minZ: -60, maxZ: 48 };
 
-const UI_PICK_BLOCK = '#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn, #apt-staging-hud';
+const UI_PICK_BLOCK =
+  '#hud, button, .hud-panel, #terrain-debug-readout, #camera-mode-btn, #apt-staging-hud-wrap, #apt-staging-hud, #apt-staging-preview';
+
+/** Live catalog thumbnail (offscreen RT → 2D canvas). */
+const PREVIEW_PX = 88;
 
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
@@ -528,6 +534,9 @@ const _floorPlane = new THREE.Plane();
 const _hitPoint = new THREE.Vector3();
 const _localHit = new THREE.Vector3();
 const _floorNormal = new THREE.Vector3(0, 1, 0);
+const _previewClear = new THREE.Color();
+const _previewViewport = new THREE.Vector4();
+const _previewCamPos = new THREE.Vector3();
 
 function stdBasic(color, emissive, emissiveIntensity = 0.5) {
   const out = new THREE.Color(color).multiplyScalar(0.35);
@@ -874,7 +883,8 @@ function clampRoomXZ(x, z) {
  *   camera?: THREE.Camera,
  *   domElement?: HTMLElement,
  *   lookControls?: { setLookBlocked?: (b: boolean) => void },
- *   mouseInput?: { setDragBlocked?: (b: boolean) => void, enabled?: boolean }
+ *   mouseInput?: { setDragBlocked?: (b: boolean) => void, enabled?: boolean },
+ *   glRenderer?: THREE.WebGLRenderer
  * }} [opts]
  */
 export async function spawnAptExampleSandbox(parent, opts = {}) {
@@ -1008,7 +1018,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return transformControls?.mode || 'translate';
     },
     where:
-      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog east (~x=188+). Staging: wheel cycles catalog (near staging); LMB ground places selected (room floor→shell, else worldGroup at y floored); RMB pan camera; W/E/R or 1/2/3 gizmo translate/rotate/scale; drag catalog→room + in-room slide; wheel while drag = height.',
+      'Asphalt corner SE of Large_3@171,30 — room ~x=182,z=22 open south; grass catalog east (~x=188+). Staging: wheel cycles catalog incl. (nenhum); HUD live thumbnail; LMB ground places selected (noop if nenhum); RMB pan; Esc=nenhum; W/E/R or 1/2/3 gizmo; drag catalog→room + in-room slide; wheel while drag = height.',
     facadeId: cfg.facadeId,
     /**
      * Clone a loft piece into the empty room at its default slot (or override).
@@ -1191,6 +1201,26 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
 
   /** @type {HTMLElement|null} */
   let hudEl = null;
+  /** @type {HTMLElement|null} */
+  let hudWrap = null;
+  /** @type {HTMLCanvasElement|null} */
+  let previewCanvas = null;
+  /** @type {CanvasRenderingContext2D|null} */
+  let previewCtx = null;
+  /** @type {THREE.WebGLRenderer|null} */
+  const glRenderer = opts.glRenderer || null;
+  /** @type {THREE.WebGLRenderTarget|null} */
+  let previewRT = null;
+  /** @type {THREE.Scene|null} */
+  let previewScene = null;
+  /** @type {THREE.PerspectiveCamera|null} */
+  let previewCam = null;
+  /** @type {Uint8Array|null} */
+  let previewPixels = null;
+  /** @type {ImageData|null} */
+  let previewImage = null;
+  let previewRaf = 0;
+  let previewName = null;
 
   function setLookBlocked(blocked) {
     lookControls?.setLookBlocked?.(blocked);
@@ -1237,25 +1267,201 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     }
   }
 
+  function ensurePreviewPipeline() {
+    if (!glRenderer || !previewCanvas) return false;
+    if (previewRT) return true;
+    previewRT = new THREE.WebGLRenderTarget(PREVIEW_PX, PREVIEW_PX, {
+      type: THREE.UnsignedByteType,
+      format: THREE.RGBAFormat,
+      depthBuffer: true,
+      stencilBuffer: false,
+      colorSpace: THREE.SRGBColorSpace
+    });
+    previewScene = new THREE.Scene();
+    previewScene.background = new THREE.Color(0x0f172a);
+    previewCam = new THREE.PerspectiveCamera(32, 1, 0.05, 80);
+    previewPixels = new Uint8Array(PREVIEW_PX * PREVIEW_PX * 4);
+    previewImage = previewCtx.createImageData(PREVIEW_PX, PREVIEW_PX);
+    return true;
+  }
+
+  function paintPreviewPlaceholder() {
+    if (!previewCtx || !previewCanvas) return;
+    previewCtx.fillStyle = '#0f172a';
+    previewCtx.fillRect(0, 0, PREVIEW_PX, PREVIEW_PX);
+    previewCtx.strokeStyle = '#334155';
+    previewCtx.strokeRect(0.5, 0.5, PREVIEW_PX - 1, PREVIEW_PX - 1);
+    previewCtx.fillStyle = '#64748b';
+    previewCtx.font = '22px system-ui,sans-serif';
+    previewCtx.textAlign = 'center';
+    previewCtx.textBaseline = 'middle';
+    previewCtx.fillText('—', PREVIEW_PX / 2, PREVIEW_PX / 2);
+    previewCanvas.classList.add('is-empty');
+    previewCanvas.title = '(nenhum)';
+  }
+
+  function disposePreviewPipeline() {
+    if (previewRaf) {
+      cancelAnimationFrame(previewRaf);
+      previewRaf = 0;
+    }
+    if (previewRT) {
+      previewRT.dispose();
+      previewRT = null;
+    }
+    previewScene = null;
+    previewCam = null;
+    previewPixels = null;
+    previewImage = null;
+    previewName = null;
+  }
+
+  /**
+   * One-shot offscreen render of the catalog sample into the HUD canvas.
+   * Reuses a single RT; clones share geo/mats (do not dispose them).
+   * @param {string|null} name
+   * @param {THREE.Object3D|null} sample
+   */
+  function renderCatalogPreview(name, sample) {
+    if (!previewCtx) return;
+    if (!name || !sample) {
+      previewName = null;
+      paintPreviewPlaceholder();
+      return;
+    }
+    if (!ensurePreviewPipeline()) {
+      paintPreviewPlaceholder();
+      return;
+    }
+    previewName = name;
+    previewCanvas.classList.remove('is-empty');
+    previewCanvas.title = name;
+
+    const holder = new THREE.Group();
+    const clone = sample.clone(true);
+    const doomed = [];
+    clone.traverse((o) => {
+      if (o.name === 'apt-catalog-select-ring' || (typeof o.name === 'string' && o.name.startsWith('label-'))) {
+        doomed.push(o);
+      }
+    });
+    for (const o of doomed) o.parent?.remove(o);
+    const baseScale =
+      sample.userData._aptSelScale != null ? sample.userData._aptSelScale : sample.scale.x || 1;
+    clone.position.set(0, 0, 0);
+    clone.rotation.set(0, Math.PI * 0.22, 0);
+    clone.scale.setScalar(baseScale);
+    holder.add(clone);
+    holder.updateMatrixWorld(true);
+    _box.setFromObject(holder);
+    if (_box.isEmpty()) {
+      paintPreviewPlaceholder();
+      return;
+    }
+    _box.getCenter(_center);
+    _box.getSize(_size);
+    clone.position.x -= _center.x;
+    clone.position.y -= _center.y;
+    clone.position.z -= _center.z;
+    holder.updateMatrixWorld(true);
+    _box.setFromObject(holder);
+    _box.getSize(_size);
+    const maxDim = Math.max(_size.x, _size.y, _size.z, 0.05);
+    const dist = maxDim * 1.65;
+    _previewCamPos.set(dist * 0.85, dist * 0.55, dist);
+    previewCam.position.copy(_previewCamPos);
+    previewCam.near = Math.max(0.02, dist / 80);
+    previewCam.far = Math.max(40, dist * 8);
+    previewCam.lookAt(0, 0, 0);
+    previewCam.updateProjectionMatrix();
+
+    previewScene.clear();
+    previewScene.background = new THREE.Color(0x0f172a);
+    previewScene.add(holder);
+
+    const prevTarget = glRenderer.getRenderTarget();
+    const prevAutoClear = glRenderer.autoClear;
+    glRenderer.getClearColor(_previewClear);
+    const prevAlpha = glRenderer.getClearAlpha();
+    glRenderer.getViewport(_previewViewport);
+    const prevTone = glRenderer.toneMappingExposure;
+
+    glRenderer.setRenderTarget(previewRT);
+    glRenderer.setClearColor(0x0f172a, 1);
+    glRenderer.autoClear = true;
+    glRenderer.clear();
+    glRenderer.render(previewScene, previewCam);
+    glRenderer.setRenderTarget(prevTarget);
+    glRenderer.setClearColor(_previewClear, prevAlpha);
+    glRenderer.autoClear = prevAutoClear;
+    glRenderer.setViewport(_previewViewport);
+    glRenderer.toneMappingExposure = prevTone;
+
+    glRenderer.readRenderTargetPixels(previewRT, 0, 0, PREVIEW_PX, PREVIEW_PX, previewPixels);
+    const dst = previewImage.data;
+    const row = PREVIEW_PX * 4;
+    for (let y = 0; y < PREVIEW_PX; y++) {
+      const srcOff = (PREVIEW_PX - 1 - y) * row;
+      dst.set(previewPixels.subarray(srcOff, srcOff + row), y * row);
+    }
+    previewCtx.putImageData(previewImage, 0, 0);
+
+    previewScene.remove(holder);
+  }
+
+  /** Queue one-shot preview refresh (coalesce rapid wheel steps). */
+  function refreshPreview(name, sample) {
+    if (previewRaf) cancelAnimationFrame(previewRaf);
+    if (!name || !sample) {
+      previewRaf = 0;
+      renderCatalogPreview(null, null);
+      return;
+    }
+    previewRaf = requestAnimationFrame(() => {
+      previewRaf = 0;
+      renderCatalogPreview(name, sample);
+    });
+  }
+
   function updateHud() {
     if (!hudEl) return;
-    const cat = api.selectedName || '—';
+    const total = cycleNames.length || 0;
     const mode = transformControls?.mode || 'translate';
     const tgt =
       gizmoTargetKind && gizmoTargetName
         ? `${gizmoTargetKind}:${gizmoTargetName}`
-        : 'none';
-    hudEl.textContent = `Catálogo [${selectedIndex + 1}/${cycleNames.length || 0}]: ${cat}  ·  Gizmo: ${mode} (${tgt})  ·  1/2/3 ou Alt+W/E/R  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
+        : 'nenhum';
+    if (selectedIndex < 0 || !api.selectedName) {
+      hudEl.textContent = `Catálogo [—/${total}]: (nenhum)  ·  Gizmo: ${mode} (${tgt})  ·  Esc=nenhum  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
+    } else {
+      hudEl.textContent = `Catálogo [${selectedIndex + 1}/${total}]: ${api.selectedName}  ·  Gizmo: ${mode} (${tgt})  ·  1/2/3 ou Alt+W/E/R  ·  scroll=ciclo  ·  LMB chão=colocar  ·  RMB=pan`;
+    }
   }
 
+  /**
+   * Select catalog index, or -1 / length for (nenhum).
+   * Wheel uses {@link cycleCatalog} so wrapping includes the nenhum slot.
+   * @param {number} index
+   */
   function setCatalogSelection(index) {
     if (!cycleNames.length) {
       selectedIndex = -1;
       clearCatalogHighlight();
+      if (gizmoTargetKind === 'catalog') detachGizmo();
       updateHud();
+      refreshPreview(null, null);
       return;
     }
     const len = cycleNames.length;
+    // Sentinel: explicit none (also accept len as virtual slot).
+    if (index === -1 || index === len) {
+      selectedIndex = -1;
+      clearCatalogHighlight();
+      if (gizmoTargetKind === 'catalog') detachGizmo();
+      updateHud();
+      refreshPreview(null, null);
+      return;
+    }
     selectedIndex = ((index % len) + len) % len;
     clearCatalogHighlight();
     const name = cycleNames[selectedIndex];
@@ -1275,6 +1481,17 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       }
     }
     updateHud();
+    refreshPreview(name, sample || null);
+  }
+
+  /** Wheel step across items + trailing (nenhum) sentinel. */
+  function cycleCatalog(dir) {
+    const len = cycleNames.length;
+    if (!len) return;
+    const span = len + 1;
+    const cur = selectedIndex < 0 ? len : selectedIndex;
+    const next = (((cur + dir) % span) + span) % span;
+    setCatalogSelection(next === len ? -1 : next);
   }
 
   function syncPoseFromObject(obj, kind, name) {
@@ -1731,10 +1948,10 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       return;
     }
 
-    // Cycle catalog when pointer is over staging / showcase.
+    // Cycle catalog (incl. nenhum) when pointer is over staging / showcase.
     if (!cycleNames.length || !pointerOverStaging(ev)) return;
     const dir = ev.deltaY > 0 ? 1 : -1;
-    setCatalogSelection(selectedIndex + dir);
+    cycleCatalog(dir);
     ev.preventDefault();
     ev.stopImmediatePropagation();
   }
@@ -1795,6 +2012,13 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
   function onKeyDown(ev) {
     if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
     const k = ev.code;
+    if (k === 'Escape') {
+      if (selectedIndex >= 0 || gizmoTargetKind === 'catalog') {
+        setCatalogSelection(-1);
+        ev.preventDefault();
+      }
+      return;
+    }
     // 1/2/3 always; Alt+W/E/R mirrors Unreal without stealing WASD freefly.
     const ueChord = ev.altKey;
     if (k === 'Digit1' || (ueChord && k === 'KeyW')) {
@@ -1813,13 +2037,20 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     const target = dom || window;
 
     if (typeof document !== 'undefined') {
+      hudWrap = document.createElement('div');
+      hudWrap.id = 'apt-staging-hud-wrap';
+      previewCanvas = document.createElement('canvas');
+      previewCanvas.id = 'apt-staging-preview';
+      previewCanvas.width = PREVIEW_PX;
+      previewCanvas.height = PREVIEW_PX;
+      previewCanvas.setAttribute('aria-hidden', 'true');
+      previewCtx = previewCanvas.getContext('2d', { alpha: false });
       hudEl = document.createElement('div');
       hudEl.id = 'apt-staging-hud';
-      hudEl.style.cssText =
-        'position:fixed;left:12px;bottom:12px;z-index:40;padding:8px 12px;' +
-        'background:rgba(15,23,42,0.82);color:#ecfdf5;font:12px/1.35 system-ui,sans-serif;' +
-        'border:1px solid #4ade80;border-radius:8px;pointer-events:none;max-width:min(920px,92vw);';
-      document.body.appendChild(hudEl);
+      hudWrap.appendChild(previewCanvas);
+      hudWrap.appendChild(hudEl);
+      document.body.appendChild(hudWrap);
+      paintPreviewPlaceholder();
     }
 
     try {
@@ -1877,8 +2108,12 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
       }
       if (transformHelper?.parent) transformHelper.parent.remove(transformHelper);
       transformHelper = null;
-      if (hudEl?.parentNode) hudEl.parentNode.removeChild(hudEl);
+      disposePreviewPipeline();
+      if (hudWrap?.parentNode) hudWrap.parentNode.removeChild(hudWrap);
+      hudWrap = null;
       hudEl = null;
+      previewCanvas = null;
+      previewCtx = null;
       setLookBlocked(false);
     };
   }
@@ -1891,7 +2126,7 @@ export async function spawnAptExampleSandbox(parent, opts = {}) {
     cfg.yaw.toFixed(2),
     'catalog',
     Object.keys(catalog).length,
-    'staging: wheel cycle · LMB ground place · W/E/R gizmo · RMB pan'
+    'staging: wheel cycle+nenhum · HUD preview · LMB place · Esc · W/E/R gizmo · RMB pan'
   );
   return api;
 }

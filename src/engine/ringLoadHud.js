@@ -45,7 +45,7 @@ export function initRingLoadHud() {
             const top = row.top10
               .map(
                 (it) =>
-                  `<li><span class="ring-item-ms">${fmtMs(it.ms)}</span> ${escapeHtml(it.name)}</li>`
+                  `<li title="${escapeHtml(it.name)}"><span class="ring-item-ms">${fmtMs(it.ms)}</span> ${escapeHtml(it.name)}</li>`
               )
               .join('');
             return (

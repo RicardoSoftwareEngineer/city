@@ -37,7 +37,7 @@ function renderRows(phases) {
       return (
         `<li class="lo-row lo-${st}">` +
         `<span class="lo-glyph">${STATUS_GLYPH[st]}</span>` +
-        `<span class="lo-label">${escapeHtml(label)}</span>` +
+        `<span class="lo-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>` +
         time +
         detail +
         `</li>`
@@ -105,10 +105,11 @@ function renderRemain(snap) {
     } else {
       listEl.innerHTML = snap.items
         .map((it, i) => {
+          const label = `${i + 1} · ${it.label}`;
           return (
             `<li class="lo-row lo-running">` +
             `<span class="lo-glyph">◉</span>` +
-            `<span class="lo-label">${escapeHtml(`${i + 1} · ${it.label}`)}</span>` +
+            `<span class="lo-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>` +
             `<span class="lo-ms">${it.count}</span>` +
             `</li>`
           );
@@ -128,10 +129,11 @@ function renderRemain(snap) {
       optList.hidden = false;
       optList.innerHTML = optional
         .map((it, i) => {
+          const label = `${i + 1} · ${it.label}`;
           return (
             `<li class="lo-row lo-optional">` +
             `<span class="lo-glyph">○</span>` +
-            `<span class="lo-label">${escapeHtml(`${i + 1} · ${it.label}`)}</span>` +
+            `<span class="lo-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>` +
             `<span class="lo-ms">${it.count}</span>` +
             `</li>`
           );

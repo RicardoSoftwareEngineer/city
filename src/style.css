@@ -490,10 +490,12 @@ kbd {
 }
 .lo-row {
   display: grid;
-  grid-template-columns: 1rem 1fr auto;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
   gap: 0.25rem 0.4rem;
   align-items: baseline;
   padding: 0.12rem 0;
+  min-width: 0;
+  max-width: 100%;
 }
 .lo-row .lo-detail {
   grid-column: 2 / -1;
@@ -664,12 +666,24 @@ kbd {
   overflow-y: auto;
   box-sizing: border-box;
 }
-[data-min-id].hud-list-panel .hud-scroll-list > li {
+/* All scrollable HUD list rows: single line + ellipsis (never wrap) */
+[data-min-id].hud-list-panel .hud-scroll-list > li,
+[data-min-id].hud-list-panel .load-order-list > li,
+[data-min-id].hud-list-panel .persona-decisions > li,
+[data-min-id].hud-list-panel .ring-top > li {
   max-width: 100%;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Multi-column rows: truncate the label cell (1fr), not the whole row chrome */
+[data-min-id].hud-list-panel .lo-label,
+[data-min-id].hud-list-panel .car-load-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-min-id].is-min > [data-min-body],
@@ -1213,26 +1227,6 @@ kbd {
 }
 
 
-#apts-house-hud {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 80;
-  max-width: min(92vw, 640px);
-  padding: 10px 18px;
-  font: 700 15px/1.25 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.03em;
-  color: #0f172a;
-  background: #fbbf24;
-  border: 3px solid #22d3ee;
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-  pointer-events: none;
-  text-align: center;
-}
-#apts-house-hud[hidden] { display: none !important; }
-
 #apts-budget {
   position: fixed;
   top: 300px;
@@ -1388,7 +1382,6 @@ body.boot-idle #clear-asset-cache-btn,
 body.boot-idle #quality-preset-float,
 body.boot-idle #day-night-float,
 body.boot-idle #compass-hud,
-body.boot-idle #apts-house-hud,
 body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle #car-visual-hud,

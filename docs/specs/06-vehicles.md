@@ -1,31 +1,31 @@
-# 06 — Vehicles (hero GLB pipeline)
+# 06 — Vehicles (hero HUD / A/B)
 
 ## Purpose
 
-Contrato do **pipeline oficial** de carros high-poly → runtime: triage → clean → decimate → bake → compress → integrate → quality gate. Originals sempre preservados para A/B. Load times por carro no HUD.
+Contrato do **hero car no runtime**: integrate (scale/wheels), originals A/B no HUD, load times por carro. O **pipeline GLB** (triage → clean → decimate → bake → compress → quality gate) e os budgets por perfil vivem em **`08-glb-import.md`**.
 
 ## Pitch
 
-Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–30 m. Equilíbrio: começa optimize em **~80–100k** tris; se suave demais → sobe até **~120k**; se hitchy → desce até **~50k**. NPC later: **8k–25k** (fora deste PR).
+Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–30 m. Budgets: perfil **`vehicle-hero`** em **08** (banda ~50–120k, default ~90k). NPC: perfil **`vehicle-npc`** (08).
 
-## Pipeline (MUST)
+## Pipeline pointer (MUST)
 
-0. **Triage** — contar tris / meshes / materials / bytes.
-   - ≤~150k tris + texturas razoáveis → integrar só com scale/wheels (ainda pode compress + keep original).
-   - >~200k ou muitos materiais → pipeline completo.
-1. **Clean** — strip cameras/lights/extras; weld; drop morph/skin/anim não usados.
-2. **Decimate** — hero **50k–120k** tris; preferir simplify que preserve silhueta. Se já abaixo da banda, **não** forçar down.
-3. **Bake materials** — colapsar a ~1–3 materiais; atlas **albedo** 1K–2K (MeshBasic world — PBR pesado só se preciso). **v1 script:** weld/dedup/prune/simplify/meshopt + `palette`/`metalRough` se disponível; **TODO Blender** quando bake/atlas completo não automatiza.
-4. **Delivery compress** — meshopt (Draco opcional); texturas modestas (resize ≤2K).
-5. **Integrate** — scale `PORSCHE_TARGET_LENGTH`, floor wheels, wheel discovery, HUD mode.
-6. **Quality gate** — tris na banda (ou honestamente abaixo sem soft), ≤~3 hot materials (ou TODO bake), load OK, silhueta 10–30 m.
+- Core + profiles: **`08-glb-import.md`**.
+- `vehicle-hero` = antigo “car pipeline” deste arquivo — **não** duplicar novel aqui.
+- Script: `node scripts/optimize-glb.mjs --profile vehicle-hero …`  
+  Wrapper legado: `node scripts/optimize-car-glb.mjs …` (chama o mesmo perfil).
+
+## Integrate (MUST)
+
+- Scale `PORSCHE_TARGET_LENGTH`, floor wheels, wheel discovery, HUD mode.
+- Quality gate visual 10–30 m; tris/mats metas = **08** (`vehicle-hero`).
 
 ## Originals + A/B (MUST)
 
-- Ao otimizar sob `public/models/<car>/`: **sempre** guardar original em `<car>.original.glb` (nunca sobrescrever se já existir). Default driven asset = otimizado (`<car>.glb`).
-- HUD ciclo visual (PT): **Porsche → Mercedes (otimizada) → Mercedes (high-poly) → Defender → quadrado**.
-- Modos glTF: `mercedes` → `/models/mercedes/mercedes.glb`; `mercedesOriginal` → `/models/mercedes/mercedes.original.glb`.
-- Botão **Comparar A/B**: com modo `mercedes` (ou orig) ativo, toggle `compareAb` mostra o outro chassis offset **+3 m** no X local (ghost lado a lado). Dirigir usa o modo selecionado; free-flight + toggle também serve para comparar.
+- Regra keep-original sob `public/models/`: **08**. Runtime:
+  - HUD ciclo visual (PT): **Porsche → Mercedes (otimizada) → Mercedes (high-poly) → Defender → quadrado**.
+  - Modos glTF: `mercedes` → `/models/mercedes/mercedes.glb`; `mercedesOriginal` → `/models/mercedes/mercedes.original.glb`.
+  - Botão **Comparar A/B**: com modo `mercedes` (ou orig) ativo, toggle `compareAb` mostra o outro chassis offset **+3 m** no X local (ghost lado a lado). Dirigir usa o modo selecionado; free-flight + toggle também serve para comparar.
 
 ## Load times HUD (MUST)
 
@@ -35,20 +35,14 @@ Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–
 - Porsche: load no boot (após first ring). Mercedes otimizada + high-poly (pré-pipeline): **preload** fire-and-forget após porsche; `paintCarLoadHud` ao completar cada uma. Lazy `ensureVisualMode` permanece se o preload ainda não acabou.
 - **Load carros** lista otimizada + original (high-poly pré-pipeline) para carros do pipeline — fetch/parse/total/bytes/tris assim que carregados.
 
-## Script
-
-`node scripts/optimize-car-glb.mjs --in path.glb --out path.glb [--target-tris 90000] [--report] [--keep-original]`
-
-`--keep-original` default **true** sob `public/models/…`. Não exige Blender para v1.
-
 ## Ownership
 
-Pipeline / A/B / load HUD: este arquivo. Ciclo HUD labels também em `01-product.md`. Loader: `src/vehicle/PorscheModel.js`.
+HUD A/B / load times / integrate hero: este arquivo. Optimize core / profiles / keep-original file rule: **08**. Loader: `src/vehicle/PorscheModel.js`.
 
 ## Same-PR rule
 
-Mudança de pipeline, originals, A/B ou contrato de load times → este arquivo (+ index README).
+Mudança de HUD A/B, load times ou integrate hero → este arquivo. Mudança de banda/CLI/profiles → **08** (+ index).
 
 ## Out of scope
 
-Hitch war drive, furniture, wall textures, NPC traffic LOD além dos targets documentados.
+Hitch war drive, furniture, wall textures, plaza A/B de estudo (ver **08** out of scope).

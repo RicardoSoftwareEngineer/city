@@ -7,12 +7,12 @@ Contrato de chrome dos painéis HUD minimizáveis com lista/corpo scrollável. R
 ## Invariants / MUST / MUST NOT
 
 - **MUST** painéis com `[data-min-id]`: título = minimize + drag; corners = resize; persist `localStorage` `city-hud-panels-v1` `{ min, left, top, width, height }` (`minimizableHud.js`).
-- **MUST** painéis com lista/corpo scrollável usam classe **`hud-list-panel`** + padrão flex clip:
+- **MUST** **todas** as listas scrolláveis do HUD (Fila do foco, Ordem de carga, QualityAdapter/personas, Anel, Hitch, Recursos, Load carros, …) usam classe **`hud-list-panel`** + padrão flex clip — sem one-offs que quebram o contrato:
   - Root: `display:flex; flex-direction:column; overflow:hidden;` + default `max-height: min(55vh, 42rem)` (`.is-resized` levanta o teto).
   - Toggle: `flex-shrink: 0`.
   - `[data-min-body]`: preenche altura restante (`flex:1; min-height:0`).
   - Scroll em **`.hud-scroll-list`** (body-as-list **ou** lista aninhada): `overflow-y:auto; max-height:none` — **não** hard-cap na lista.
-  - Linhas longas: `ellipsis` (+ `title` opcional).
+  - **MUST** linhas de lista: **nunca wrap**; truncar com `text-overflow: ellipsis` (`white-space:nowrap; overflow:hidden; min-width:0`). Em rows multi-coluna (`.lo-row` / label cell), o ellipsis vai na **célula do label** (`.lo-label`), não só no `<li>`. `title` opcional no texto completo.
 - **MUST** minimize esconde `[data-min-body]`; handles de resize ocultos quando `.is-min`.
 - **MUST NOT** `max-height` fixo na lista (ex. `9.5rem` / `14rem`) que lute com resize do painel.
 - Cap default no **painel**, não na lista.

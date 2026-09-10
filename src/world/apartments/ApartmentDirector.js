@@ -894,23 +894,13 @@ export class ApartmentDirector {
     this._syncHouseHud(false);
   }
 
+  /** Sync Interiores budget chrome only — no floating debug badge. */
   _syncHouseHud(on, facadeId = '') {
-    const el = document.getElementById('apts-house-hud');
     const input = document.getElementById('apts-budget-input');
     const panel = document.getElementById('apts-budget');
-    if (!on) {
-      if (el) {
-        el.hidden = true;
-        el.textContent = '';
-      }
-      return;
-    }
+    if (!on) return;
     const live = this.facadeLoadedCount(facadeId);
     const total = this.facades.get(facadeId)?.slots?.length ?? live;
-    if (el) {
-      el.hidden = false;
-      el.textContent = `CASA APTS · ${live}/${total} vivos — ${facadeId}`;
-    }
     // Keep Interiores HUD honest while setLiveCount runs (Todos used to stay at 3).
     if (input) {
       input.value =

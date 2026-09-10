@@ -134,7 +134,7 @@ export function initPersonaHud(opts = {}) {
       }
       if (list) {
         list.innerHTML = snap.decisions.length
-          ? snap.decisions.map((d) => `<li>${escapeHtml(d)}</li>`).join('')
+          ? snap.decisions.map((d) => `<li title="${escapeHtml(d)}">${escapeHtml(d)}</li>`).join('')
           : '<li class="persona-empty">—</li>';
       }
     }

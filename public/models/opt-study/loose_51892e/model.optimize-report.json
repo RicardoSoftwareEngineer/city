@@ -1,0 +1,78 @@
+{
+  "profile": "building",
+  "targetTris": 40000,
+  "before": {
+    "tris": 82935,
+    "meshes": 34,
+    "prims": 34,
+    "materials": 21,
+    "materialNames": [
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)"
+    ],
+    "textures": [],
+    "bytes": 9203512,
+    "mb": 9.2,
+    "nodes": 47,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 145480,
+    "meshes": 34,
+    "prims": 34,
+    "materials": 1,
+    "materialNames": [
+      "PaletteMaterial001"
+    ],
+    "textures": [
+      {
+        "name": "PaletteBaseColor",
+        "mime": "image/png",
+        "kb": 0.2,
+        "size": [
+          64,
+          4
+        ]
+      },
+      {
+        "name": "PaletteMetallicRoughness",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          64,
+          4
+        ]
+      }
+    ],
+    "bytes": 1910064,
+    "mb": 1.91,
+    "nodes": 47,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": false,
+  "inBand": false,
+  "underBand": false
+}

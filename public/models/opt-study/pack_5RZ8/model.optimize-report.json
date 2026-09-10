@@ -1,0 +1,110 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 12226,
+    "meshes": 4,
+    "prims": 4,
+    "materials": 4,
+    "materialNames": [
+      "CarMatChassis",
+      "GlassMatWindow",
+      "CarMatCockpit",
+      "CarMatTire"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 282.9,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 0.8,
+        "size": [
+          32,
+          32
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 60,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 87,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 1606360,
+    "mb": 1.61,
+    "nodes": 5,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 12226,
+    "meshes": 4,
+    "prims": 4,
+    "materials": 4,
+    "materialNames": [
+      "CarMatChassis",
+      "GlassMatWindow",
+      "CarMatCockpit",
+      "CarMatTire"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 232.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 48.6,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 70.5,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 800640,
+    "mb": 0.8,
+    "nodes": 5,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

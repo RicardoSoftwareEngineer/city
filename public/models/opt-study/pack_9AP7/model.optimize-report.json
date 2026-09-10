@@ -1,0 +1,112 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 46538,
+    "meshes": 14,
+    "prims": 14,
+    "materials": 14,
+    "materialNames": [
+      "discglow",
+      "trk_tyre_r227",
+      "trk_rims_blk",
+      "wccarbody",
+      "wcwindow",
+      "wcextra0",
+      "merl_trk_chassis",
+      "trk_blk",
+      "trk_lcd",
+      "trk_gauge_rpm_black",
+      "wchelmet",
+      "trk_stw_f",
+      "wcdriver",
+      "trk_cp_ext_parts"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 37.8,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 78.1,
+        "size": [
+          1024,
+          512
+        ]
+      }
+    ],
+    "bytes": 4354352,
+    "mb": 4.35,
+    "nodes": 15,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 46538,
+    "meshes": 14,
+    "prims": 14,
+    "materials": 5,
+    "materialNames": [
+      "discglow",
+      "trk_tyre_r227",
+      "trk_rims_blk",
+      "wccarbody",
+      "wcwindow"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 24.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 48.8,
+        "size": [
+          1024,
+          512
+        ]
+      }
+    ],
+    "bytes": 1554076,
+    "mb": 1.55,
+    "nodes": 15,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

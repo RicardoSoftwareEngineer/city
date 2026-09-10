@@ -27,6 +27,7 @@ import {
   textureCompress
 } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
+import draco3d from 'draco3dgltf';
 
 /** Profile defaults — keep in sync with docs/specs/08-glb-import.md */
 export const PROFILES = {
@@ -93,7 +94,10 @@ function parseArgs(argv) {
   const out = {
     in: null,
     out: null,
+    inDir: null,
+    outDir: null,
     profile: null,
+    autoProfile: false,
     targetTris: null,
     report: false,
     keepOriginal: true
@@ -102,7 +106,10 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--in') out.in = argv[++i];
     else if (a === '--out') out.out = argv[++i];
+    else if (a === '--in-dir') out.inDir = argv[++i];
+    else if (a === '--out-dir') out.outDir = argv[++i];
     else if (a === '--profile') out.profile = argv[++i];
+    else if (a === '--auto-profile') out.autoProfile = true;
     else if (a === '--target-tris') out.targetTris = Number(argv[++i]);
     else if (a === '--report') out.report = true;
     else if (a === '--keep-original') out.keepOriginal = true;
@@ -124,6 +131,66 @@ ${PROFILE_IDS.map((id) => {
     const p = PROFILES[id];
     return `  ${id.padEnd(16)} ~${p.defaultTargetTris} tris  (band ${p.trisBand[0]}–${p.trisBand[1]})  tex≤${p.texturePreferred}`;
   }).join('\n')}`);
+}
+
+/** Rough auto-profile from filename / size (batch convenience). */
+export function suggestProfile(filePath, bytesHint) {
+  const name = path.basename(filePath).toLowerCase();
+  const bytes = bytesHint ?? (fs.existsSync(filePath) ? fs.statSync(filePath).size : 0);
+  if (/house|casa|apt|apart|building|predio|slab|roof|wall/.test(name)) return 'building';
+  if (/sofa|bed|furn|interior|prop|neon|basin|mirror|aircraft|avion/.test(name)) {
+    return bytes > 15_000_000 ? 'interior-prop' : 'prop-street';
+  }
+  if (/truck|bus|jeep|apc|van|loco|train|caminh|util/.test(name)) {
+    return bytes > 8_000_000 ? 'vehicle-hero' : 'vehicle-npc';
+  }
+  if (/police|npc|traffic/.test(name)) return 'vehicle-npc';
+  if (/car|vehicle|mustang|bmw|alfa|lambo|gtr|skyline/.test(name)) return 'vehicle-hero';
+  if (bytes > 25_000_000) return 'building';
+  if (bytes > 4_000_000) return 'vehicle-hero';
+  if (bytes > 1_000_000) return 'vehicle-npc';
+  return 'prop-street';
+}
+
+async function runBatch(args) {
+  const inDir = path.resolve(args.inDir);
+  const outDir = path.resolve(args.outDir || args.inDir);
+  if (!fs.existsSync(inDir)) throw new Error(`--in-dir not found: ${inDir}`);
+  fs.mkdirSync(outDir, { recursive: true });
+  const files = fs
+    .readdirSync(inDir)
+    .filter((f) => /\.glb$/i.test(f) && !/\.original\.glb$/i.test(f) && !/repaired-tmp/i.test(f))
+    .sort();
+  if (!files.length) {
+    console.log(`[batch] no .glb in ${inDir}`);
+    return [];
+  }
+  const results = [];
+  for (const file of files) {
+    const inPath = path.join(inDir, file);
+    const base = path.basename(file, path.extname(file)).replace(/\.optimized$/i, '');
+    const outPath = path.join(outDir, `${base}.glb`);
+    let profile = args.profile;
+    if (!profile && args.autoProfile) profile = suggestProfile(inPath);
+    if (!profile) throw new Error('batch needs --profile or --auto-profile');
+    console.log(`\n######## BATCH ${file} → ${outPath}  profile=${profile}`);
+    try {
+      const summary = await optimizeGlb({
+        in: inPath,
+        out: outPath,
+        profile,
+        targetTris: args.targetTris,
+        report: args.report,
+        keepOriginal: args.keepOriginal
+      });
+      results.push({ file, ok: true, profile, summary });
+    } catch (err) {
+      console.error(`[batch] FAIL ${file}:`, err.message || err);
+      results.push({ file, ok: false, profile, error: String(err?.message || err) });
+    }
+  }
+  console.log(`\n[batch] done ${results.filter((r) => r.ok).length}/${results.length} ok`);
+  return results;
 }
 
 function countTris(document) {
@@ -364,9 +431,16 @@ export async function optimizeGlb(opts) {
 
   let inPath = opts.in;
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-  io.registerDependencies({
+  const deps = {
     'meshopt.encoder': MeshoptEncoder
-  });
+  };
+  try {
+    deps['draco3d.decoder'] = await draco3d.createDecoderModule();
+    deps['draco3d.encoder'] = await draco3d.createEncoderModule();
+  } catch (err) {
+    console.warn('[draco] modules unavailable — Draco GLBs may fail:', err?.message || err);
+  }
+  io.registerDependencies(deps);
 
   let document;
   try {
@@ -417,18 +491,24 @@ export async function optimizeGlb(opts) {
     prune({ keepAttributes: true, keepLeaves: false })
   );
 
-  // 2. Decimate toward target
+  // 2. Decimate toward target (some Quaternius/loose meshes crash meshopt — skip soft)
   const mid = countTris(document);
   if (mid.tris > targetTris) {
     const ratio = Math.max(0.05, Math.min(1, targetTris / mid.tris));
     console.log(`\n[decimate] ${mid.tris} → target ${targetTris} (ratio=${ratio.toFixed(3)})`);
-    await document.transform(
-      simplify({
-        simplifier: MeshoptSimplifier,
-        ratio,
-        error: 0.001
-      })
-    );
+    try {
+      await document.transform(
+        simplify({
+          simplifier: MeshoptSimplifier,
+          ratio,
+          error: 0.001
+        })
+      );
+    } catch (err) {
+      console.warn(
+        `[decimate] simplify failed (${err?.message || err}) — continue without decimate`
+      );
+    }
   } else {
     console.log(
       `\n[decimate] skip — ${mid.tris} tris already ≤ target ${targetTris} ` +
@@ -525,9 +605,25 @@ export async function optimizeGlb(opts) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (args.help || !args.in || !args.out || !args.profile) {
+  if (args.help) {
     usage();
-    process.exit(args.help ? 0 : 1);
+    process.exit(0);
+  }
+  if (args.inDir) {
+    if (!args.profile && !args.autoProfile) {
+      usage();
+      process.exit(1);
+    }
+    await runBatch(args);
+    return;
+  }
+  if (!args.in || !args.out || (!args.profile && !args.autoProfile)) {
+    usage();
+    process.exit(1);
+  }
+  if (!args.profile && args.autoProfile) {
+    args.profile = suggestProfile(args.in);
+    console.log(`[auto-profile] ${args.profile}`);
   }
   await optimizeGlb(args);
 }

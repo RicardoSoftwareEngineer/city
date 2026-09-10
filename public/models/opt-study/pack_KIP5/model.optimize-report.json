@@ -1,0 +1,103 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 25608,
+    "meshes": 5,
+    "prims": 5,
+    "materials": 5,
+    "materialNames": [
+      "ModelJeepSeats_Material001",
+      "ModelJeepWheels_Material002",
+      "ModelJeepChassis_Material003",
+      "ModelJeepInterior_Material004",
+      "ModelJeepWindshield_Material005"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 3705.6,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 333.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 4339.3,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 11086312,
+    "mb": 11.09,
+    "nodes": 6,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 25608,
+    "meshes": 5,
+    "prims": 5,
+    "materials": 5,
+    "materialNames": [
+      "ModelJeepSeats_Material001",
+      "ModelJeepWheels_Material002",
+      "ModelJeepChassis_Material003",
+      "ModelJeepInterior_Material004",
+      "ModelJeepWindshield_Material005"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2151.2,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 199.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2678.4,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 6110740,
+    "mb": 6.11,
+    "nodes": 6,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

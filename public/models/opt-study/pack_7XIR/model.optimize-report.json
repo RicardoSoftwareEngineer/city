@@ -1,0 +1,927 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 279564,
+    "meshes": 80,
+    "prims": 80,
+    "materials": 80,
+    "materialNames": [
+      "Model0000_Lamborghini_Centenario_Shape_Material001",
+      "Model0001_Lamborghini_Centenario_Shape_Material002",
+      "Model0002_Lamborghini_Centenario_Shape_Material003",
+      "Model0003_Lamborghini_Centenario_Shape_Material004",
+      "Model0004_Lamborghini_Centenario_Shape_Material005",
+      "Model0005_Lamborghini_Centenario_Shape_Material006",
+      "Model0006_Lamborghini_Centenario_Shape_Material007",
+      "Model0007_Lamborghini_Centenario_Shape_Material008",
+      "Model0008_Lamborghini_Centenario_Shape_Material009",
+      "Model0009_Lamborghini_Centenario_Shape_Material010",
+      "Model0010_Lamborghini_Centenario_Shape_Material011",
+      "Model0011_Lamborghini_Centenario_Shape_Material012",
+      "Model0012_Lamborghini_Centenario_Shape_Material013",
+      "Model0013_Lamborghini_Centenario_Shape_Material014",
+      "Model0014_Lamborghini_Centenario_Shape_Material015",
+      "Model0015_Lamborghini_Centenario_Shape_Material016",
+      "Model0016_Lamborghini_Centenario_Shape_Material017",
+      "Model0017_Lamborghini_Centenario_Shape_Material018",
+      "Model0018_Lamborghini_Centenario_Shape_Material019",
+      "Model0019_Lamborghini_Centenario_Shape_Material020",
+      "Model0020_Lamborghini_Centenario_Shape_Material021",
+      "Model0021_Lamborghini_Centenario_Shape_Material022",
+      "Model0022_Lamborghini_Centenario_Shape_Material023",
+      "Model0023_Lamborghini_Centenario_Shape_Material024",
+      "Model0024_Lamborghini_Centenario_Shape_Material025",
+      "Model0025_Lamborghini_Centenario_Shape_Material026",
+      "Model0026_Lamborghini_Centenario_Shape_Material027",
+      "Model0027_Lamborghini_Centenario_Shape_Material028",
+      "Model0028_Lamborghini_Centenario_Shape_Material029",
+      "Model0029_Lamborghini_Centenario_Shape_Material030",
+      "Model0030_Lamborghini_Centenario_Shape_Material031",
+      "Model0031_Lamborghini_Centenario_Shape_Material032",
+      "Model0032_Lamborghini_Centenario_Shape_Material033",
+      "Model0033_Lamborghini_Centenario_Shape_Material034",
+      "Model0034_Lamborghini_Centenario_Shape_Material035",
+      "Model0035_Lamborghini_Centenario_Shape_Material036",
+      "Model0036_Lamborghini_Centenario_Shape_Material037",
+      "Model0037_Lamborghini_Centenario_Shape_Material038",
+      "Model0038_Lamborghini_Centenario_Shape_Material039",
+      "Model0039_Lamborghini_Centenario_Shape_Material040",
+      "Model0040_Lamborghini_Centenario_Shape_Material041",
+      "Model0041_Lamborghini_Centenario_Shape_Material042",
+      "Model0042_Lamborghini_Centenario_Shape_Material043",
+      "Model0043_Lamborghini_Centenario_Shape_Material044",
+      "Model0044_Lamborghini_Centenario_Shape_Material045",
+      "Model0045_Lamborghini_Centenario_Shape_Material046",
+      "Model0046_Lamborghini_Centenario_Shape_Material047",
+      "Model0047_Lamborghini_Centenario_Shape_Material048",
+      "Model0048_Lamborghini_Centenario_Shape_Material049",
+      "Model0049_Lamborghini_Centenario_Shape_Material050",
+      "Model0050_Lamborghini_Centenario_Shape_Material051",
+      "Model0051_Lamborghini_Centenario_Shape_Material052",
+      "Model0052_Lamborghini_Centenario_Shape_Material053",
+      "Model0053_Lamborghini_Centenario_Shape_Material054",
+      "Model0054_Lamborghini_Centenario_Shape_Material055",
+      "Model0055_Lamborghini_Centenario_Shape_Material056",
+      "Model0056_Lamborghini_Centenario_Shape_Material057",
+      "Model0057_Lamborghini_Centenario_Shape_Material058",
+      "Model0058_Lamborghini_Centenario_Shape_Material059",
+      "Model0059_Lamborghini_Centenario_Shape_Material060",
+      "Model0060_Lamborghini_Centenario_Shape_Material061",
+      "Model0061_Lamborghini_Centenario_Shape_Material062",
+      "Model0062_Lamborghini_Centenario_Shape_Material063",
+      "Model0063_Lamborghini_Centenario_Shape_Material064",
+      "Model0064_Lamborghini_Centenario_Shape_Material065",
+      "Model0065_Lamborghini_Centenario_Shape_Material066",
+      "Model0066_Lamborghini_Centenario_Shape_Material067",
+      "Model0067_Lamborghini_Centenario_Shape_Material068",
+      "Model0068_Lamborghini_Centenario_Shape_Material069",
+      "Model0069_Lamborghini_Centenario_Shape_Material070",
+      "Model0070_Lamborghini_Centenario_Shape_Material071",
+      "Model0071_Lamborghini_Centenario_Shape_Material072",
+      "Model0072_Lamborghini_Centenario_Shape_Material073",
+      "Model0073_Lamborghini_Centenario_Shape_Material074",
+      "Model0074_Lamborghini_Centenario_Shape_Material075",
+      "Model0075_Lamborghini_Centenario_Shape_Material076",
+      "Model0076_Lamborghini_Centenario_Shape_Material077",
+      "Model0077_Lamborghini_Centenario_Shape_Material078",
+      "Model0078_Lamborghini_Centenario_Shape_Material079",
+      "Model0079_Lamborghini_Centenario_Shape_Material080"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          16,
+          16
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 214,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 214,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 37.1,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 37.1,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 615.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 615.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 16.3,
+        "size": [
+          256,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 901.2,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 901.2,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 901.2,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 326.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 27.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 9.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 101.4,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 101.4,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 154.1,
+        "size": [
+          1024,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 185.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          32,
+          32
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 4.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 4.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 163.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          16,
+          16
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 55,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 55,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 135,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 276.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 48.9,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 446.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 446.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 615.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 101.4,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 101.4,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 48.9,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 101.4,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 16.3,
+        "size": [
+          256,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 185.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 786.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 786.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 326.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 20.7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 55.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 22.3,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 464.8,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 39097504,
+    "mb": 39.1,
+    "nodes": 81,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 276234,
+    "meshes": 80,
+    "prims": 80,
+    "materials": 25,
+    "materialNames": [
+      "Model0007_Lamborghini_Centenario_Shape_Material008",
+      "Model0009_Lamborghini_Centenario_Shape_Material010",
+      "Model0016_Lamborghini_Centenario_Shape_Material017",
+      "Model0023_Lamborghini_Centenario_Shape_Material024",
+      "Model0024_Lamborghini_Centenario_Shape_Material025",
+      "Model0027_Lamborghini_Centenario_Shape_Material028",
+      "Model0028_Lamborghini_Centenario_Shape_Material029",
+      "Model0033_Lamborghini_Centenario_Shape_Material034",
+      "Model0034_Lamborghini_Centenario_Shape_Material035",
+      "Model0036_Lamborghini_Centenario_Shape_Material037",
+      "Model0037_Lamborghini_Centenario_Shape_Material038",
+      "Model0041_Lamborghini_Centenario_Shape_Material042",
+      "Model0047_Lamborghini_Centenario_Shape_Material048",
+      "Model0049_Lamborghini_Centenario_Shape_Material050",
+      "Model0052_Lamborghini_Centenario_Shape_Material053",
+      "Model0053_Lamborghini_Centenario_Shape_Material054",
+      "Model0054_Lamborghini_Centenario_Shape_Material055",
+      "Model0069_Lamborghini_Centenario_Shape_Material070",
+      "Model0072_Lamborghini_Centenario_Shape_Material073",
+      "Model0073_Lamborghini_Centenario_Shape_Material074",
+      "Model0075_Lamborghini_Centenario_Shape_Material076",
+      "Model0077_Lamborghini_Centenario_Shape_Material078",
+      "Model0078_Lamborghini_Centenario_Shape_Material079",
+      "PaletteMaterial001",
+      "PaletteMaterial002"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 236.8,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 18.7,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 309.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 10.2,
+        "size": [
+          256,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 505.3,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 212.8,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 17.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 5.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 88.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 121.2,
+        "size": [
+          1024,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 151.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 125.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 32.6,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 72.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 231.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 19.2,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 315.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 771.8,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 15.7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 45.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 66.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 17.2,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 261.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "PaletteBaseColor",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          32,
+          4
+        ]
+      }
+    ],
+    "bytes": 14023264,
+    "mb": 14.02,
+    "nodes": 81,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": false
+}

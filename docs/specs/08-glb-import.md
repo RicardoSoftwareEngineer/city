@@ -6,7 +6,7 @@ Contrato do **pipeline híbrido** de import/otimização de GLB: um núcleo comp
 
 ## Pitch
 
-Um script, vários budgets. Hero car, NPC, prédio de estudo e prop de interior compartilham triage → clean → decimate → bake → compress → quality gate; só mudam as metas do perfil. Dual study **A/B original vs otimizado** vive na **plaza in-city** (`src/world/optStudyPlaza.js`) — amostra curada, não o inventário completo.
+Um script, vários budgets. Hero car, NPC, prédio de estudo e prop de interior compartilham triage → clean → decimate → bake → compress → quality gate; só mudam as metas do perfil. Dual study **A/B original vs otimizado** vive na **showroom in-city** (`src/world/optStudyPlaza.js`) — **inventário completo (33 pads)**, um slot por GLB único.
 
 ## Core pipeline (MUST)
 
@@ -17,6 +17,34 @@ Um script, vários budgets. Hero car, NPC, prédio de estudo e prop de interior 
 4. **Compress** — texture resize (sharp, se disponível) ao tamanho preferido do perfil (≤ `textureMax`); meshopt medium no write.
 5. **Integrate notes** — paths sob `public/models/…`; scale/wheels/HUD = ownership do domínio (ex.: veículos em `06-vehicles.md`).
 6. **Quality gate** — tris na banda (ou honestamente abaixo sem soft), mats ≤ goal (ou TODO bake), silhueta ok na distância típica do perfil.
+
+### Draco GLBs (MUST)
+
+Alguns loose GLBs usam `KHR_draco_mesh_compression`. O core registra `draco3dgltf` decoder/encoder via `NodeIO.registerDependencies` (devDep `draco3dgltf`). Sem isso, `io.read` falha com `DT_FLOAT32`.
+
+### Quaternius empty-image repair (MUST)
+
+Alguns packs Quaternius listam `images[]` com `mimeType` mas **sem** `bufferView`/`uri`. `NodeIO` falha com `"Missing resource URI or buffer view"`. O core **strip** essas images + textures órfãs e remapeia materiais **antes** do optimize (temp copy; source original intacto).
+
+### Batch / auto-profile
+
+```bash
+# single
+node scripts/optimize-glb.mjs --in path.glb --out path.glb \
+  --profile vehicle-hero|vehicle-npc|building|interior-prop|prop-street \
+  [--target-tris N] [--report] [--keep-original|--no-keep-original]
+
+# batch folder
+node scripts/optimize-glb.mjs --in-dir dir [--out-dir dir] \
+  [--profile ID | --auto-profile] [--report]
+
+# study inventory → public/models/opt-study/<id>/
+node scripts/import-opt-study.mjs [--inventory path] [--only id] [--force]
+```
+
+`--auto-profile` escolhe perfil por heurística de nome/tamanho (carros → vehicle-*; casas/apts → building; mobília → interior-prop/prop-street). Preferir perfil explícito no inventário da study.
+
+Arquivos ≥ **100 MB** (limite duro GitHub): otimizar primeiro; **não** commitar blob que exceda o limite; reportar skipped. Nunca force-push.
 
 ## Profile targets (MUST)
 
@@ -30,59 +58,61 @@ Um script, vários budgets. Hero car, NPC, prédio de estudo e prop de interior 
 
 `building`: hero facade vs distant pode subir/descer dentro da banda via `--target-tris`.
 
-## Originals + A/B (MUST)
+## Originals + A/B showroom (MUST)
 
 - Ao escrever sob `public/models/`: **sempre** guardar `<stem>.original.glb` se ainda não existir (`--keep-original` default **true**). Nunca sobrescrever original existente.
 - Default driven/runtime asset = otimizado (`*.glb`). A/B UI e load-times HUD de carros: **`06-vehicles.md`**.
-- Plaza A/B in-city (amostra curada): `public/models/opt-study/<id>/model.glb` + `model.original.glb`; spawn lazy em `optStudyPlaza.js` (grama leste do staging apt / Large_3, ~x=248). Debug: `window.__cityOptStudy`.
-- Inventário Quaternius completo (~80 MB+ restante): **fora** — só packs leves da amostra neste PR.
+- **Showroom completo (33 pads):** `public/models/opt-study/<id>/model.glb` + `model.original.glb` (+ `preview.jpg` opcional).
+  - Layout: seções PT (Carros, Caminhões / utilitários, Casas, Apartamentos / prédios, Props…).
+  - Cada pad: **original à esquerda / otimizado à direita (~5 m)** com labels PT.
+  - Spawn lazy em `optStudyPlaza.js` (grama leste do staging apt / Large_3, ~x=248).
+  - Debug: `window.__cityOptStudy` → `howToFind`, `howToVisit(id)`, `pads[]`, `inventory`, `visitAll()`.
+  - MeshBasic **mantém maps** (não strip texturas) para prova visual / screenshots por pad.
+- Inventário study (fonte Windows):
+
+`C:\Users\ricei\OneDrive\Documents\Easyplay\repositorios\quaternius\estudo sobre otimização`
+
+(33 GLBs únicos; skip `*(1).glb` duplicata.)
 
 ## FPS study law (MUST)
 
 - **Régua:** PC Windows do Ricardo (DESKTOP-PVUSTUO / RX 580 / 32 GB) — **≥30 FPS sólido** no cenário de estudo.
 - Box/VM é mais fraco — **MUST NOT** usar FPS do box como accept bar.
 - Load time maior é **OK** se o frame steady-state passa no Windows.
-- Validação Windows desta study: ver também nota em `03-performance.md`. **Régua FPS ≥30 sólido só no PC Windows do Ricardo** — a plaza no box é para julgar qualidade visual A/B, não para aceitar FPS.
-- Inventário Quaternius restante (zips / 80 MB+) = follow-up; não declarar pass de FPS neste PR.
+- Validação Windows desta study: ver também nota em `03-performance.md`. **Régua FPS ≥30 sólido só no PC Windows do Ricardo** — a showroom no box é para julgar qualidade visual A/B e screenshots por pad, **não** para aceitar FPS.
+- **Não declarar pass de FPS neste PR** — Ricardo valida no Windows depois.
 
 ## Script
 
-```bash
-node scripts/optimize-glb.mjs --in path.glb --out path.glb \
-  --profile vehicle-hero|vehicle-npc|building|interior-prop|prop-street \
-  [--target-tris N] [--report] [--keep-original|--no-keep-original]
-```
-
 `scripts/optimize-car-glb.mjs` = **thin wrapper** que chama o core com `--profile vehicle-hero` (mesmos flags de antes, sem `--profile`).
+
+`scripts/import-opt-study.mjs` = importa o inventário completo para `public/models/opt-study/`.
 
 ## Pointer → vehicles
 
 - Perfil **`vehicle-hero`** = antigo pipeline de carro em `06-vehicles.md` (não duplicar o novel aqui).
 - Em `06`: HUD A/B, load times, ciclo visual, integrate (scale/wheels). Aqui: budgets + core + demais categorias.
 
-## Study assets (A/B plaza)
+## Study assets (A/B showroom)
 
-Amostra curada sob `public/models/opt-study/` (source no box `/workspace/uploads/opt-study/*/source.glb`):
+Paths: `public/models/opt-study/<id>/` · ids estáveis `pack_XXXX` / `loose_<hash6>`.
 
-| id | nota | profile | antes (tris / MB) | depois (tris / MB) |
-|----|------|---------|-------------------|--------------------|
-| `pack_8XGZ` | viatura policial | `vehicle-npc` | 4250 / 0.49 | 4250 / 0.19 |
-| `pack_0BMQ` | monster truck vermelho | `vehicle-hero` | 15183 / 1.73 | 15183 / 0.61 |
-| `pack_WHTC` | pickup / camper | `vehicle-hero` | 14233 / 1.73 | 14233 / 0.77 |
-| `pack_AS5Q` | Alfa 4C branca | `vehicle-hero` | 32651 / 8.45 | 32651 / 1.74 |
-| `pack_FG5K` | BMW M3 cinza | `vehicle-hero` | 27946 / 9.68 | 27930 / 2.02 |
+| Seção | Contagem | Exemplos |
+|-------|----------|----------|
+| Carros | 14 | viatura, monster truck, Alfa, BMW M3, Lambo, GT-R, Mustang… |
+| Caminhões / utilitários | 7 | caminhão corrida, MAZ, ônibus, APC, Jeep, locomotiva… |
+| Casas | 4 | casa moderna, madeira, módulos |
+| Apartamentos / prédios | 3 | apt corpo, lajes, estrutura grande |
+| Props / interiores / outros | 5 | quarto neon, sofá, mobília, banheiro, aeronave |
+| **Total** | **33** | um pad A/B por GLB |
 
-**Como achar in-game:** leste do staging apt / `Large_3@171,30` — voar/dirigir para ~`x=248`, `z=6…50` (grama). Labels PT: original à esquerda, otimizado à direita (~5 m).
+**Como achar in-game:** leste do staging apt / `Large_3@171,30` — voar/dirigir para ~`x=248`, `z=6…` (grama). Seções em fileiras; aisles claros. Labels PT: **original** à esquerda, **otimizado** à direita (~5 m).
 
-Pasta Windows (não copiar OneDrive neste PR; restante ~80 MB+ / zips = follow-up):
-
-`C:\Users\ricei\OneDrive\Documents\Easyplay\repositorios\quaternius\estudo sobre otimização`
-
-Nota: alguns packs Quaternius trazem `images[]` sem `bufferView`/`uri` — strip antes do `optimize-glb` (NodeIO falha com "Missing resource URI or buffer view").
+`window.__cityOptStudy.howToVisit('pack_FG5K')` / `.visitAll()` para roteiro de screenshots (1 por pad).
 
 ## Ownership
 
-Core / profiles / keep-original / FPS study law / plaza A/B study: este arquivo. Hero HUD / A/B car: `06-vehicles.md`. Ship bar geral: `03-performance.md`. Plaza code: `src/world/optStudyPlaza.js`.
+Core / profiles / keep-original / FPS study law / showroom A/B study: este arquivo. Hero HUD / A/B car: `06-vehicles.md`. Ship bar geral: `03-performance.md`. Showroom code: `src/world/optStudyPlaza.js`.
 
 ## Same-PR rule
 
@@ -90,6 +120,6 @@ Novo perfil, mudança de banda/default, CLI do core, ou regra de originals → e
 
 ## Out of scope
 
-- Inventário completo / unzip dos 20 zips / GLBs ~80 MB+ restantes no jogo
 - Declarar FPS pass (≥30) sem drive no **Windows** do Ricardo
 - Aceitar FPS medido na box/VM
+- Copiar para OneDrive city-passo1 (Vite pós-merge = parent)

@@ -2,7 +2,8 @@
  * HUD panels: click title to collapse; drag title to move; corner handles to resize.
  * Persists { min, left, top, width, height } per panel in localStorage.
  *
- * Expects: root[data-min-id], [data-min-toggle], optional [data-min-body]
+ * Expects: root[data-min-id], [data-min-toggle], optional [data-min-body].
+ * Optional root[data-min-no-collapse]: drag only; click-without-drag activates toggle (.click()).
  */
 
 const STORE_KEY = 'city-hud-panels-v1';
@@ -112,15 +113,20 @@ export function initMinimizableHud() {
 
     if (!state[id]) state[id] = {};
     const entry = state[id];
+    const noCollapse = root.hasAttribute('data-min-no-collapse');
 
     ensureHandles(root);
 
-    applyMin(root, toggle, Boolean(entry.min));
+    if (!noCollapse) {
+      applyMin(root, toggle, Boolean(entry.min));
+    }
     if (entry.left != null && entry.top != null) {
       applyPos(root, entry.left, entry.top);
     }
     if (entry.width != null || entry.height != null) {
-      applySize(root, entry.width, entry.height, { skipHeight: Boolean(entry.min) });
+      applySize(root, entry.width, entry.height, {
+        skipHeight: !noCollapse && Boolean(entry.min)
+      });
     }
 
     let drag = null;
@@ -160,13 +166,18 @@ export function initMinimizableHud() {
       drag = null;
 
       if (!wasDrag) {
-        const next = !root.classList.contains('is-min');
-        applyMin(root, toggle, next);
-        entry.min = next;
-        if (!next && entry.height != null) {
-          applySize(root, entry.width, entry.height);
+        if (noCollapse) {
+          // Same DRAG_THRESHOLD pattern: no move → activate (e.g. cycle car).
+          if (typeof toggle.click === 'function') toggle.click();
+        } else {
+          const next = !root.classList.contains('is-min');
+          applyMin(root, toggle, next);
+          entry.min = next;
+          if (!next && entry.height != null) {
+            applySize(root, entry.width, entry.height);
+          }
+          saveState(state);
         }
-        saveState(state);
       }
     };
 

@@ -56,6 +56,7 @@ import { spawnAptExampleSandbox } from './world/apartments/aptExampleSandbox.js'
 import { spawnOptStudyPlaza } from './world/optStudyPlaza.js';
 import { spawnShowFlatInterior } from './world/apartments/showFlatInterior.js';
 import { spawnAptInteriorCandidates } from './world/apartments/aptInteriorCandidates.js';
+import { spawnWallPaintShowroom } from './world/apartments/wallPaintShowroom.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -570,6 +571,14 @@ async function startGame() {
       })
       .catch((err) => {
         console.warn('[apt-candidates] spawn failed', err);
+      });
+    // Wall paint / texture showroom (CC0 Poly Haven) south of apt candidates — fire-and-forget.
+    void spawnWallPaintShowroom(cityGroup)
+      .then((api) => {
+        window.__cityWallShowroom = api;
+      })
+      .catch((err) => {
+        console.warn('[wall-showroom] spawn failed', err);
       });
     await yieldToMain();
 

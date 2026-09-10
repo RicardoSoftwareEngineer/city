@@ -1,12 +1,34 @@
-Poly Haven wall plaster / paint albedo textures (CC0 1.0 Universal).
+Poly Haven wall paint / plaster / panel albedo textures (CC0 1.0 Universal).
 
-Assets (diffuse/albedo 1k JPG only):
-- painted_plaster_wall
-- patterned_plaster_wall
-- plastered_wall
-- white_plaster_02
-- white_stucco
+Assets (diffuse/albedo 1k JPG only) — wall showroom inventory:
+
+Paint / plaster:
+- painted_plaster_wall, patterned_plaster_wall, plastered_wall, white_plaster_02, white_stucco
+- beige_wall_001, beige_wall_002, blue_plaster_wall, blue_plaster_weathered
+- grey_plaster, grey_plaster_02, grey_plaster_03, plaster_grey_04, damaged_plaster
+- patterned_clay_plaster, patterned_clay_wall
+- plastered_wall_02, plastered_wall_03, plastered_wall_04, plastered_wall_05
+- red_plaster_weathered, peeling_painted_wall, ceiling_interior, clay_plaster
+- concrete_wall_001, concrete_wall_003, concrete_wall_004
+
+Wood / panels:
+- decrepit_wallpaper, dark_paneled_wood, black_painted_planks, blue_painted_planks
+- distressed_painted_planks, brown_planks_05, hinoki_planks, japanese_cedar_planks
+- raw_plank_wall, oriented_strand_board
+
+Brick:
+- painted_brick, painted_worn_brick, brick_wall_001, brick_wall_08, wall_bricks_plaster
+- plaster_brick_01, plaster_brick_pattern, red_brick_plaster_patch_02
+- patterned_brick_wall, large_red_bricks
+
+Concrete / modern:
+- concrete_wall_005, patterned_concrete_wall, ribbed_concrete_wall, concrete_tile_facade
+- concrete_slab_wall, herringbone_concrete_tile, precast_concrete_wall
+
+Other:
+- bamboo_wall, clay_block_wall, exterior_wall_cladding, rectangular_facade_tiles
 
 Source: https://polyhaven.com/
 License: CC0 — no attribution required; free for any use.
 Only diffuse maps are bundled (MeshBasic albedo; no normal/rough).
+Path: /textures/walls/<id>/<id>_diff_1k.jpg

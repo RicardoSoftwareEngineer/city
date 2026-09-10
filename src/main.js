@@ -199,7 +199,10 @@ async function startGame() {
             : tier === 'mitigate'
               ? ' <span class="hitch-mitigate">MITIGAR</span>'
               : ' <span class="hitch-ok">ACEITÁVEL</span>';
-        return `<li class="hitch-tier-${tier}"><span class="hitch-ms">${h.frameMs}ms</span>${tierBadge} <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
+        const tierWord = tier === 'bug' ? 'BUG' : tier === 'mitigate' ? 'MITIGAR' : 'ACEITÁVEL';
+        const fullLine = `${h.frameMs}ms ${tierWord} ${h.md} ${label}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${h.recent ? ` · ${h.recent}` : ''}`;
+        const titleAttr = String(fullLine).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `<li class="hitch-tier-${tier}" title="${titleAttr}"><span class="hitch-ms">${h.frameMs}ms</span>${tierBadge} <span class="hitch-md hitch-${h.md}">${h.md}</span> ${work}${extra}${stream}${hold}${draw}${fps}${q}${heap}${tris}${recent}</li>`;
       }).join('')
       : '<li>nenhum ainda</li>';
   }

@@ -220,7 +220,111 @@ async function maybeKeepOriginal(args) {
   return dest;
 }
 
+/**
+ * Quaternius / Sketchfab packs sometimes list images with mimeType but no
+ * bufferView/uri. NodeIO throws "Missing resource URI or buffer view".
+ * Strip those images + orphan textures and remap material indices in-place.
+ * @param {string} filePath
+ * @returns {boolean} true if file was rewritten
+ */
+function repairEmptyImagesInPlace(filePath) {
+  const buf = fs.readFileSync(filePath);
+  if (buf.length < 20 || buf.toString('utf8', 0, 4) !== 'glTF') return false;
+  const totalLen = buf.readUInt32LE(8);
+  let offset = 12;
+  let jsonStart = -1;
+  let jsonLen = 0;
+  let binStart = -1;
+  let binLen = 0;
+  while (offset + 8 <= totalLen) {
+    const chunkLen = buf.readUInt32LE(offset);
+    const chunkType = buf.toString('utf8', offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    if (chunkType === 'JSON') {
+      jsonStart = dataStart;
+      jsonLen = chunkLen;
+    } else if (chunkType.startsWith('BIN')) {
+      binStart = dataStart;
+      binLen = chunkLen;
+    }
+    offset = dataStart + chunkLen;
+  }
+  if (jsonStart < 0) return false;
+  const jsonText = buf.toString('utf8', jsonStart, jsonStart + jsonLen).trim();
+  let j;
+  try {
+    j = JSON.parse(jsonText);
+  } catch {
+    return false;
+  }
+  const imgs = j.images || [];
+  const bad = new Set();
+  imgs.forEach((im, i) => {
+    if (im.bufferView == null && im.uri == null) bad.add(i);
+  });
+  if (bad.size === 0) return false;
+
+  const imgMap = new Map();
+  const newImgs = [];
+  imgs.forEach((im, i) => {
+    if (bad.has(i)) return;
+    imgMap.set(i, newImgs.length);
+    newImgs.push(im);
+  });
+  j.images = newImgs;
+
+  const texMap = new Map();
+  const newTexs = [];
+  (j.textures || []).forEach((t, i) => {
+    const src = t.source;
+    if (src == null || !imgMap.has(src)) return;
+    const nt = { ...t, source: imgMap.get(src) };
+    texMap.set(i, newTexs.length);
+    newTexs.push(nt);
+  });
+  j.textures = newTexs;
+
+  const remapInfo = (info, owner, key) => {
+    if (!info || info.index == null) return;
+    if (texMap.has(info.index)) info.index = texMap.get(info.index);
+    else delete owner[key];
+  };
+  for (const mat of j.materials || []) {
+    const pbr = mat.pbrMetallicRoughness || {};
+    remapInfo(pbr.baseColorTexture, pbr, 'baseColorTexture');
+    remapInfo(pbr.metallicRoughnessTexture, pbr, 'metallicRoughnessTexture');
+    remapInfo(mat.normalTexture, mat, 'normalTexture');
+    remapInfo(mat.occlusionTexture, mat, 'occlusionTexture');
+    remapInfo(mat.emissiveTexture, mat, 'emissiveTexture');
+  }
+
+  let jsonBytes = Buffer.from(JSON.stringify(j), 'utf8');
+  while (jsonBytes.length % 4) jsonBytes = Buffer.concat([jsonBytes, Buffer.from(' ')]);
+  const binChunk = binStart >= 0 ? buf.subarray(binStart, binStart + binLen) : Buffer.alloc(0);
+  let binBytes = Buffer.from(binChunk);
+  while (binBytes.length % 4) binBytes = Buffer.concat([binBytes, Buffer.from([0])]);
+  const outLen = 12 + 8 + jsonBytes.length + 8 + binBytes.length;
+  const out = Buffer.alloc(outLen);
+  out.write('glTF', 0);
+  out.writeUInt32LE(2, 4);
+  out.writeUInt32LE(outLen, 8);
+  out.writeUInt32LE(jsonBytes.length, 12);
+  out.write('JSON', 16);
+  jsonBytes.copy(out, 20);
+  const binHdr = 20 + jsonBytes.length;
+  out.writeUInt32LE(binBytes.length, binHdr);
+  out.write('BIN\0', binHdr + 4);
+  binBytes.copy(out, binHdr + 8);
+  fs.writeFileSync(filePath, out);
+  console.log(
+    `[repair] stripped ${bad.size} empty image(s) in ${filePath} ` +
+      `(textures ${ (j.textures || []).length } kept)`
+  );
+  return true;
+}
+
 async function loadSharp() {
+
   try {
     const mod = await import('sharp');
     return mod.default || mod;
@@ -258,13 +362,30 @@ export async function optimizeGlb(opts) {
   await MeshoptEncoder.ready;
   await MeshoptSimplifier.ready;
 
-  const beforeBytes = fs.statSync(opts.in).size;
+  let inPath = opts.in;
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
   io.registerDependencies({
     'meshopt.encoder': MeshoptEncoder
   });
 
-  const document = await io.read(opts.in);
+  let document;
+  try {
+    document = await io.read(inPath);
+  } catch (err) {
+    const msg = String(err?.message || err);
+    if (!/Missing resource URI or buffer view/i.test(msg)) throw err;
+    console.warn(`[repair] io.read failed (${msg}) — empty-image strip on temp copy`);
+    const tmp = `${inPath}.repaired-tmp.glb`;
+    fs.copyFileSync(inPath, tmp);
+    if (!repairEmptyImagesInPlace(tmp)) {
+      try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+      throw err;
+    }
+    document = await io.read(tmp);
+    inPath = tmp;
+    opts = { ...opts, in: tmp };
+  }
+  const beforeBytes = fs.statSync(inPath).size;
   const before = inspectDoc(document, beforeBytes);
   printReport('BEFORE', before);
   console.log(

@@ -1,0 +1,678 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 27946,
+    "meshes": 58,
+    "prims": 58,
+    "materials": 58,
+    "materialNames": [
+      "Model001_Material001",
+      "Model001_Material002",
+      "Model001_Material003",
+      "Model001_Material004",
+      "Model001_Material005",
+      "Model001_Material006",
+      "Model001_Material007",
+      "Model001_Material008",
+      "Model001_Material009",
+      "Model001_Material010",
+      "Model001_Material011",
+      "Model001_Material012",
+      "Model001_Material013",
+      "Model001_Material014",
+      "Model001_Material015",
+      "Model001_Material016",
+      "Model001_Material017",
+      "Model001_Material018",
+      "Model001_Material019",
+      "Model001_Material020",
+      "Model001_Material021",
+      "Model001_Material022",
+      "Model001_Material023",
+      "Model001_Material024",
+      "Model001_Material025",
+      "Model001_Material026",
+      "Model001_Material027",
+      "Model001_Material028",
+      "Model001_Material029",
+      "Model001_Material030",
+      "Model001_Material031",
+      "Model001_Material032",
+      "Model001_Material033",
+      "Model001_Material034",
+      "Model001_Material035",
+      "Model001_Material036",
+      "Model001_Material037",
+      "Model001_Material038",
+      "Model001_Material039",
+      "Model001_Material040",
+      "Model001_Material041",
+      "Model001_Material042",
+      "Model001_Material043",
+      "Model001_Material044",
+      "Model001_Material045",
+      "Model001_Material046",
+      "Model001_Material047",
+      "Model001_Material048",
+      "Model001_Material049",
+      "Model001_Material050",
+      "Model001_Material051",
+      "Model001_Material052",
+      "Model001_Material053",
+      "Model001_Material054",
+      "Model001_Material055",
+      "Model001_Material056",
+      "Model001_Material057",
+      "Model001_Material058"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 74.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 74.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 74.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 74.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 74.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 28.1,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 28.1,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 28.1,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 28.1,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 370,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 223.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 223.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 223.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 200.9,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 200.9,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 297,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 81.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 5.5,
+        "size": [
+          64,
+          64
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 95.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 95.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.1,
+        "size": [
+          8,
+          8
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 17.7,
+        "size": [
+          128,
+          64
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.2,
+        "size": [
+          32,
+          32
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.2,
+        "size": [
+          32,
+          32
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 0.2,
+        "size": [
+          32,
+          32
+        ]
+      }
+    ],
+    "bytes": 9679984,
+    "mb": 9.68,
+    "nodes": 59,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 27930,
+    "meshes": 57,
+    "prims": 57,
+    "materials": 14,
+    "materialNames": [
+      "Model001_Material001",
+      "Model001_Material006",
+      "Model001_Material010",
+      "Model001_Material011",
+      "Model001_Material014",
+      "Model001_Material016",
+      "Model001_Material029",
+      "Model001_Material038",
+      "Model001_Material042",
+      "Model001_Material050",
+      "Model001_Material052",
+      "Model001_Material054",
+      "Model001_Material055",
+      "Model001_Material056"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 53.9,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 19.5,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 246.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 115.6,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 146.4,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 179.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 44.7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 3,
+        "size": [
+          64,
+          64
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 58.6,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 12.3,
+        "size": [
+          128,
+          64
+        ]
+      }
+    ],
+    "bytes": 2015172,
+    "mb": 2.02,
+    "nodes": 59,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

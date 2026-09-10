@@ -55,6 +55,7 @@ import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
 import { spawnAptExampleSandbox } from './world/apartments/aptExampleSandbox.js';
 import { spawnOptStudyPlaza } from './world/optStudyPlaza.js';
 import { spawnShowFlatInterior } from './world/apartments/showFlatInterior.js';
+import { spawnAptInteriorCandidates } from './world/apartments/aptInteriorCandidates.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -561,6 +562,14 @@ async function startGame() {
       })
       .catch((err) => {
         console.warn('[show-flat] spawn failed', err);
+      });
+    // Official-size interior candidates (3.6×2.75×3.2) east of show flat — fire-and-forget.
+    void spawnAptInteriorCandidates(cityGroup)
+      .then((api) => {
+        window.__cityAptCandidates = api;
+      })
+      .catch((err) => {
+        console.warn('[apt-candidates] spawn failed', err);
       });
     await yieldToMain();
 

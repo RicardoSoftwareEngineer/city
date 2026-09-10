@@ -48,9 +48,22 @@ Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30
 
 Dedicated **Apartamento estudo** open loft on grass west of the opt-study showroom / SE of `Large_3@171,30` (`src/world/apartments/showFlatInterior.js`, origin ~`x=218,z=-14`). Composes optimized opt-study interiors as one coherent living space: **sala arco** (`loose_cef131` — living + kitchen + dining + bath + bed) + **quarto neon** suite (`loose_cece4d`) + **mobília / biblioteca** annex (`loose_fb2319`). MeshBasic + albedo maps (no PointLight). Soft evening via `__cityDayNight.setHours(18.35)` on spawn. Exposes `window.__cityShowFlat` `{ root, origin, pieces, howToFind, cameraHint, suggestedHours, visit(), applyEveningLight() }`. Staging/screenshot showcase only — does **not** replace InstancedMesh `roomTemplate` bake.
 
+
+## Official interior candidates (staging bake)
+
+Five **official-size** shells (`3.6 × 2.75 × 3.2` m, open face **−Z**, same local convention as `roomTemplate` / InstancedMesh) on free grass **east of the show flat** / west-south of opt-study pads (`src/world/apartments/aptInteriorCandidates.js`, row origin ~`x=238,z=-10`, spacing 5.5 m). Each pad has a distinct furniture theme using loft / novopo pieces scaled to fit the building room — **not** oversized opt-study lofts:
+
+1. Living clássico (sofa + coffee + plant + console)
+2. Compact TV / lounge
+3. Dining / mesa + cadeiras
+4. Study / desk + chair + plant
+5. Minimal / sparse modern
+
+Show flat stays untouched (hero / screenshot loft). These candidates are the staging path toward an official bake into `roomTemplate`. Exposes `window.__cityAptCandidates` `{ root, rowOrigin, roomSize, candidates[], themes, howToFind, visit(i) }`. Lazy after playCore like the show flat.
+
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat).
+`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat) · `aptInteriorCandidates` (official-size bake candidates).
 
 ## Same-PR rule
 

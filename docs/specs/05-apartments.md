@@ -35,7 +35,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 
 API (`window.__cityApartments`): `registerFacade`, `setLiveCount`, `getLiveTarget`, `loadedCount`, `curtainOnlyCount`, `load`/`loadCount`/`unload`, `update(dt)`, `pickFacadeNear`.
 
-HUD Interiores: `−` / input / `+` / **Todos** → nearest facade → `markFacadeHouse({ autoLoad: false })` → `setLiveCount`. Hidden em `boot-idle`.
+HUD Interiores: `−` / input / `+` / **Todos** (inside **Cena / Ambiente** `hud-list-panel`, `#apts-budget`) → nearest facade → `markFacadeHouse({ autoLoad: false })` → `setLiveCount`. Hidden em `boot-idle`.
 
 
 ## Example sandbox (staging)

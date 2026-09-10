@@ -1,8 +1,8 @@
 /**
- * Staging review arena — all 100 apartment layouts in an inward-facing
- * multi-floor ring on grass near the wall paint showroom (does not crush
- * showroom / candidates / show flat). Open face (−Z local) → arena center.
- * Labels «Candidato/Interior 001…100». Debug: window.__cityAptLayouts
+ * Staging review arena — 100 apartment layouts (floors 0–3) + living-wall
+ * showcase (floors 4–5) in an inward-facing multi-floor ring on grass near
+ * the wall paint showroom (does not crush showroom / candidates / show flat).
+ * Open face (−Z local) → arena center. Debug: window.__cityAptLayouts
  */
 import * as THREE from 'three';
 import { loadGltf } from '../AssetLoader.js';
@@ -18,14 +18,19 @@ import {
   ROOM,
   getLayout,
   fitFor,
-  wallUrl
+  wallUrl,
+  LIVING_WALL_IDS,
+  LIVING_WALL_LABELS
 } from './aptLayouts.js';
 
 /** Arena center — west-south of wall showroom (~238,−42); free grass. */
 export const REVIEW_ORIGIN = { x: 198, y: 0.02, z: -55 };
-/** Floors × rooms/ring (4×25 = 100). */
-export const REVIEW_FLOORS = 4;
+/** Floors × rooms/ring (6×25: floors 0–3 = 100 layouts; 4–5 = living showcase). */
+export const REVIEW_FLOORS = 6;
+export const REVIEW_LAYOUT_FLOORS = 4;
+export const REVIEW_LIVING_FLOORS = 2;
 export const REVIEW_PER_RING = 25;
+export const LIVING_SHOWCASE_COUNT = REVIEW_LIVING_FLOORS * REVIEW_PER_RING;
 /** Inner radius at open-face plane (m). Chord gap ~2.4 m at 25/ring. */
 export const REVIEW_RADIUS = 24;
 /** Vertical step between floors (m) — clears 2.75 m room + ceiling. */
@@ -216,13 +221,11 @@ function placePiece(pose, layout) {
 }
 
 /**
- * Pose for layout index i on the multi-floor inward ring.
+ * Pose for (floor, slot) on the multi-floor inward ring.
  * Open face (local −Z) points at REVIEW_ORIGIN; room extends radially out.
  * Odd floors stagger by half a slot for clearer sightlines from center.
  */
-function padPose(i) {
-  const floor = Math.floor(i / REVIEW_PER_RING);
-  const slot = i % REVIEW_PER_RING;
+function padPoseFloorSlot(floor, slot) {
   const stagger = (floor % 2) * (Math.PI / REVIEW_PER_RING);
   const angle = (slot / REVIEW_PER_RING) * Math.PI * 2 + stagger;
   return {
@@ -234,6 +237,27 @@ function padPose(i) {
     slot,
     angle
   };
+}
+
+/** Layout index i (0..99) → floors 0–3. */
+function padPose(i) {
+  return padPoseFloorSlot(Math.floor(i / REVIEW_PER_RING), i % REVIEW_PER_RING);
+}
+
+/** Living showcase index j (0..49) → floors 4–5. */
+function livingPadPose(j) {
+  const floor = REVIEW_LAYOUT_FLOORS + Math.floor(j / REVIEW_PER_RING);
+  return padPoseFloorSlot(floor, j % REVIEW_PER_RING);
+}
+
+const SOFA_CANDIDATES = ['ph_sofa', 'sofa', 'mini_sofa', 'q_couch', 'l6_sofa'];
+const TV_CANDIDATES = ['ph_tv'];
+
+function pickFirstPiece(pieceMap, names) {
+  for (const n of names) {
+    if (pieceMap.has(n)) return n;
+  }
+  return null;
 }
 
 /**
@@ -261,7 +285,9 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
 
   /** @type {Map<string, THREE.Texture|null>} */
   const wallMaps = new Map();
-  const needWalls = [...new Set(LAYOUTS.map((l) => l.wall))];
+  const needWalls = [
+    ...new Set([...LAYOUTS.map((l) => l.wall), ...LIVING_WALL_IDS])
+  ];
   // Load in chunks to avoid hitch
   for (let i = 0; i < needWalls.length; i++) {
     const id = needWalls[i];
@@ -269,7 +295,11 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
     if (i % 8 === 7) await new Promise((r) => setTimeout(r, 0));
   }
 
+  const sofaName = pickFirstPiece(pieceMap, SOFA_CANDIDATES);
+  const tvName = pickFirstPiece(pieceMap, TV_CANDIDATES);
+
   const entries = [];
+  const livingEntries = [];
   const BATCH = 5;
   for (let i = 0; i < LAYOUT_COUNT; i++) {
     const layout = LAYOUTS[i];
@@ -334,15 +364,89 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
     if (i % BATCH === BATCH - 1) await new Promise((r) => setTimeout(r, 0));
   }
 
+  // Floors 4–5: living / sala wall showcase (soft paints, wallpaper, TV accents)
+  for (let j = 0; j < LIVING_SHOWCASE_COUNT; j++) {
+    const wallId = LIVING_WALL_IDS[j % LIVING_WALL_IDS.length];
+    const wallPt = LIVING_WALL_LABELS[wallId] || wallId;
+    const padInfo = livingPadPose(j);
+    const pad = new THREE.Group();
+    pad.name = `apt-living-${wallId}-${j}`;
+    pad.position.set(padInfo.x, padInfo.y, padInfo.z);
+    pad.rotation.y = padInfo.yaw;
+    root.add(pad);
+
+    const wallMat = wallBasic(wallMaps.get(wallId) || null, wallId);
+    const shell = buildShell(wallMat);
+    shell.position.y = 0.06;
+    pad.add(shell);
+
+    const furn = new THREE.Group();
+    furn.name = 'furn';
+    furn.position.y = 0.06;
+    pad.add(furn);
+
+    const placed = [];
+    if (sofaName) {
+      const pose = extractPiece(pieceMap, sofaName);
+      if (pose) {
+        placePiece(pose, { name: sofaName, x: 0.05, z: 2.1, yaw: Math.PI });
+        furn.add(pose);
+        placed.push({ name: sofaName, status: 'ok' });
+      }
+    }
+    if (tvName) {
+      const pose = extractPiece(pieceMap, tvName);
+      if (pose) {
+        // Against back wall — feature / TV wall
+        placePiece(pose, { name: tvName, x: 0, z: 0.38, yaw: 0, y: 0.85 });
+        furn.add(pose);
+        placed.push({ name: tvName, status: 'ok' });
+      }
+    }
+
+    const label = makeLabelSprite(
+      [
+        `Sala / Living ${String(j + 1).padStart(2, '0')} · piso ${padInfo.floor}`,
+        `${wallPt}`,
+        wallId
+      ],
+      { stroke: '#f472b6', bg: 'rgba(30, 16, 28, 0.92)', fg: '#fce7f3' }
+    );
+    label.scale.set(2.6, 0.6, 1);
+    label.position.set(0, 0.02, -0.55);
+    pad.add(label);
+
+    livingEntries.push({
+      index: j + 1,
+      id: wallId,
+      label: wallPt,
+      wall: wallId,
+      wallLabel: wallPt,
+      origin: { x: padInfo.x, y: padInfo.y, z: padInfo.z },
+      yaw: padInfo.yaw,
+      floor: padInfo.floor,
+      slot: padInfo.slot,
+      pieces: placed,
+      pad
+    });
+
+    if (j % BATCH === BATCH - 1) await new Promise((r) => setTimeout(r, 0));
+  }
+
   const midY =
     REVIEW_ORIGIN.y + ((REVIEW_FLOORS - 1) * REVIEW_FLOOR_STEP) * 0.5 + 1.4;
+  const livingMidY =
+    REVIEW_ORIGIN.y +
+    (REVIEW_LAYOUT_FLOORS + (REVIEW_LIVING_FLOORS - 1) * 0.5) * REVIEW_FLOOR_STEP +
+    1.4;
   const howToFind =
-    `100 layouts review arena on grass west-south of wall showroom ` +
-    `(showroom ~238,−42). Center x=${REVIEW_ORIGIN.x}, z=${REVIEW_ORIGIN.z}; ` +
+    `Apt review arena west-south of wall showroom (~238,−42). ` +
+    `Center x=${REVIEW_ORIGIN.x}, z=${REVIEW_ORIGIN.z}; ` +
     `${REVIEW_FLOORS} floors × ${REVIEW_PER_RING}/ring, radius ${REVIEW_RADIUS} m, ` +
     `floor step ${REVIEW_FLOOR_STEP} m; open −Z toward center. ` +
-    `Labels «Candidato/Interior 001…100». ` +
-    `API: window.__cityAptLayouts.visit()|'center'|1..100.`;
+    `Floors 0–3: layouts 001…100. Floors 4–5: sala/living wall showcase ` +
+    `(${LIVING_SHOWCASE_COUNT} shells, ${LIVING_WALL_IDS.length} textures). ` +
+    `API: visit()|'center'|1..100|'living'|'sala'|floor(4|5)|living(1..50).`;
 
   function applyCameraHint(hint) {
     const rig = typeof window !== 'undefined' ? window.__cityCamRig : null;
@@ -368,6 +472,22 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
     }
   }
 
+  function hintForEntry(e) {
+    const ang = e.yaw;
+    const camR = Math.max(2.5, REVIEW_RADIUS - 4.2);
+    const lookR = REVIEW_RADIUS + ROOM.depth * 0.45;
+    return {
+      x: REVIEW_ORIGIN.x + Math.sin(ang) * camR,
+      y: e.origin.y + 1.55,
+      z: REVIEW_ORIGIN.z + Math.cos(ang) * camR,
+      lookAt: {
+        x: REVIEW_ORIGIN.x + Math.sin(ang) * lookR,
+        y: e.origin.y + 1.2,
+        z: REVIEW_ORIGIN.z + Math.cos(ang) * lookR
+      }
+    };
+  }
+
   function visitCenter() {
     const hint = {
       x: REVIEW_ORIGIN.x,
@@ -389,48 +509,111 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
     };
   }
 
+  function visitLivingCenter() {
+    const hint = {
+      x: REVIEW_ORIGIN.x,
+      y: livingMidY,
+      z: REVIEW_ORIGIN.z,
+      lookAt: {
+        x: REVIEW_ORIGIN.x + REVIEW_RADIUS * 0.35,
+        y: livingMidY,
+        z: REVIEW_ORIGIN.z + REVIEW_RADIUS * 0.85
+      }
+    };
+    applyCameraHint(hint);
+    return {
+      entry: null,
+      layout: null,
+      cameraHint: hint,
+      howToFind,
+      view: 'living',
+      floor: REVIEW_LAYOUT_FLOORS
+    };
+  }
+
   function visitUnit(i) {
     const idx = Math.max(1, Math.min(LAYOUT_COUNT, Number(i) || 1)) - 1;
     const e = entries[idx];
     if (!e) return null;
-    const ang = e.yaw;
-    const camR = Math.max(2.5, REVIEW_RADIUS - 4.2);
-    const lookR = REVIEW_RADIUS + ROOM.depth * 0.45;
-    const hint = {
-      x: REVIEW_ORIGIN.x + Math.sin(ang) * camR,
-      y: e.origin.y + 1.55,
-      z: REVIEW_ORIGIN.z + Math.cos(ang) * camR,
-      lookAt: {
-        x: REVIEW_ORIGIN.x + Math.sin(ang) * lookR,
-        y: e.origin.y + 1.2,
-        z: REVIEW_ORIGIN.z + Math.cos(ang) * lookR
-      }
-    };
+    const hint = hintForEntry(e);
     applyCameraHint(hint);
     return { entry: e, layout: getLayout(idx), cameraHint: hint, howToFind, view: idx + 1 };
   }
 
-  /** @param {number|'center'|undefined} i — omit / 'center' = arena mid overview */
-  function visit(i) {
+  function visitLiving(i) {
+    if (i === undefined || i === null || i === '' || i === true) {
+      return visitLivingCenter();
+    }
+    const idx = Math.max(1, Math.min(LIVING_SHOWCASE_COUNT, Number(i) || 1)) - 1;
+    const e = livingEntries[idx];
+    if (!e) return null;
+    const hint = hintForEntry(e);
+    applyCameraHint(hint);
+    return { entry: e, layout: null, cameraHint: hint, howToFind, view: `living-${idx + 1}` };
+  }
+
+  function visitFloor(n) {
+    const floor = Math.max(0, Math.min(REVIEW_FLOORS - 1, Number(n) | 0));
+    const y = REVIEW_ORIGIN.y + floor * REVIEW_FLOOR_STEP + 1.4;
+    const hint = {
+      x: REVIEW_ORIGIN.x,
+      y,
+      z: REVIEW_ORIGIN.z,
+      lookAt: {
+        x: REVIEW_ORIGIN.x + REVIEW_RADIUS * 0.4,
+        y,
+        z: REVIEW_ORIGIN.z + REVIEW_RADIUS * 0.8
+      }
+    };
+    applyCameraHint(hint);
+    return { entry: null, layout: null, cameraHint: hint, howToFind, view: `floor-${floor}`, floor };
+  }
+
+  /**
+   * @param {number|'center'|'living'|'sala'|undefined} i
+   * @param {number|undefined} livingIndex — when i is 'living'/'sala'
+   */
+  function visit(i, livingIndex) {
     if (i === undefined || i === null || i === '' || i === 'center') {
       return visitCenter();
+    }
+    if (i === 'living' || i === 'sala') {
+      return visitLiving(livingIndex);
+    }
+    if (i === 'floor' || (typeof i === 'string' && /^floor/i.test(i))) {
+      const n =
+        typeof livingIndex === 'number'
+          ? livingIndex
+          : Number(String(i).replace(/[^0-9]/g, ''));
+      return visitFloor(Number.isFinite(n) ? n : REVIEW_LAYOUT_FLOORS);
+    }
+    if (typeof i === 'string' && /^L\d+/i.test(i)) {
+      return visitLiving(Number(i.slice(1)));
     }
     return visitUnit(i);
   }
 
   const api = {
     count: LAYOUT_COUNT,
+    livingCount: LIVING_SHOWCASE_COUNT,
+    livingWallCount: LIVING_WALL_IDS.length,
+    livingWallIds: [...LIVING_WALL_IDS],
     root,
     origin: { ...REVIEW_ORIGIN },
     floors: REVIEW_FLOORS,
+    layoutFloors: REVIEW_LAYOUT_FLOORS,
+    livingFloors: [REVIEW_LAYOUT_FLOORS, REVIEW_LAYOUT_FLOORS + 1],
     perRing: REVIEW_PER_RING,
     radius: REVIEW_RADIUS,
     floorStep: REVIEW_FLOOR_STEP,
     roomSize: { ...ROOM },
     entries,
+    livingEntries,
     howToFind,
     visit,
     visitCenter,
+    visitLiving,
+    visitFloor,
     layout: (i) => getLayout((Number(i) || 1) - 1)
   };
   window.__cityAptLayouts = api;

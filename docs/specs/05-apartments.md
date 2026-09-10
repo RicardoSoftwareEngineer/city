@@ -20,7 +20,7 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 - **MUST** shell intent live in `ApartmentDirector` (`_ensureFacadeShells` / `_stripToCurtainOnly`) — not scattered per-slot flags.
 - **MUST** sem per-room `PointLight`; room + curtain + shared glass = **MeshBasic** (emissive folded into color / opacity glass) — never join Ultra-night street Spot/Point light loop; compile `pause: false`; warm room+curtain **uma vez**.
 - **MUST** shared furniture kit include loft + novopo + kit CC0 pieces (`loft_furniture.glb`, `novopo_furniture.glb`, `kit/furniture_kit.glb`: fridge/oven/sink/couches/TV/sofa/shelf/coffee/plants…) as **MeshBasic albedo-only** (textures ≤512; hero atlases ≤1024) merged into InstancedMesh material buckets per furniture variant — never unique furniture Mesh per unit; rescale to the 3.6×3.2×2.75 template. GLB pieces MUST be floored + Y-up; yaw-only. Do **not** import loft architecture or loft Point light.
-- **MUST** plaster walls use shared **MeshBasic** + Poly Haven **CC0** albedos from `/textures/walls/…` (no normal/rough). Building path: 20 wall InstancedMesh pools (`WALL_POOL` in `aptLayouts.js`). Staging review arena may cycle the full ~58 showroom set.
+- **MUST** plaster walls use shared **MeshBasic** + Poly Haven / ambientCG **CC0** albedos from `/textures/walls/…` (no normal/rough). Building path: 20 wall InstancedMesh pools (`WALL_POOL` in `aptLayouts.js`). Staging review arena may cycle the full ~58 showroom set + **38 living/sala** albedos (`LIVING_WALL_IDS`, floors 4–5).
 - **MUST** enquanto `isApartmentLiveIntentActive`: defer nature/water/carpet (prio ≥4).
 - **MUST NOT** sync-slam N rooms no click; FPS HOLD; unique Mesh clones / per-room PointLight; dispose shared curtain geo/mat no teardown.
 - Unique **layouts** via shared instances are **OK** (100 recipes); unique Mesh clones are **NOT**.
@@ -34,9 +34,9 @@ Vidro real, um room template InstancedMesh, `liveTarget`/Todos, cortinas e pacin
 | Glass opacity | ~0.09 | Shared MeshBasic |
 | Curtain | register/shell (closed) → loading (closed) → ready (snap-hide) → open; demote → closed shell | Scale only; Fabric 203 sheer MeshBasic (albedo+alphaMap only) |
 | Room furniture | loft + novopo + kit CC0 | 20 furniture InstancedMesh variants; MeshBasic albedo |
-| Room walls | Poly Haven CC0 (20 pool / 58 staging) | Wall InstancedMesh pools; layout picks wallVariant |
+| Room walls | Poly Haven + ambientCG CC0 (20 pool / 58 + 38 living staging) | Wall InstancedMesh pools; layout picks wallVariant; living_* on arena floors 4–5 |
 | Layouts | 100 recipes (`aptLayouts.js`) | `layoutId = stableHash(facadeId, slotIndex) % 100` |
-| Review arena | grass near wall showroom | `window.__cityAptLayouts` — visit() / visit(1..100); 4×25 inward ring |
+| Review arena | grass near wall showroom | `window.__cityAptLayouts` — visit() / visit(1..100) / visit('living'); 6×25 inward ring (floors 4–5 = sala paints) |
 | Example sandbox | asphalt corner near `Large_3@171,30` + grass catalog zones | `window.__cityAptExample` — empty shell + furniture/cars/arch picker; staging only |
 | Marker | First Large auto-mark | ~80 m billboard, beacon Y=160; `autoLoad` default true |
 
@@ -81,6 +81,7 @@ Browseable **wall paint / texture showroom** of Poly Haven **CC0** 1k diffuse pa
 - **Tijolo** — brick + plaster brick
 - **Concreto** — modern concrete / facade
 - **Outros** — bamboo, clay block, cladding, facade tiles
+- **Sala / Living (TV)** — ambientCG CC0 soft paints, wallpaper, linen weaves, charcoal/beige TV accents (`living_*`)
 
 Reuses the five candidate wall albedos plus many more under `/public/textures/walls/<id>/<id>_diff_1k.jpg` (+ `LICENSE.txt`). Does **not** remove the five candidate walls or the show flat. Exposes `window.__cityWallShowroom` `{ howToFind, visit(), visit(id), inventory, count, categories }`. Lazy after playCore like candidates / show flat.
 
@@ -98,7 +99,7 @@ Recipes in `src/world/apartments/aptLayouts.js` (seeded, reproducible). Each lay
 
 **Building curtains:** `ApartmentDirector` assigns `layoutId` on shell spawn; `_finishLoad` stamps furniture pool `[furnitureVariant]` + wall pool `[wallVariant]` with the same instance matrix. Demote → curtain-only hides room pools but keeps `layoutId`.
 
-**Staging:** `aptLayoutReviewStrip.js` spawns all 100 official-size shells as an **inward-facing multi-floor arena** on grass west-south of the wall paint showroom (keeps showroom / candidates / show flat). Layout: **4 floors × 25/ring**, radius **24 m** (open-face plane), floor step **3.4 m**; each unit yaw so local −Z (open) points at arena center (~198,−55). Labels 001…100. API `window.__cityAptLayouts` `{ count:100, floors, perRing, radius, floorStep, visit(i|'center'), visitCenter(), howToFind, layout(i) }` — default `visit()` / `visit('center')` = mid-height center overview; `visit(1..100)` = exterior view looking into that unit.
+**Staging:** `aptLayoutReviewStrip.js` spawns all 100 official-size shells as an **inward-facing multi-floor arena** on grass west-south of the wall paint showroom (keeps showroom / candidates / show flat). Layout: **6 floors × 25/ring**, radius **24 m** (open-face plane), floor step **3.4 m**; each unit yaw so local −Z (open) points at arena center (~198,−55). **Floors 0–3** = layouts 001…100; **floors 4–5** = sala/living wall showcase (50 shells cycling **38** ambientCG CC0 soft paints / wallpaper / linen / TV accents under `living_*`). Labels «Candidato/Interior» + «Sala / Living». API `window.__cityAptLayouts` `{ count:100, livingCount:50, livingWallIds, floors:6, visit(i|'center'|'living'|'sala'), visitLiving(i), visitFloor(n), howToFind, layout(i) }` — default `visit()` = mid overview; `visit('living')` = living floors center; `visit(1..100)` / `visitLiving(1..50)`.
 
 **Kit:** `public/models/apartments/kit/furniture_kit.glb` (+ `LICENSE`) — Quaternius Ultimate House Interior (fridge/oven/…) + Poly Haven Sofa/TV/Shelf/CoffeeTable 1k. Aquarium: no solid CC0 found — skipped.
 

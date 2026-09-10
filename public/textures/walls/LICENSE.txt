@@ -32,3 +32,49 @@ Source: https://polyhaven.com/
 License: CC0 — no attribution required; free for any use.
 Only diffuse maps are bundled (MeshBasic albedo; no normal/rough).
 Path: /textures/walls/<id>/<id>_diff_1k.jpg
+
+Living / sala (TV feature + soft paints) — ambientCG CC0 1.0:
+
+- living_warm_white ← ambientCG PaintedPlaster017 — Branco quente sala
+- living_cream ← ambientCG Plaster002 — Creme liso
+- living_soft_white ← ambientCG Plaster001 — Branco mate
+- living_ivory ← ambientCG Plaster003 — Marfim
+- living_chalk ← ambientCG Plaster004 — Giz / chalk
+- living_porcelain ← ambientCG Plaster005 — Porcelana
+- living_linen_plaster ← ambientCG Plaster006 — Gesso linho
+- living_butter ← ambientCG PaintedPlaster004 — Amarelo manteiga
+- living_sage ← ambientCG PaintedPlaster003 — Verde sálvia
+- living_sky_blue ← ambientCG PaintedPlaster002 — Azul céu suave
+- living_blush_red ← ambientCG PaintedPlaster001 — Vermelho blush
+- living_terracotta_soft ← ambientCG PaintedPlaster005 — Terracota suave
+- living_gloss_white ← ambientCG Paint004 — Branco brilho (TV)
+- living_aqua ← ambientCG Paint002 — Aqua / ciano
+- living_mint ← ambientCG Paint003 — Menta
+- living_lemon ← ambientCG Paint006 — Limão suave
+- living_charcoal ← ambientCG Paint005 — Carvão (destaque TV)
+- living_pearl_grey ← ambientCG Paint001 — Cinza pérola
+- living_wallpaper_chip ← ambientCG Wallpaper001A — Papel madeira chip
+- living_wallpaper_chip2 ← ambientCG Wallpaper002A — Papel madeira chip 2
+- living_linen_white ← ambientCG Fabric019 — Linho branco
+- living_linen_wool ← ambientCG Fabric032 — Linho lã
+- living_weave_soft ← ambientCG Fabric036 — Trama suave
+- living_weave_cream ← ambientCG Fabric039 — Trama creme
+- living_weave_sand ← ambientCG Fabric040 — Trama areia
+- living_weave_mist ← ambientCG Fabric041 — Trama névoa
+- living_weave_pale ← ambientCG Fabric035 — Trama pálida
+- living_felt_grey ← ambientCG Fabric034 — Feltro cinza
+- living_linen_sage ← ambientCG Fabric018 — Linho sálvia
+- living_linen_aqua ← ambientCG Fabric017 — Linho aqua
+- living_linen_blue ← ambientCG Fabric020 — Linho azul
+- living_linen_blush ← ambientCG Fabric016 — Linho blush
+- living_accent_charcoal ← ambientCG Leather026 — Couro carvão (TV)
+- living_accent_beige ← ambientCG Leather035D — Couro bege
+- living_accent_tan ← ambientCG Leather023 — Couro tan
+- living_accent_ivory ← ambientCG Leather012 — Couro marfim
+- living_paper_white ← ambientCG Paper001 — Papel branco textura
+- living_paper_kraft ← ambientCG Paper006 — Papel kraft suave
+
+Source: https://ambientcg.com/
+License: CC0 — no attribution required; free for any use.
+Only diffuse/Color maps bundled (MeshBasic albedo; no normal/rough).
+Path: /textures/walls/<living_id>/<living_id>_diff_1k.jpg

@@ -7,6 +7,7 @@
  */
 
 import * as THREE from 'three';
+import { LIVING_WALL_IDS, LIVING_WALL_LABELS } from './aptLayouts.js';
 
 /** Showroom origin: grass south of apt candidates (~238,−10), clear aisle. */
 export const SHOWROOM_ORIGIN = { x: 238, y: 0.02, z: -42 };
@@ -121,6 +122,15 @@ export const CATEGORIES = [
       { id: 'exterior_wall_cladding', pt: 'Revestimento exterior' },
       { id: 'rectangular_facade_tiles', pt: 'Azulejos fachada' }
     ]
+  },
+  {
+    id: 'sala-living',
+    header: 'Sala / Living (TV)',
+    stroke: '#f472b6',
+    items: LIVING_WALL_IDS.map((id) => ({
+      id,
+      pt: LIVING_WALL_LABELS[id] || id
+    }))
   }
 ];
 

@@ -1,6 +1,7 @@
 /**
- * Staging review strip — all 100 apartment layouts on grass near the wall
- * paint showroom (does not crush showroom / candidates / show flat).
+ * Staging review arena — all 100 apartment layouts in an inward-facing
+ * multi-floor ring on grass near the wall paint showroom (does not crush
+ * showroom / candidates / show flat). Open face (−Z local) → arena center.
  * Labels «Candidato/Interior 001…100». Debug: window.__cityAptLayouts
  */
 import * as THREE from 'three';
@@ -20,11 +21,15 @@ import {
   wallUrl
 } from './aptLayouts.js';
 
-/** West-south of wall showroom (~238,−42) — free grass, open faces −Z. */
+/** Arena center — west-south of wall showroom (~238,−42); free grass. */
 export const REVIEW_ORIGIN = { x: 198, y: 0.02, z: -55 };
-export const REVIEW_COLS = 10;
-export const REVIEW_SPACING_X = 4.2;
-export const REVIEW_SPACING_Z = 4.6;
+/** Floors × rooms/ring (4×25 = 100). */
+export const REVIEW_FLOORS = 4;
+export const REVIEW_PER_RING = 25;
+/** Inner radius at open-face plane (m). Chord gap ~2.4 m at 25/ring. */
+export const REVIEW_RADIUS = 24;
+/** Vertical step between floors (m) — clears 2.75 m room + ceiling. */
+export const REVIEW_FLOOR_STEP = 3.4;
 
 const matCache = new Map();
 const _box = new THREE.Box3();
@@ -210,13 +215,24 @@ function placePiece(pose, layout) {
   }
 }
 
-function padOrigin(i) {
-  const col = i % REVIEW_COLS;
-  const row = Math.floor(i / REVIEW_COLS);
+/**
+ * Pose for layout index i on the multi-floor inward ring.
+ * Open face (local −Z) points at REVIEW_ORIGIN; room extends radially out.
+ * Odd floors stagger by half a slot for clearer sightlines from center.
+ */
+function padPose(i) {
+  const floor = Math.floor(i / REVIEW_PER_RING);
+  const slot = i % REVIEW_PER_RING;
+  const stagger = (floor % 2) * (Math.PI / REVIEW_PER_RING);
+  const angle = (slot / REVIEW_PER_RING) * Math.PI * 2 + stagger;
   return {
-    x: REVIEW_ORIGIN.x + col * REVIEW_SPACING_X,
-    y: REVIEW_ORIGIN.y,
-    z: REVIEW_ORIGIN.z - row * REVIEW_SPACING_Z
+    x: REVIEW_ORIGIN.x + Math.sin(angle) * REVIEW_RADIUS,
+    y: REVIEW_ORIGIN.y + floor * REVIEW_FLOOR_STEP,
+    z: REVIEW_ORIGIN.z + Math.cos(angle) * REVIEW_RADIUS,
+    yaw: angle,
+    floor,
+    slot,
+    angle
   };
 }
 
@@ -257,10 +273,11 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
   const BATCH = 5;
   for (let i = 0; i < LAYOUT_COUNT; i++) {
     const layout = LAYOUTS[i];
-    const origin = padOrigin(i);
+    const padInfo = padPose(i);
     const pad = new THREE.Group();
     pad.name = `apt-layout-${layout.label.replace(/\s+/g, '-')}`;
-    pad.position.set(origin.x, origin.y, origin.z);
+    pad.position.set(padInfo.x, padInfo.y, padInfo.z);
+    pad.rotation.y = padInfo.yaw;
     root.add(pad);
 
     const wallMat = wallBasic(wallMaps.get(layout.wall) || null, layout.wall);
@@ -293,9 +310,11 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
       ],
       { stroke: i % 20 === 0 ? '#fbbf24' : '#34d399' }
     );
-    label.position.set(0, 0.02, -0.75);
+    label.scale.set(2.4, 0.55, 1);
+    label.position.set(0, 0.02, -0.55);
     pad.add(label);
 
+    const origin = { x: padInfo.x, y: padInfo.y, z: padInfo.z };
     entries.push({
       index: i + 1,
       id: layout.id,
@@ -305,6 +324,9 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
       furnitureVariant: layout.furnitureVariant,
       wallVariant: layout.wallVariant,
       origin,
+      yaw: padInfo.yaw,
+      floor: padInfo.floor,
+      slot: padInfo.slot,
       pieces: placed,
       pad
     });
@@ -312,60 +334,106 @@ export async function spawnAptLayoutReviewStrip(cityGroup) {
     if (i % BATCH === BATCH - 1) await new Promise((r) => setTimeout(r, 0));
   }
 
+  const midY =
+    REVIEW_ORIGIN.y + ((REVIEW_FLOORS - 1) * REVIEW_FLOOR_STEP) * 0.5 + 1.4;
   const howToFind =
-    `100 layouts review strip on grass west-south of wall showroom ` +
-    `(showroom ~238,−42). Grid origin x=${REVIEW_ORIGIN.x}, z=${REVIEW_ORIGIN.z}, ` +
-    `${REVIEW_COLS} cols, spacing ${REVIEW_SPACING_X}×${REVIEW_SPACING_Z} m, open −Z. ` +
-    `Labels «Candidato/Interior 001…100». API: window.__cityAptLayouts.visit(1..100).`;
+    `100 layouts review arena on grass west-south of wall showroom ` +
+    `(showroom ~238,−42). Center x=${REVIEW_ORIGIN.x}, z=${REVIEW_ORIGIN.z}; ` +
+    `${REVIEW_FLOORS} floors × ${REVIEW_PER_RING}/ring, radius ${REVIEW_RADIUS} m, ` +
+    `floor step ${REVIEW_FLOOR_STEP} m; open −Z toward center. ` +
+    `Labels «Candidato/Interior 001…100». ` +
+    `API: window.__cityAptLayouts.visit()|'center'|1..100.`;
 
-  function visit(i = 1) {
+  function applyCameraHint(hint) {
+    const rig = typeof window !== 'undefined' ? window.__cityCamRig : null;
+    if (!rig?.camera) return;
+    rig.camera.position.set(hint.x, hint.y, hint.z);
+    rig.camera.lookAt(hint.lookAt.x, hint.lookAt.y, hint.lookAt.z);
+    if (typeof rig.applyState === 'function') {
+      rig.applyState(
+        {
+          mode: 'orbit',
+          x: hint.x,
+          y: hint.y,
+          z: hint.z,
+          tx: hint.lookAt.x,
+          ty: hint.lookAt.y,
+          tz: hint.lookAt.z
+        },
+        null,
+        null
+      );
+    } else if (typeof rig.setMode === 'function') {
+      rig.setMode('orbit');
+    }
+  }
+
+  function visitCenter() {
+    const hint = {
+      x: REVIEW_ORIGIN.x,
+      y: midY,
+      z: REVIEW_ORIGIN.z,
+      lookAt: {
+        x: REVIEW_ORIGIN.x + REVIEW_RADIUS * 0.35,
+        y: midY,
+        z: REVIEW_ORIGIN.z + REVIEW_RADIUS * 0.85
+      }
+    };
+    applyCameraHint(hint);
+    return {
+      entry: null,
+      layout: null,
+      cameraHint: hint,
+      howToFind,
+      view: 'center'
+    };
+  }
+
+  function visitUnit(i) {
     const idx = Math.max(1, Math.min(LAYOUT_COUNT, Number(i) || 1)) - 1;
     const e = entries[idx];
     if (!e) return null;
+    const ang = e.yaw;
+    const camR = Math.max(2.5, REVIEW_RADIUS - 4.2);
+    const lookR = REVIEW_RADIUS + ROOM.depth * 0.45;
     const hint = {
-      x: e.origin.x,
-      y: 1.55,
-      z: e.origin.z - 3.2,
-      lookAt: { x: e.origin.x, y: 1.2, z: e.origin.z + ROOM.depth * 0.45 }
-    };
-    const rig = typeof window !== 'undefined' ? window.__cityCamRig : null;
-    if (rig?.camera) {
-      rig.camera.position.set(hint.x, hint.y, hint.z);
-      rig.camera.lookAt(hint.lookAt.x, hint.lookAt.y, hint.lookAt.z);
-      if (typeof rig.applyState === 'function') {
-        rig.applyState(
-          {
-            mode: 'orbit',
-            x: hint.x,
-            y: hint.y,
-            z: hint.z,
-            tx: hint.lookAt.x,
-            ty: hint.lookAt.y,
-            tz: hint.lookAt.z
-          },
-          null,
-          null
-        );
-      } else if (typeof rig.setMode === 'function') {
-        rig.setMode('orbit');
+      x: REVIEW_ORIGIN.x + Math.sin(ang) * camR,
+      y: e.origin.y + 1.55,
+      z: REVIEW_ORIGIN.z + Math.cos(ang) * camR,
+      lookAt: {
+        x: REVIEW_ORIGIN.x + Math.sin(ang) * lookR,
+        y: e.origin.y + 1.2,
+        z: REVIEW_ORIGIN.z + Math.cos(ang) * lookR
       }
+    };
+    applyCameraHint(hint);
+    return { entry: e, layout: getLayout(idx), cameraHint: hint, howToFind, view: idx + 1 };
+  }
+
+  /** @param {number|'center'|undefined} i — omit / 'center' = arena mid overview */
+  function visit(i) {
+    if (i === undefined || i === null || i === '' || i === 'center') {
+      return visitCenter();
     }
-    return { entry: e, layout: getLayout(idx), cameraHint: hint, howToFind };
+    return visitUnit(i);
   }
 
   const api = {
     count: LAYOUT_COUNT,
     root,
     origin: { ...REVIEW_ORIGIN },
-    cols: REVIEW_COLS,
-    spacing: { x: REVIEW_SPACING_X, z: REVIEW_SPACING_Z },
+    floors: REVIEW_FLOORS,
+    perRing: REVIEW_PER_RING,
+    radius: REVIEW_RADIUS,
+    floorStep: REVIEW_FLOOR_STEP,
     roomSize: { ...ROOM },
     entries,
     howToFind,
     visit,
+    visitCenter,
     layout: (i) => getLayout((Number(i) || 1) - 1)
   };
   window.__cityAptLayouts = api;
-  console.log('[apt-layouts] review strip ready —', howToFind);
+  console.log('[apt-layouts] review arena ready —', howToFind);
   return api;
 }

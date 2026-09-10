@@ -1,7 +1,7 @@
 /**
  * ThirdPersonCamera — two modes:
  *   'follow' — centered on the car (drag orbit; fixed zoomDistance — no wheel zoom)
- *   'orbit'  — free flight: WASD + LMB look + RMB pan (XZ), car input disabled
+ *   'orbit'  — free flight: WASD + LMB look + RMB pan (XZ strafe + Y elevate), car input disabled
  *
  * Mouse wheel never zooms or changes fly-speed (staging owns wheel near catalog).
  * Toggle with the on-screen button or the C key.
@@ -148,8 +148,10 @@ export class ThirdPersonCamera {
   }
 
   /**
-   * Translate free-flight camera in XZ from screen deltas (no look rotation).
+   * Translate free-flight camera from screen deltas (no look rotation).
+   * Horizontal: XZ strafe along look-right. Vertical: world Y elevate.
    * Drag right → world slides with cursor (camera moves left).
+   * Drag down → camera lowers on world Y.
    */
   _applyPanDelta(dx, dy) {
     if (!dx && !dy) return;
@@ -163,7 +165,7 @@ export class ThirdPersonCamera {
     this._panRight.crossVectors(this._panForward, this._up).normalize();
     const sens = Math.max(0.012, Math.abs(this.camera.position.y) * 0.0014 + 0.008);
     this.camera.position.addScaledVector(this._panRight, -dx * sens);
-    this.camera.position.addScaledVector(this._panForward, dy * sens);
+    this.camera.position.addScaledVector(this._up, -dy * sens);
     this.orbitControls.target
       .copy(this.camera.position)
       .addScaledVector(this._forward, 12);
@@ -178,7 +180,7 @@ export class ThirdPersonCamera {
       if (this._lookBlocked) return;
       if (this.mode !== 'orbit') return;
       if (event.target.closest?.(UI_BLOCK)) return;
-      // RMB — pan camera in XZ (no look rotation).
+      // RMB — pan: XZ strafe + world-Y elevate (no look rotation).
       if (event.button === 2) {
         this._endPan();
         this._dragging = false;

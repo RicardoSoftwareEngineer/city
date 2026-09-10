@@ -7,6 +7,7 @@
  *
  * Furniture: shared loft catalog GLB (sofa/chair/coffee/console/bar/plant/tray/wallart/rug) — albedo
  * MeshBasic only (sofa+bar atlas ≥1024), scaled into the shallow room so fabric reads through glass.
+ * Walls: shared MeshBasic + Poly Haven CC0 painted_plaster_wall diffuse 1k (albedo only).
  * Curtain: one shared PlaneGeometry + Fabric 203 sheer MeshBasic (InstancedMesh).
  * Closed / curtain-only shells keep the fabric visible; open via scale only.
  */
@@ -38,6 +39,16 @@ const CURTAIN_MAP_URLS = {
   normal: '/textures/curtain/fabric203_normal.png',
   rough: '/textures/curtain/fabric203_rough.png',
   opacity: '/textures/curtain/fabric203_opacity.png'
+};
+
+/**
+ * Official InstancedMesh plaster albedo (Poly Haven CC0, 1k diffuse only).
+ * Shared one MeshBasic material for all wall boxes in the bake.
+ */
+export const ROOM_WALL_ALBEDO = {
+  id: 'painted_plaster_wall',
+  url: '/textures/walls/painted_plaster_wall/painted_plaster_wall_diff_1k.jpg',
+  uvRepeat: 1.5
 };
 
 /**
@@ -77,7 +88,35 @@ function std(color, opts = {}) {
     color: out,
     // Keep name for debug; Basic ignores roughness/metalness/emissive.
     name: opts.name,
+    map: opts.map || null,
     toneMapped: true
+  });
+}
+
+/** Load CC0 plaster albedo for the shared room wall material (MeshBasic). */
+function loadRoomWallAlbedo() {
+  return new Promise((resolve) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      ROOM_WALL_ALBEDO.url,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        const r = ROOM_WALL_ALBEDO.uvRepeat;
+        tex.repeat.set(r, r);
+        tex.anisotropy = 2;
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        resolve(tex);
+      },
+      undefined,
+      () => {
+        console.warn('[apartments] room wall albedo missing', ROOM_WALL_ALBEDO.url);
+        resolve(null);
+      }
+    );
   });
 }
 
@@ -370,12 +409,20 @@ export async function ensureApartmentRoomBaked() {
   const wallT = 0.07;
 
   // Bright plaster + stronger emissive (replaces former per-room PointLight).
+  // Walls: one shared MeshBasic + CC0 painted_plaster_wall albedo (InstancedMesh).
+  const wallMap = await loadRoomWallAlbedo();
   const floorMat = std(0xa89070, { roughness: 0.85, emissive: 0x3a3020, emissiveIntensity: 0.4 });
   const ceilMat = std(0xfffaf3, { roughness: 0.95, emissive: 0xfff5e8, emissiveIntensity: 0.55 });
-  const plaster = std(0xfff6ea, {
-    roughness: 0.88,
-    emissive: 0xffe8c8,
-    emissiveIntensity: 0.75
+  // Albedo map carries plaster detail — keep color near-white warm so map is not crushed.
+  const plasterColor = new THREE.Color(0xfff6ea);
+  plasterColor.multiplyScalar(1.08);
+  plasterColor.r = Math.min(1, plasterColor.r + 0.06);
+  plasterColor.g = Math.min(1, plasterColor.g + 0.04);
+  const plaster = new THREE.MeshBasicMaterial({
+    color: plasterColor,
+    map: wallMap,
+    name: `apt-plaster-${ROOM_WALL_ALBEDO.id}`,
+    toneMapped: true
   });
   const art = std(0xffe0a8, { emissive: 0xffc878, emissiveIntensity: 0.65 });
   const artFrame = std(0x8a5a32, { roughness: 0.7, emissive: 0x2a1808, emissiveIntensity: 0.3 });
@@ -448,7 +495,8 @@ export async function ensureApartmentRoomBaked() {
     mergedAsset: true,
     instanced: true,
     noPointLight: true,
-    loftFurniture: loftOk
+    loftFurniture: loftOk,
+    wallAlbedo: ROOM_WALL_ALBEDO.id
   };
   return baked;
 }

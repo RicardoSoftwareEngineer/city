@@ -67,11 +67,46 @@ const FIT = {
  * Five distinct themes — yaw-only, floored, upright; open face −Z.
  * Room local: X∈[-1.8,1.8], Z∈[0,3.2], Y∈[0,2.75].
  */
+/** Poly Haven CC0 plaster albedo (1k JPG) — one distinct map per candidate. */
+export const WALL_TEXTURES = {
+  painted_plaster_wall: {
+    id: 'painted_plaster_wall',
+    url: '/textures/walls/painted_plaster_wall/painted_plaster_wall_diff_1k.jpg',
+    label: 'painted plaster',
+    uvRepeat: 1.5
+  },
+  patterned_plaster_wall: {
+    id: 'patterned_plaster_wall',
+    url: '/textures/walls/patterned_plaster_wall/patterned_plaster_wall_diff_1k.jpg',
+    label: 'patterned plaster',
+    uvRepeat: 1.2
+  },
+  plastered_wall: {
+    id: 'plastered_wall',
+    url: '/textures/walls/plastered_wall/plastered_wall_diff_1k.jpg',
+    label: 'plastered wall',
+    uvRepeat: 1.8
+  },
+  white_plaster_02: {
+    id: 'white_plaster_02',
+    url: '/textures/walls/white_plaster_02/white_plaster_02_diff_1k.jpg',
+    label: 'white plaster',
+    uvRepeat: 2.0
+  },
+  white_stucco: {
+    id: 'white_stucco',
+    url: '/textures/walls/white_stucco/white_stucco_diff_1k.jpg',
+    label: 'white stucco',
+    uvRepeat: 1.6
+  }
+};
+
 const THEMES = [
   {
     id: 'living-classico',
     label: 'Living clássico',
     short: 'sofa + coffee + plant + console',
+    wall: 'painted_plaster_wall',
     pieces: [
       { name: 'rug', x: 0.0, y: 0, z: 1.5, yaw: 0 },
       { name: 'sofa', x: 0.05, y: 0, z: 2.05, yaw: Math.PI },
@@ -85,6 +120,7 @@ const THEMES = [
     id: 'compact-tv',
     label: 'Compact TV / lounge',
     short: 'sofa frente TV + lounge',
+    wall: 'patterned_plaster_wall',
     pieces: [
       { name: 'rug', x: 0.05, y: 0, z: 1.45, yaw: 0.1 },
       // Sofa along back wall, facing open glass (−Z / toward console as TV stand).
@@ -99,6 +135,7 @@ const THEMES = [
     id: 'dining',
     label: 'Dining / mesa',
     short: 'mesa + cadeiras',
+    wall: 'plastered_wall',
     pieces: [
       { name: 'rug', x: 0.0, y: 0, z: 1.55, yaw: 0 },
       { name: 'l6_dining', x: 0.0, y: 0, z: 1.55, yaw: 0 },
@@ -114,6 +151,7 @@ const THEMES = [
     id: 'study',
     label: 'Study / desk',
     short: 'mesa + cadeira + planta',
+    wall: 'white_plaster_02',
     pieces: [
       { name: 'rug', x: 0.1, y: 0, z: 1.6, yaw: 0.05 },
       // Desk against back wall (console as desk surface).
@@ -129,6 +167,7 @@ const THEMES = [
     id: 'minimal',
     label: 'Minimal / sparse',
     short: 'poucas peças modernas',
+    wall: 'white_stucco',
     pieces: [
       { name: 'jp_rug_round', x: 0.0, y: 0, z: 1.5, yaw: 0 },
       { name: 'chair', x: -0.35, y: 0, z: 1.7, yaw: Math.PI * 0.85 },
@@ -204,15 +243,60 @@ function fitFor(name) {
   return { targetHeight: 0.7, maxWidth: 1.2, maxDepth: 1.2 };
 }
 
-/** Empty shell: floor + ceiling + 3 walls; open face at z≈0 (faces −Z). */
-function buildShell() {
+function loadWallAlbedo(spec) {
+  return new Promise((resolve) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      spec.url,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        const r = spec.uvRepeat ?? 1.5;
+        tex.repeat.set(r, r);
+        tex.anisotropy = 2;
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        resolve(tex);
+      },
+      undefined,
+      () => {
+        console.warn('[apt-candidates] wall albedo missing', spec.id, spec.url);
+        resolve(null);
+      }
+    );
+  });
+}
+
+/** MeshBasic plaster with CC0 albedo map (unique per candidate). */
+function wallBasicFromMap(map, wallId) {
+  // Warm lift so silhouettes read outdoors under ACES (same spirit as flat plaster).
+  const color = new THREE.Color(0xfff6ea);
+  color.multiplyScalar(1.05);
+  color.r = Math.min(1, color.r + 0.08);
+  color.g = Math.min(1, color.g + 0.05);
+  color.b = Math.min(1, color.b + 0.02);
+  return new THREE.MeshBasicMaterial({
+    color,
+    map: map || null,
+    name: `aptCand-wall-${wallId}`,
+    toneMapped: true
+  });
+}
+
+/**
+ * Empty shell: floor + ceiling + 3 walls; open face at z≈0 (faces −Z).
+ * @param {THREE.MeshBasicMaterial} wallMat unique albedo material for this candidate
+ */
+function buildShell(wallMat) {
   const { width, depth, height, wallT } = ROOM;
   const g = new THREE.Group();
   g.name = 'apt-candidate-shell';
 
   const floorMat = stdBasic(0xa89070, 0x3a3020, 0.4);
   const ceilMat = stdBasic(0xfffaf3, 0xfff5e8, 0.55);
-  const plaster = stdBasic(0xfff6ea, 0xffe8c8, 0.75);
+  const plaster = wallMat || stdBasic(0xfff6ea, 0xffe8c8, 0.75);
 
   const addBox = (mat, w, h, d, x, y, z, name) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -375,10 +459,22 @@ export async function spawnAptInteriorCandidates(cityGroup) {
   indexPieces(loftRoot, pieceMap);
   indexPieces(novopoRoot, pieceMap);
 
+  /** @type {Map<string, THREE.Texture|null>} */
+  const wallMaps = new Map();
+  const wallIds = [...new Set(THEMES.map((t) => t.wall))];
+  await Promise.all(
+    wallIds.map(async (id) => {
+      const spec = WALL_TEXTURES[id];
+      if (!spec) return;
+      wallMaps.set(spec.id, await loadWallAlbedo(spec));
+    })
+  );
+
   const candidates = [];
 
   for (let i = 0; i < THEMES.length; i++) {
     const theme = THEMES[i];
+    const wallSpec = WALL_TEXTURES[theme.wall] || WALL_TEXTURES.painted_plaster_wall;
     const origin = padWorldOrigin(i);
     const pad = new THREE.Group();
     pad.name = `apt-candidate-${i + 1}-${theme.id}`;
@@ -396,7 +492,9 @@ export async function spawnAptInteriorCandidates(cityGroup) {
     plinth.frustumCulled = false;
     pad.add(plinth);
 
-    const shell = buildShell();
+    // Unique MeshBasic wall albedo per candidate (CC0 Poly Haven plaster).
+    const wallMat = wallBasicFromMap(wallMaps.get(wallSpec.id) || null, wallSpec.id);
+    const shell = buildShell(wallMat);
     shell.position.y = 0.06;
     pad.add(shell);
 
@@ -425,14 +523,18 @@ export async function spawnAptInteriorCandidates(cityGroup) {
     }
 
     const label = makeLabelSprite(
-      [`Candidato ${i + 1} — ${theme.label}`, `${ROOM.width}×${ROOM.height}×${ROOM.depth} m · ${theme.short}`],
+      [
+        `Candidato ${i + 1} — ${theme.label}`,
+        `${ROOM.width}×${ROOM.height}×${ROOM.depth} m · ${theme.short}`,
+        `wall: ${wallSpec.label} (${wallSpec.id})`
+      ],
       {
         w: 720,
-        h: 110,
+        h: 140,
         scaleX: 4.6,
-        scaleY: 0.9,
+        scaleY: 1.1,
         titleSize: 26,
-        bodySize: 17,
+        bodySize: 16,
         y: 3.55,
         stroke: i === 0 ? '#fbbf24' : '#34d399'
       }
@@ -446,6 +548,9 @@ export async function spawnAptInteriorCandidates(cityGroup) {
       id: theme.id,
       label: theme.label,
       short: theme.short,
+      wall: wallSpec.id,
+      wallLabel: wallSpec.label,
+      wallUvRepeat: wallSpec.uvRepeat,
       origin: { ...origin },
       size: { width: ROOM.width, height: ROOM.height, depth: ROOM.depth },
       openFace: '-Z',
@@ -515,8 +620,10 @@ export async function spawnAptInteriorCandidates(cityGroup) {
       index: i + 1,
       id: t.id,
       label: t.label,
-      short: t.short
-    }))
+      short: t.short,
+      wall: t.wall
+    })),
+    wallTextures: { ...WALL_TEXTURES }
   };
 
   window.__cityAptCandidates = api;

@@ -105,17 +105,24 @@ body {
 .hitch-list {
   margin-top: 0.3rem;
   padding-left: 1.1rem;
-  max-width: 26rem;
+  max-width: 100%;
   max-height: min(55vh, 42rem);
   overflow-x: hidden;
   overflow-y: auto;
   font-size: 0.65rem;
   line-height: 1.35;
   color: #cbd5e1;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .hitch-list li {
   margin-bottom: 0.15rem;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hitch-list .hitch-ms {
@@ -366,6 +373,10 @@ kbd {
   bottom: 5.5rem;
   z-index: 20;
   pointer-events: auto;
+  width: 18rem;
+  min-width: 15rem;
+  max-width: 18rem;
+  box-sizing: border-box;
   padding: 8px 10px;
   background: rgba(8, 12, 20, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -374,6 +385,10 @@ kbd {
 }
 #play-hitch-label {
   color: #fbbf24;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #play-hitch-hud .hitch-list {
   margin-top: 0.3rem;
@@ -605,8 +620,11 @@ kbd {
   left: 1rem;
   z-index: 20;
   pointer-events: auto;
+  width: 18rem;
+  min-width: 15rem;
+  max-width: 18rem;
+  box-sizing: border-box;
   padding: 8px 10px;
-  max-width: 22rem;
   background: rgba(8, 12, 20, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -637,7 +655,10 @@ kbd {
   font-size: 0.58rem;
   color: #94a3b8;
   line-height: 1.35;
-  max-width: 22rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #fps-sacred-stats .hold-on { color: #fbbf24; }
 #fps-sacred-stats .q-temp { color: #38bdf8; }

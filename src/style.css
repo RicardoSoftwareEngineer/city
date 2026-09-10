@@ -219,100 +219,10 @@ kbd {
 }
 
 
-/* ── Terrain mesh / collider inspector ─────────────────────────────────── */
-#terrain-debug-btn {
+/* ── Ferramentas / Vista (Malha, Câmera, Anéis, Cache) ─────────────────── */
+#tools-vista-hud {
   position: fixed;
   top: 12px;
-  right: 12px;
-  z-index: 30;
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #e8fff2;
-  background: rgba(12, 22, 18, 0.82);
-  border: 1px solid rgba(57, 255, 136, 0.55);
-  border-radius: 6px;
-  cursor: pointer;
-}
-#terrain-debug-btn:hover { background: rgba(20, 44, 32, 0.92); }
-#terrain-debug-btn[data-mode="malha"] { border-color: #39ff88; color: #39ff88; }
-#terrain-debug-btn[data-mode="colisores"] { border-color: #ffb03a; color: #ffb03a; }
-
-#camera-mode-btn {
-  position: fixed;
-  top: 52px;
-  right: 12px;
-  z-index: 30;
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #e8f0ff;
-  background: rgba(12, 16, 28, 0.82);
-  border: 1px solid rgba(120, 170, 255, 0.55);
-  border-radius: 6px;
-  cursor: pointer;
-}
-#camera-mode-btn:hover { background: rgba(24, 34, 56, 0.92); }
-#camera-mode-btn[data-mode="orbit"] { border-color: #7ab0ff; color: #7ab0ff; }
-#camera-mode-btn[data-mode="follow"] { border-color: rgba(120, 170, 255, 0.55); }
-
-#car-visual-hud {
-  position: fixed;
-  top: 92px;
-  right: 12px;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  padding: 0;
-  pointer-events: auto;
-}
-#car-visual-hud [data-min-toggle] {
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-}
-#car-visual-hud.is-dragging [data-min-toggle] {
-  cursor: grabbing;
-}
-#car-visual-btn {
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #fff4e8;
-  background: rgba(28, 18, 12, 0.82);
-  border: 1px solid rgba(255, 176, 58, 0.55);
-  border-radius: 6px;
-  cursor: grab;
-}
-#car-visual-btn:hover { background: rgba(44, 28, 20, 0.92); }
-#car-visual-btn[data-mode="porsche"] { border-color: #ffb03a; color: #ffb03a; }
-#car-visual-btn[data-mode="mercedes"] { border-color: #c0c8d4; color: #d7dde6; }
-#car-visual-btn[data-mode="mercedesOriginal"] { border-color: #9aa3b2; color: #b8c0cc; }
-#car-visual-btn[data-mode="defender"] { border-color: #6db38a; color: #9fd4b0; }
-#car-visual-btn[data-mode="box"] { border-color: rgba(255, 176, 58, 0.55); }
-
-#car-compare-btn {
-  padding: 6px 12px;
-  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #d7dde6;
-  background: rgba(20, 22, 28, 0.82);
-  border: 1px solid rgba(192, 200, 212, 0.4);
-  border-radius: 6px;
-  cursor: pointer;
-}
-#car-compare-btn:hover { background: rgba(36, 40, 52, 0.92); }
-#car-compare-btn[aria-pressed="true"] {
-  border-color: #c0c8d4;
-  color: #f0f4fa;
-  background: rgba(48, 52, 64, 0.92);
-}
-
-#car-load-hud {
-  position: fixed;
-  top: 168px;
   right: 12px;
   z-index: 30;
   min-width: 11.5rem;
@@ -324,6 +234,81 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   pointer-events: auto;
+}
+#tools-vista-hud .hud-min-toggle {
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+.tools-vista-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tools-vista-list > li {
+  margin: 0.1rem 0;
+}
+/* Action rows inside hud-list-panel — nowrap + ellipsis, no free-float chrome */
+.hud-action-row {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #e2e8f0;
+  font: 600 11px/1.2 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.hud-action-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+}
+#terrain-debug-btn[data-mode="malha"] { color: #39ff88; }
+#terrain-debug-btn[data-mode="colisores"] { color: #ffb03a; }
+#camera-mode-btn[data-mode="orbit"] { color: #7ab0ff; }
+#radius-rings-btn[data-on="1"],
+#radius-rings-btn[aria-pressed="true"] { color: #e879f9; }
+#clear-asset-cache-btn { color: #fecaca; }
+
+#car-compare-btn.car-compare-row {
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 4px 4px;
+  color: #d7dde6;
+}
+#car-compare-btn.car-compare-row[aria-pressed="true"] {
+  color: #f0f4fa;
+  background: rgba(48, 52, 64, 0.55);
+}
+
+#car-load-hud {
+  position: fixed;
+  top: 148px;
+  right: 12px;
+  z-index: 30;
+  min-width: 11.5rem;
+  max-width: 16rem;
+  padding: 0.4rem 0.55rem;
+  font: 500 11px/1.35 "Segoe UI", system-ui, sans-serif;
+  color: #c8d0dc;
+  background: rgba(12, 14, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  pointer-events: auto;
+}
+#car-load-list.is-loading {
+  opacity: 0.65;
+  pointer-events: none;
 }
 #car-load-hud .hud-min-toggle {
   display: block;
@@ -372,8 +357,8 @@ kbd {
 
 #terrain-debug-readout {
   position: fixed;
-  top: 280px;
-  right: 12px;
+  top: 12px;
+  right: 17.5rem;
   z-index: 30;
   display: none;
   min-width: 220px;
@@ -679,7 +664,8 @@ kbd {
 }
 /* Multi-column rows: truncate the label cell (1fr), not the whole row chrome */
 [data-min-id].hud-list-panel .lo-label,
-[data-min-id].hud-list-panel .car-load-id {
+[data-min-id].hud-list-panel .car-load-id,
+[data-min-id].hud-list-panel .hud-action-row {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -914,84 +900,77 @@ kbd {
 }
 
 
-/* Radius debug rings toggle */
-#radius-rings-btn {
+/* Cena / Ambiente — Qualidade + Interiores inside hud-list-panel */
+#cena-ambiente-hud {
   position: fixed;
-  top: 92px;
+  top: 300px;
   right: 12px;
   z-index: 30;
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #e8f7ff;
-  background: rgba(12, 18, 28, 0.82);
-  border: 1px solid rgba(34, 211, 238, 0.55);
+  min-width: 11.5rem;
+  max-width: 16rem;
+  padding: 0.4rem 0.55rem;
+  font: 500 11px/1.35 "Segoe UI", system-ui, sans-serif;
+  color: #c8d0dc;
+  background: rgba(12, 14, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  cursor: pointer;
+  pointer-events: auto;
 }
-#radius-rings-btn:hover { background: rgba(20, 32, 48, 0.92); }
-#radius-rings-btn[data-on="1"] {
-  border-color: #e879f9;
-  color: #e879f9;
+#cena-ambiente-hud .hud-min-toggle {
+  color: #7dd3fc;
+  margin-bottom: 0.25rem;
 }
-#clear-asset-cache-btn {
-  position: fixed;
-  top: 132px;
-  right: 12px;
-  z-index: 30;
-  padding: 8px 14px;
-  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  color: #fecaca;
-  background: rgba(12, 18, 28, 0.82);
-  border: 1px solid rgba(248, 113, 113, 0.55);
-  border-radius: 6px;
-  cursor: pointer;
+#cena-ambiente-hud > [data-min-body].cena-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
-#clear-asset-cache-btn:hover { background: rgba(40, 20, 24, 0.92); }
-
-/* Floating Ultra / Simples — always visible in play (not buried in FPS panel) */
-#quality-preset-float.quality-preset-float {
-  position: fixed;
-  top: 172px;
-  right: 12px;
-  z-index: 30;
+.cena-section-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font: 600 10px/1 "Segoe UI", system-ui, sans-serif;
+  color: #94a3b8;
+  margin-bottom: 0.3rem;
+}
+.cena-quality {
   margin-top: 0;
   gap: 0.35rem;
-  padding: 6px;
-  background: rgba(12, 18, 28, 0.82);
-  border: 1px solid rgba(56, 189, 248, 0.45);
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
 }
-#quality-preset-float .quality-btn {
+.cena-quality .quality-btn {
+  flex: 1;
   font-size: 0.7rem;
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.55rem;
 }
 
-/* Day / night — near quality float */
+/* Day / night — minimizable hud-list-panel */
 #day-night-float.day-night-float {
   position: fixed;
-  top: 218px;
+  top: 420px;
   right: 12px;
   z-index: 30;
+  min-width: 9.5rem;
+  max-width: 14rem;
+  padding: 0.4rem 0.55rem;
+  color: #e0f2fe;
+  background: rgba(12, 14, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+}
+#day-night-float .hud-min-toggle {
+  color: #7dd3fc;
+  margin-bottom: 0.25rem;
+}
+#day-night-float > [data-min-body].day-night-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 10px;
-  min-width: 9.5rem;
-  color: #e0f2fe;
-  background: rgba(12, 18, 28, 0.82);
-  border: 1px solid rgba(56, 189, 248, 0.45);
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
-  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-}
-#day-night-float .day-night-title {
-  text-transform: uppercase;
-  color: #7dd3fc;
-  font-size: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 #day-night-float .day-night-label {
   font: 700 13px/1 "Outfit", "Segoe UI", system-ui, sans-serif;
@@ -1021,10 +1000,10 @@ kbd {
   background: rgba(51, 65, 85, 0.95);
 }
 
-/* Compass — below Hora float; rose rotates, needle = look dir */
+/* Compass — non-list widget; rose rotates, needle = look dir */
 #compass-hud.compass-hud {
   position: fixed;
-  top: 318px;
+  top: 520px;
   right: 12px;
   z-index: 30;
   display: flex;
@@ -1105,7 +1084,7 @@ kbd {
 /* Street lights study HUD — live Spot/Point/emissive knobs */
 #street-lights-hud {
   position: fixed;
-  top: 410px;
+  top: 610px;
   right: 12px;
   z-index: 30;
   pointer-events: auto;
@@ -1227,28 +1206,9 @@ kbd {
 }
 
 
-#apts-budget {
-  position: fixed;
-  top: 300px;
-  right: 12px;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  min-width: 9.5rem;
-  color: #e9d5ff;
-  background: rgba(12, 18, 28, 0.82);
-  border: 1px solid rgba(167, 139, 250, 0.6);
-  border-radius: 8px;
-  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.04em;
-}
 #apts-budget.apts-busy { opacity: 0.65; pointer-events: none; }
 #apts-budget .apts-budget-label {
-  text-transform: uppercase;
   color: #c4b5fd;
-  font-size: 10px;
 }
 #apts-budget .apts-budget-row {
   display: flex;
@@ -1377,15 +1337,8 @@ body.boot-idle #resource-hud,
 body.boot-idle #perf-hud,
 body.boot-idle #persona-hud,
 body.boot-idle [data-min-id],
-body.boot-idle #radius-rings-btn,
-body.boot-idle #clear-asset-cache-btn,
-body.boot-idle #quality-preset-float,
-body.boot-idle #day-night-float,
 body.boot-idle #compass-hud,
-body.boot-idle #apts-budget,
-body.boot-idle #terrain-debug-btn,
-body.boot-idle #car-visual-hud,
-body.boot-idle #car-load-hud,
+body.boot-idle #terrain-debug-readout,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;
   pointer-events: none !important;

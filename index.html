@@ -21,37 +21,61 @@
     <p id="boot-gate-hint">Só chão phys + carro mínimo. Clique: stream ao redor (orchard + biomas √10). Ultra padrão — budget fixo, sem adaptação FPS. Specs: docs/specs/.</p>
   </div>
 
-  <button type="button" id="radius-rings-btn" aria-pressed="false">Anéis do raio</button>
-  <button type="button" id="clear-asset-cache-btn" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button>
-  <div id="car-visual-hud" data-min-id="car-visual" data-min-no-collapse aria-label="Carro visual">
-    <button type="button" id="car-visual-btn" data-min-toggle data-mode="box">Carro: quadrado</button>
-    <button type="button" id="car-compare-btn" aria-pressed="false" title="Mercedes otimizado vs original lado a lado">Comparar A/B</button>
+  <div id="tools-vista-hud" class="hud-list-panel" data-min-id="tools-vista" aria-label="Ferramentas / Vista">
+    <button type="button" class="hud-min-toggle" data-min-toggle>
+      Ferramentas / Vista <span data-min-chev>▾</span>
+    </button>
+    <ul data-min-body class="hud-scroll-list tools-vista-list">
+      <li><button type="button" id="terrain-debug-btn" class="hud-action-row" data-mode="off">Malha: oculta</button></li>
+      <li><button type="button" id="camera-mode-btn" class="hud-action-row" data-mode="follow">Câmera: no carro</button></li>
+      <li><button type="button" id="radius-rings-btn" class="hud-action-row" aria-pressed="false">Anéis do raio</button></li>
+      <li><button type="button" id="clear-asset-cache-btn" class="hud-action-row" title="Apaga glTFs no Cache API (disco). Não mexe no MemoryGuardian.">Limpar cache</button></li>
+    </ul>
   </div>
+
   <div id="car-load-hud" class="hud-list-panel" data-min-id="car-load" aria-label="Load carros">
     <button type="button" class="hud-min-toggle" data-min-toggle>
       Load carros <span data-min-chev>▾</span>
     </button>
     <div data-min-body>
       <ul id="car-load-list" class="hud-scroll-list"><li>aguardando loads…</li></ul>
+      <button type="button" id="car-compare-btn" class="hud-action-row car-compare-row" aria-pressed="false" title="Mercedes otimizado vs original lado a lado">Comparar A/B</button>
     </div>
   </div>
 
-  <div id="apts-budget" title="Interiores Todos (boot)">
-    <span class="apts-budget-label">Interiores</span>
-    <div class="apts-budget-row">
-      <button type="button" id="apts-budget-dec" aria-label="Menos">−</button>
-      <input type="number" id="apts-budget-input" min="0" max="99" value="0" inputmode="numeric" />
-      <button type="button" id="apts-budget-inc" aria-label="Mais">+</button>
-      <button type="button" id="apts-budget-all" aria-pressed="true">Todos</button>
+  <div id="cena-ambiente-hud" class="hud-list-panel" data-min-id="cena-ambiente" aria-label="Cena / Ambiente">
+    <button type="button" class="hud-min-toggle" data-min-toggle>
+      Cena / Ambiente <span data-min-chev>▾</span>
+    </button>
+    <div data-min-body class="hud-scroll-list cena-body">
+      <div class="cena-section">
+        <div class="cena-section-label">Qualidade</div>
+        <div id="quality-preset-float" class="quality-preset cena-quality" role="group" aria-label="Qualidade">
+          <button type="button" class="quality-btn" data-quality-mirror="ultra" aria-pressed="true">Ultra</button>
+          <button type="button" class="quality-btn" data-quality-mirror="simple" aria-pressed="false">Simples</button>
+        </div>
+      </div>
+      <div class="cena-section" id="apts-budget" title="Interiores Todos (boot)">
+        <div class="cena-section-label apts-budget-label">Interiores</div>
+        <div class="apts-budget-row">
+          <button type="button" id="apts-budget-dec" aria-label="Menos">−</button>
+          <input type="number" id="apts-budget-input" min="0" max="99" value="0" inputmode="numeric" />
+          <button type="button" id="apts-budget-inc" aria-label="Mais">+</button>
+          <button type="button" id="apts-budget-all" aria-pressed="true">Todos</button>
+        </div>
+      </div>
     </div>
   </div>
 
-
-  <div id="day-night-float" class="day-night-float" aria-label="Hora do dia">
-    <span class="day-night-title">Hora</span>
-    <span id="day-night-label" class="day-night-label">12:00</span>
-    <input type="range" id="day-night-slider" min="0" max="24" step="0.05" value="12" aria-label="Hora do dia" />
-    <button type="button" id="day-night-play" aria-pressed="false">Play</button>
+  <div id="day-night-float" class="hud-list-panel day-night-float" data-min-id="day-night" aria-label="Hora do dia">
+    <button type="button" class="hud-min-toggle" data-min-toggle>
+      Hora <span data-min-chev>▾</span>
+    </button>
+    <div data-min-body class="hud-scroll-list day-night-body">
+      <span id="day-night-label" class="day-night-label">12:00</span>
+      <input type="range" id="day-night-slider" min="0" max="24" step="0.05" value="12" aria-label="Hora do dia" />
+      <button type="button" id="day-night-play" aria-pressed="false">Play</button>
+    </div>
   </div>
 
   <div id="compass-hud" class="compass-hud" aria-label="Bússola">
@@ -65,11 +89,6 @@
       <div class="compass-needle" aria-hidden="true"></div>
     </div>
     <span id="compass-deg" class="compass-deg">0°</span>
-  </div>
-
-  <div id="quality-preset-float" class="quality-preset quality-preset-float" role="group" aria-label="Qualidade">
-    <button type="button" class="quality-btn" data-quality-mirror="ultra" aria-pressed="true">Ultra</button>
-    <button type="button" class="quality-btn" data-quality-mirror="simple" aria-pressed="false">Simples</button>
   </div>
 
   <!-- Heads-Up Display -->

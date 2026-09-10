@@ -214,17 +214,9 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
-  // Debug HUD: cycle Porsche → Mercedes (otimizada) → Mercedes (high-poly) → Defender → box.
-  const carVisualBtn = document.getElementById('car-visual-btn');
+  // Load carros list selects visual; Comparar A/B lives in the same panel.
   const carCompareBtn = document.getElementById('car-compare-btn');
   const carLoadList = document.getElementById('car-load-list');
-  const CAR_VISUAL_LABELS = {
-    porsche: 'Carro: Porsche',
-    mercedes: 'Carro: Mercedes (otimizada)',
-    mercedesOriginal: 'Carro: Mercedes (high-poly)',
-    defender: 'Carro: Defender',
-    box: 'Carro: quadrado'
-  };
   function formatBytes(n) {
     if (n == null) return '';
     if (n < 1024) return `${n} B`;
@@ -257,33 +249,18 @@ async function startGame() {
       .join('');
   }
   function switchCarVisual(mode) {
-    if (carVisualBtn) {
-      carVisualBtn.title = 'Carregando…';
-      carVisualBtn.disabled = true;
-    }
+    if (carLoadList) carLoadList.classList.add('is-loading');
     return porscheModel
       .ensureVisualMode(mode)
       .then(() => {
-        if (carVisualBtn) carVisualBtn.title = '';
-        syncCarVisualBtn();
         paintCarLoadHud();
       })
       .catch((err) => {
         console.error('Car visual switch failed:', err);
-        if (carVisualBtn) carVisualBtn.title = 'Falha ao carregar carro';
       })
       .finally(() => {
-        if (carVisualBtn) {
-          carVisualBtn.disabled = false;
-          syncCarVisualBtn();
-        }
+        if (carLoadList) carLoadList.classList.remove('is-loading');
       });
-  }
-  function syncCarVisualBtn() {
-    if (!carVisualBtn) return;
-    const mode = porscheModel.getVisualMode();
-    carVisualBtn.dataset.mode = mode;
-    carVisualBtn.textContent = CAR_VISUAL_LABELS[mode] || CAR_VISUAL_LABELS.box;
   }
   function syncCarCompareBtn() {
     if (!carCompareBtn) return;
@@ -291,26 +268,8 @@ async function startGame() {
     carCompareBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     carCompareBtn.textContent = on ? 'A/B ligado' : 'Comparar A/B';
   }
-  /** Cycle order; mercedes modes are always offered (lazy-load on select). */
-  function nextCarVisualMode(current) {
-    if (current === 'porsche') return 'mercedes';
-    if (current === 'mercedes') return 'mercedesOriginal';
-    if (current === 'mercedesOriginal') return 'defender';
-    if (current === 'defender') return 'box';
-    if (porscheModel.canShowPorsche()) return 'porsche';
-    return 'mercedes';
-  }
-  syncCarVisualBtn();
   syncCarCompareBtn();
   paintCarLoadHud();
-  if (carVisualBtn) {
-    carVisualBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const next = nextCarVisualMode(porscheModel.getVisualMode());
-      switchCarVisual(next);
-    });
-  }
   if (carLoadList) {
     carLoadList.addEventListener('click', (event) => {
       const li = event.target.closest('[data-car-id]');
@@ -349,7 +308,6 @@ async function startGame() {
           }
           porscheModel.setCompareAb(next);
           syncCarCompareBtn();
-          syncCarVisualBtn();
           paintCarLoadHud();
         })
         .catch((err) => console.error('A/B compare failed:', err))
@@ -623,7 +581,6 @@ async function startGame() {
         stream.startCarpetBackground();
         // Hero glTFs after first ring — not competing with createCityStream on click.
         const warmHeroCars = async () => {
-          syncCarVisualBtn();
           await throughValve(() =>
             renderer.compileSubtree(porscheModel.chassisGroup, {
               instancersOnly: false,

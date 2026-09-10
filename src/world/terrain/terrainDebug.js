@@ -37,11 +37,16 @@ const PAVED_COLOR = new THREE.Color(0x4aa3ff);
 const LIFT = 0.12;
 
 function makeButton(onClick) {
-  const button = document.createElement('button');
-  button.id = 'terrain-debug-btn';
+  let button = document.getElementById('terrain-debug-btn');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'terrain-debug-btn';
+    button.type = 'button';
+    document.body.appendChild(button);
+  }
   button.textContent = LABEL.off;
+  button.dataset.mode = 'off';
   button.addEventListener('click', onClick);
-  document.body.appendChild(button);
   return button;
 }
 

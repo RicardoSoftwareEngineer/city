@@ -84,15 +84,18 @@ export class ThirdPersonCamera {
   }
 
   _makeButton() {
-    const button = document.createElement('button');
-    button.id = 'camera-mode-btn';
-    button.type = 'button';
+    let button = document.getElementById('camera-mode-btn');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'camera-mode-btn';
+      button.type = 'button';
+      document.body.appendChild(button);
+    }
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       this.toggleMode();
     });
-    document.body.appendChild(button);
     return button;
   }
 

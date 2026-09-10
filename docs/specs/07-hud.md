@@ -2,28 +2,40 @@
 
 ## Purpose
 
-Contrato de chrome dos painéis HUD minimizáveis com lista/corpo scrollável. Resize W/H deve manter conteúdo **dentro** do chrome (scroll + ellipsis), não estourar.
+Contrato de chrome dos painéis HUD minimizáveis com lista/corpo scrollável. Resize W/H deve manter conteúdo **dentro** do chrome (scroll + ellipsis), não estourar. Controles de ação/debug que eram botões soltos vivem **dentro** de `hud-list-panel` (menos kit noise).
 
 ## Invariants / MUST / MUST NOT
 
 - **MUST** painéis com `[data-min-id]`: título = minimize + drag; corners = resize; persist `localStorage` `city-hud-panels-v1` `{ min, left, top, width, height }` (`minimizableHud.js`).
-- **MUST** **todas** as listas scrolláveis do HUD (Fila do foco, Ordem de carga, QualityAdapter/personas, Anel, Hitch, Recursos, Load carros, …) usam classe **`hud-list-panel`** + padrão flex clip — sem one-offs que quebram o contrato:
+- **MUST** **todas** as listas scrolláveis do HUD (Fila do foco, Ordem de carga, QualityAdapter/personas, Anel, Hitch, Recursos, Load carros, Ferramentas / Vista, Cena / Ambiente, Hora, Iluminação, …) usam classe **`hud-list-panel`** + padrão flex clip — sem one-offs que quebram o contrato:
   - Root: `display:flex; flex-direction:column; overflow:hidden;` + default `max-height: min(55vh, 42rem)` (`.is-resized` levanta o teto).
   - Toggle: `flex-shrink: 0`.
   - `[data-min-body]`: preenche altura restante (`flex:1; min-height:0`).
   - Scroll em **`.hud-scroll-list`** (body-as-list **ou** lista aninhada): `overflow-y:auto; max-height:none` — **não** hard-cap na lista.
-  - **MUST** linhas de lista: **nunca wrap**; truncar com `text-overflow: ellipsis` (`white-space:nowrap; overflow:hidden; min-width:0`). Em rows multi-coluna (`.lo-row` / label cell), o ellipsis vai na **célula do label** (`.lo-label`), não só no `<li>`. `title` opcional no texto completo.
+  - **MUST** linhas de lista: **nunca wrap**; truncar com `text-overflow: ellipsis` (`white-space:nowrap; overflow:hidden; min-width:0`). Em rows multi-coluna (`.lo-row` / label cell), o ellipsis vai na **célula do label** (`.lo-label`), não só no `<li>`. Action rows (`.hud-action-row`) seguem o mesmo contrato. `title` opcional no texto completo.
+- **MUST** ações/debug que cabem em lista (Malha, Câmera, Anéis do raio, Limpar cache, Comparar A/B, …) serem **linhas** dentro de um `hud-list-panel` — **MUST NOT** botões free-floating com o mesmo papel.
 - **MUST** minimize esconde `[data-min-body]`; handles de resize ocultos quando `.is-min`.
 - **MUST NOT** `max-height` fixo na lista (ex. `9.5rem` / `14rem`) que lute com resize do painel.
 - Cap default no **painel**, não na lista.
 
+## Grouping (chrome)
+
+| Painel | Conteúdo |
+|--------|----------|
+| Ferramentas / Vista | Malha, Câmera, Anéis do raio, Limpar cache (`.hud-action-row`) |
+| Load carros | lista de loads + Comparar A/B |
+| Cena / Ambiente | Ultra/Simples + Interiores (−/+/Todos) |
+| Hora | slider + Play (minimizable) |
+| Iluminação | study knobs (JS) |
+| Bússola | widget não-lista (ok fora do padrão de lista) |
+
 ## Ownership
 
-CSS: `src/style.css` (`.hud-list-panel` / `.hud-scroll-list`). JS: `minimizableHud.js`. Roots: `index.html` + persona / street-lights criados em JS.
+CSS: `src/style.css` (`.hud-list-panel` / `.hud-scroll-list` / `.hud-action-row`). JS: `minimizableHud.js`. Roots: `index.html` + persona / street-lights criados em JS.
 
 ## Same-PR rule
 
-Novo painel lista minimizável ou mudança do padrão resize/clip → este arquivo.
+Novo painel lista minimizável, agrupamento de chrome solto, ou mudança do padrão resize/clip → este arquivo.
 
 ## Out of scope
 

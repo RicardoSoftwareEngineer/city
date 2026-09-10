@@ -210,10 +210,11 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
-  // Debug HUD: cycle Porsche glTF → procedural Defender → crude box.
+  // Debug HUD: cycle Porsche → Mercedes → Defender → box.
   const carVisualBtn = document.getElementById('car-visual-btn');
   const CAR_VISUAL_LABELS = {
     porsche: 'Carro: Porsche',
+    mercedes: 'Carro: Mercedes',
     defender: 'Carro: Defender',
     box: 'Carro: quadrado'
   };
@@ -224,11 +225,14 @@ async function startGame() {
     carVisualBtn.textContent = CAR_VISUAL_LABELS[mode] || CAR_VISUAL_LABELS.box;
   }
   function nextCarVisualMode(current) {
-    // Porsche → Defender → quadrado → Porsche…
-    if (current === 'porsche') return 'defender';
+    // Porsche → Mercedes → Defender → quadrado → …
+    if (current === 'porsche') {
+      return porscheModel.canShowMercedes() ? 'mercedes' : 'defender';
+    }
+    if (current === 'mercedes') return 'defender';
     if (current === 'defender') return 'box';
-    // Prefer Porsche when ready; otherwise skip to Defender.
     if (porscheModel.canShowPorsche()) return 'porsche';
+    if (porscheModel.canShowMercedes()) return 'mercedes';
     return 'defender';
   }
   syncCarVisualBtn();
@@ -238,8 +242,11 @@ async function startGame() {
       event.stopPropagation();
       let next = nextCarVisualMode(porscheModel.getVisualMode());
       if (next === 'porsche' && !porscheModel.canShowPorsche()) {
-        next = 'defender';
+        next = porscheModel.canShowMercedes() ? 'mercedes' : 'defender';
         carVisualBtn.title = 'Porsche ainda carregando';
+      } else if (next === 'mercedes' && !porscheModel.canShowMercedes()) {
+        next = 'defender';
+        carVisualBtn.title = 'Mercedes ainda carregando';
       } else {
         carVisualBtn.title = '';
       }
@@ -509,21 +516,27 @@ async function startGame() {
         await yieldToMain();
         stream.startNatureBackground();
         stream.startCarpetBackground();
-        // Porsche after first ring — not competing with createCityStream on click.
+        // Hero glTFs after first ring — not competing with createCityStream on click.
+        const warmHeroCars = async () => {
+          syncCarVisualBtn();
+          await throughValve(() =>
+            renderer.compileSubtree(porscheModel.chassisGroup, {
+              instancersOnly: false,
+              // Interactive boot is already true before Começar — never freeze
+              // the canvas (0 draw calls) while car programs warm.
+              pause: false
+            })
+          );
+        };
         porscheModel.load()
-          .then(async () => {
-            syncCarVisualBtn();
-            await throughValve(() =>
-              renderer.compileSubtree(porscheModel.chassisGroup, {
-                instancersOnly: false,
-                // Interactive boot is already true before Começar — never freeze
-                // the canvas (0 draw calls) while Porsche programs warm.
-                pause: false
-              })
-            );
-          })
+          .then(warmHeroCars)
           .catch((error) => {
             console.error('Porsche load failed:', error);
+          });
+        porscheModel.loadMercedes()
+          .then(warmHeroCars)
+          .catch((error) => {
+            console.error('Mercedes load failed:', error);
           });
         // Keep terrain + nature + carpet phases alive — they end themselves when idle.
         finishAllLoadPhases(['terrain', 'nature', 'carpet']);

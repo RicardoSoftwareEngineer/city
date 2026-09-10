@@ -1,15 +1,17 @@
 /**
- * PorscheModel — Loads the Porsche 911 GLTF and sets up wheel pivot groups
+ * PorscheModel — Loads hero-car glTFs and sets up wheel pivot groups
  * for visual steering and spin animation.
  *
- * The model is scaled to PORSCHE_TARGET_LENGTH and centered.
- * Wheel nodes are re-parented into steer → spin pivot hierarchies so that
- * VehicleController can rotate them independently.
+ * Models are scaled to PORSCHE_TARGET_LENGTH and centered so the physics
+ * chassis still fits. Wheel nodes are re-parented into steer → spin pivots
+ * so VehicleController can rotate them independently.
  *
- * Visual modes (HUD): 'porsche' | 'defender' | 'box'
- * - porsche: glTF (when ready)
+ * Visual modes (HUD): 'porsche' | 'mercedes' | 'defender' | 'box'
+ * - porsche / mercedes: glTF (when ready)
  * - defender: procedural Land Rover Defender 90 (Box/Cylinder/Plane)
  * - box: crude placeholder
+ *
+ * File name kept for churn control; class owns all HUD car visuals.
  */
 
 import * as THREE from 'three';
@@ -22,8 +24,45 @@ import {
 } from '../world/RoadDimensions.js';
 import { createProceduralDefender } from './ProceduralDefender.js';
 
-const PORSCHE_GLB_URL = '/models/porsche/porsche_911_with_interior.glb';
-const PORSCHE_GLB_TAG = 'porsche_911_with_interior.glb';
+/** @typedef {'porsche'|'mercedes'|'defender'|'box'} CarVisualMode */
+
+const MERGED_SPIN_RE = /^(AO_tire_main|wheel_rim|discs_Discs|metal_parts_rim)/i;
+
+/**
+ * Per-glTF car config. Wheel discovery:
+ * - legacy named nodes (Porsche Godot export), else
+ * - material/name matchers → merged XZ cluster split (Sketchfab-style).
+ */
+const GLTF_CARS = {
+  porsche: {
+    url: '/models/porsche/porsche_911_with_interior.glb',
+    tag: 'porsche_911_with_interior.glb',
+    wrapName: 'porsche-gltf',
+    /** Fixed Y offset tuned to physics chassis (historical). */
+    rootOffsetY: PORSCHE_ROOT_OFFSET_Y,
+    floorWheels: false,
+    isTireMesh(obj) {
+      return /tires/i.test(obj.name) || /^AO_tire_main/i.test(obj.name);
+    },
+    isSpinMesh(obj) {
+      return MERGED_SPIN_RE.test(obj.name);
+    }
+  },
+  mercedes: {
+    url: '/models/mercedes/mercedes.glb',
+    tag: 'mercedes.glb',
+    wrapName: 'mercedes-gltf',
+    rootOffsetY: 0,
+    floorWheels: true,
+    isTireMesh(obj) {
+      return matNameMatches(obj, /TARMAC_TYRE/i);
+    },
+    isSpinMesh(obj) {
+      // Merged four-corner tire/rim/disc meshes (unnamed nodes; materials only).
+      return matNameMatches(obj, /TARMAC_TYRE|TARMAC_WHEEL|^DISCS$/i);
+    }
+  }
+};
 
 // Legacy named wheels (porsche.glb / Godot export). New Sketchfab asset merges
 // all tires/rims into one mesh — see discoverWheelObjects().
@@ -34,18 +73,26 @@ const WHEEL_PARTS = [
   { wheel: 'wheel_lrchild002_7', hub: 'hub_rf_4' }
 ];
 
-/** Meshes that should spin with each corner wheel on the merged Sketchfab asset. */
-const MERGED_SPIN_RE = /^(AO_tire_main|wheel_rim|discs_Discs|metal_parts_rim)/i;
+function matNameMatches(obj, re) {
+  const mats = obj.material
+    ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+    : [];
+  return mats.some((m) => re.test(m?.name || ''));
+}
 
 export class PorscheModel {
   constructor() {
     this.chassisGroup = new THREE.Group();  // The group added to the scene
-    this.wheelPivots = {};                  // { frontLeft: { steerPivot, spinPivot, isFront }, ... }
+    this.wheelPivots = {};                  // Active mode pivots (FL/FR/RL/RR)
     this._placeholder = null;
-    this._gltfRoot = null;
+    this._gltfRoot = null;                 // Alias: porsche wrap (compat)
     this._defender = null;
-    this._visualMode = 'box';              // 'porsche' | 'defender' | 'box'
-    this.ready = false;
+    /** @type {Record<string, { root: THREE.Group, wheelPivots: object }>} */
+    this._gltfByMode = {};
+    /** @type {CarVisualMode} */
+    this._visualMode = 'box';
+    this.ready = false;                    // porsche glTF ready
+    this.mercedesReady = false;
   }
 
   /**
@@ -116,27 +163,40 @@ export class PorscheModel {
     this._placeholder = null;
   }
 
-  /**
-   * Load the Porsche GLB and return when ready.
-   * Safe to call after GameLoop is already running (placeholder stays until then).
-   */
+  /** Load Porsche glTF (default hero). Safe after GameLoop is running. */
   async load() {
-    const url = PORSCHE_GLB_URL;
+    return this.loadGltf('porsche');
+  }
+
+  /** Load Mercedes GLB as optional HUD visual. */
+  async loadMercedes() {
+    return this.loadGltf('mercedes');
+  }
+
+  /**
+   * @param {'porsche'|'mercedes'} mode
+   */
+  async loadGltf(mode) {
+    const cfg = GLTF_CARS[mode];
+    if (!cfg) throw new Error(`unknown glTF car mode: ${mode}`);
+    if (this._gltfByMode[mode]) return;
+
+    const url = cfg.url;
     const loader = new GLTFLoader();
     const dir = url.slice(0, url.lastIndexOf('/') + 1);
     const res = await cachedFetch(url);
-    if (!res.ok) throw new Error(`porsche fetch ${res.status}`);
+    if (!res.ok) throw new Error(`${mode} fetch ${res.status}`);
     const buf = await res.arrayBuffer();
     return new Promise((resolve, reject) => {
-      beginLoad('gltf:parse', PORSCHE_GLB_TAG);
+      beginLoad('gltf:parse', cfg.tag);
       loader.parse(
         buf,
         dir,
         (gltf) => {
           const t0 = performance.now();
           const root = gltf.scene || gltf.scenes[0];
-          this.setupModel(root);
-          loadMark('gltf:parse', PORSCHE_GLB_TAG, performance.now() - t0);
+          this.setupModel(root, mode);
+          loadMark('gltf:parse', cfg.tag, performance.now() - t0);
           resolve();
         },
         reject
@@ -144,8 +204,13 @@ export class PorscheModel {
     });
   }
 
-  setupModel(sceneRoot) {
-    // Keep placeholder parented — hide it; HUD can toggle back without recreate.
+  /**
+   * @param {THREE.Object3D} sceneRoot
+   * @param {'porsche'|'mercedes'} mode
+   */
+  setupModel(sceneRoot, mode = 'porsche') {
+    const cfg = GLTF_CARS[mode];
+    if (!cfg) return;
     if (this._placeholder) this._placeholder.visible = false;
 
     const model = sceneRoot;
@@ -154,11 +219,11 @@ export class PorscheModel {
     const center = boundingBox.getCenter(new THREE.Vector3());
 
     // Center geometry on local origin BEFORE scale/rotate so scale does not drift
-    // the Sketchfab FBX pivot (bbox center is far from node origin).
+    // a Sketchfab pivot (bbox center far from node origin).
     model.position.set(-center.x, -center.y, -center.z);
 
     const wrap = new THREE.Group();
-    wrap.name = 'porsche-gltf';
+    wrap.name = cfg.wrapName;
     wrap.add(model);
 
     const currentLength = Math.max(size.z, size.x);
@@ -171,10 +236,10 @@ export class PorscheModel {
     } else {
       wrap.rotation.y = Math.PI;
     }
-    wrap.position.y = PORSCHE_ROOT_OFFSET_Y;
+    wrap.position.y = cfg.rootOffsetY;
     wrap.updateMatrixWorld(true);
 
-    const wheelObjects = this.discoverWheelObjects(wrap);
+    const wheelObjects = this.discoverWheelObjects(wrap, cfg);
     // Nudge so axle midpoint sits on chassis X/Z (body bbox can be asymmetric).
     if (wheelObjects.length >= 4) {
       const mid = new THREE.Vector3();
@@ -188,6 +253,18 @@ export class PorscheModel {
       }
     }
 
+    if (cfg.floorWheels) {
+      wrap.updateMatrixWorld(true);
+      const floored = new THREE.Box3().setFromObject(wrap);
+      if (Number.isFinite(floored.min.y)) {
+        wrap.position.y -= floored.min.y;
+        wrap.updateMatrixWorld(true);
+        for (const w of wheelObjects) {
+          w.object.getWorldPosition(w.worldCenter);
+        }
+      }
+    }
+
     const measured = wheelObjects
       .map((w) => ({ ...w, x: w.worldCenter.x, z: w.worldCenter.z }))
       .filter((w) => w.object);
@@ -198,15 +275,24 @@ export class PorscheModel {
     const pick = (pair, wantRight) =>
       pair.slice().sort((a, b) => a.x - b.x)[wantRight ? 1 : 0];
 
-    this.wheelPivots = {
-      frontLeft:  this.createWheelPivot(pick(frontPair, false), true, false),
-      frontRight: this.createWheelPivot(pick(frontPair, true),  true, true),
-      rearLeft:   this.createWheelPivot(pick(rearPair, false),  false, false),
-      rearRight:  this.createWheelPivot(pick(rearPair, true),   false, true)
-    };
+    const wheelPivots =
+      measured.length >= 4
+        ? {
+            frontLeft:  this.createWheelPivot(pick(frontPair, false), true, false),
+            frontRight: this.createWheelPivot(pick(frontPair, true),  true, true),
+            rearLeft:   this.createWheelPivot(pick(rearPair, false),  false, false),
+            rearRight:  this.createWheelPivot(pick(rearPair, true),   false, true)
+          }
+        : {};
 
-    // Keep Source materials + maps (textures first; optimize later).
-    // Still drop tiny badges/emblems that only add noise.
+    if (measured.length < 4) {
+      console.warn(
+        `[PorscheModel] ${mode}: wheel discovery found ${measured.length}/4 — ` +
+          'body will show; steering/spin animation degraded'
+      );
+    }
+
+    // Keep source materials + maps. Drop tiny badges/emblems that only add noise.
     const drop = [];
     wrap.traverse((child) => {
       if (!child.isMesh) return;
@@ -224,20 +310,29 @@ export class PorscheModel {
     });
     for (const mesh of drop) mesh.removeFromParent();
 
+    // Hide until HUD selects this mode (porsche auto-shows below for legacy).
+    wrap.visible = false;
     this.chassisGroup.add(wrap);
-    this._gltfRoot = wrap;
-    this.ready = true;
-    this._visualMode = 'porsche';
-    wrap.visible = true;
-    if (this._defender) this._defender.visible = false;
+    this._gltfByMode[mode] = { root: wrap, wheelPivots };
+
+    if (mode === 'porsche') {
+      this._gltfRoot = wrap;
+      this.ready = true;
+      // Legacy: switch to Porsche when it finishes if still on the box stand-in.
+      if (this._visualMode === 'box') {
+        this._applyVisibility('porsche');
+      }
+    } else if (mode === 'mercedes') {
+      this.mercedesReady = true;
+    }
   }
 
   /**
    * Resolve four corner wheel Object3Ds.
    * Prefers legacy named nodes; otherwise splits merged tire/rim meshes by
-   * world XZ clusters (Sketchfab porsche_911_with_interior.glb).
+   * world XZ clusters.
    */
-  discoverWheelObjects(wrap) {
+  discoverWheelObjects(wrap, cfg) {
     const legacy = [];
     for (const part of WHEEL_PARTS) {
       const wheelObject = wrap.getObjectByName(part.wheel);
@@ -249,20 +344,18 @@ export class PorscheModel {
     }
     if (legacy.length >= 4) return legacy.slice(0, 4);
 
-    return this.splitMergedWheels(wrap);
+    return this.splitMergedWheels(wrap, cfg);
   }
 
   /**
-   * Sketchfab export packs all four tires (and rims/discs) into single meshes.
-   * Cluster tire verts in XZ, split spin meshes into four corner groups.
+   * Sketchfab-style exports pack all four tires (and rims/discs) into single
+   * meshes. Cluster tire verts in XZ, split spin meshes into four corner groups.
    */
-  splitMergedWheels(wrap) {
+  splitMergedWheels(wrap, cfg) {
     let tireMesh = null;
     wrap.traverse((obj) => {
       if (tireMesh || !obj.isMesh) return;
-      if (/tires/i.test(obj.name) || /^AO_tire_main/i.test(obj.name)) {
-        tireMesh = obj;
-      }
+      if (cfg.isTireMesh(obj)) tireMesh = obj;
     });
     if (!tireMesh?.geometry?.attributes?.position) return [];
 
@@ -272,13 +365,12 @@ export class PorscheModel {
     const spinMeshes = [];
     wrap.traverse((obj) => {
       if (!obj.isMesh) return;
-      if (MERGED_SPIN_RE.test(obj.name)) spinMeshes.push(obj);
+      if (cfg.isSpinMesh(obj)) spinMeshes.push(obj);
     });
 
     const groups = worldCenters.map((wc, i) => {
       const g = new THREE.Group();
       g.name = `wheel_split_${i}`;
-      // Place group in wrap-local space at the cluster center.
       const local = wc.clone();
       wrap.worldToLocal(local);
       g.position.copy(local);
@@ -287,11 +379,10 @@ export class PorscheModel {
     });
 
     for (const mesh of spinMeshes) {
-      const geos = splitMeshByWorldCenters(mesh, worldCenters);
+      const geos = splitMeshByWorldCenters(mesh, worldCenters, wrap);
       const mat = mesh.material;
       for (let i = 0; i < 4; i++) {
         if (!geos[i]) continue;
-        // Geometry was baked into wrap-local space; shift into group space.
         const localCenter = groups[i].position;
         const pos = geos[i].attributes.position;
         for (let v = 0; v < pos.count; v++) {
@@ -304,7 +395,7 @@ export class PorscheModel {
         }
         pos.needsUpdate = true;
         const part = new THREE.Mesh(geos[i], mat);
-        part.name = `${mesh.name}__${i}`;
+        part.name = `${mesh.name || mesh.material?.name || 'spin'}__${i}`;
         part.castShadow = true;
         part.receiveShadow = false;
         groups[i].add(part);
@@ -332,20 +423,16 @@ export class PorscheModel {
     const originalPosition = wheelObject.position.clone();
     const parent = wheelObject.parent;
 
-    // Steer pivot (rotates on Y for steering)
     const steerPivot = new THREE.Group();
     steerPivot.position.copy(originalPosition);
     parent.add(steerPivot);
 
-    // Spin pivot (rotates on X for rolling)
     const spinPivot = new THREE.Group();
     steerPivot.add(spinPivot);
 
-    // Re-parent wheel into spin pivot
     wheelObject.position.set(0, 0, 0);
     spinPivot.add(wheelObject);
 
-    // Re-parent hub into steer pivot (legacy models only)
     if (hubObject) {
       hubObject.position.x -= originalPosition.x;
       hubObject.position.y -= originalPosition.y;
@@ -356,9 +443,12 @@ export class PorscheModel {
     return { steerPivot, spinPivot, isFront, isRight };
   }
 
-
   canShowPorsche() {
     return this.ready;
+  }
+
+  canShowMercedes() {
+    return this.mercedesReady;
   }
 
   getVisualMode() {
@@ -366,17 +456,25 @@ export class PorscheModel {
   }
 
   /**
-   * Show one of: loaded glTF, procedural Defender, or crude box.
-   * @param {'porsche'|'defender'|'box'} mode
+   * Show one of: loaded glTFs, procedural Defender, or crude box.
+   * @param {CarVisualMode} mode
    */
   setVisualMode(mode) {
     if (mode === 'porsche') {
-      if (!this.ready || !this._gltfRoot) {
-        // Stay on box until glTF is ready.
+      if (!this.ready || !this._gltfByMode.porsche) {
         this._applyVisibility('box');
         return;
       }
       this._applyVisibility('porsche');
+      return;
+    }
+
+    if (mode === 'mercedes') {
+      if (!this.mercedesReady || !this._gltfByMode.mercedes) {
+        this._applyVisibility(this.ready ? 'porsche' : 'box');
+        return;
+      }
+      this._applyVisibility('mercedes');
       return;
     }
 
@@ -386,18 +484,22 @@ export class PorscheModel {
       return;
     }
 
-    // mode === 'box'
     if (!this._placeholder) this.attachPlaceholder();
     this._applyVisibility('box');
   }
 
-  /** @param {'porsche'|'defender'|'box'} mode */
+  /** @param {CarVisualMode} mode */
   _applyVisibility(mode) {
     this._visualMode = mode;
-    if (this._gltfRoot) this._gltfRoot.visible = mode === 'porsche';
+    for (const [id, entry] of Object.entries(this._gltfByMode)) {
+      entry.root.visible = mode === id;
+    }
     if (this._defender) this._defender.visible = mode === 'defender';
     if (this._placeholder) this._placeholder.visible = mode === 'box';
     else if (mode === 'box') this.attachPlaceholder();
+
+    const gltf = this._gltfByMode[mode];
+    this.wheelPivots = gltf ? gltf.wheelPivots : {};
   }
 
   /**
@@ -482,14 +584,11 @@ function clusterFourXZ(mesh) {
  * Split one mesh into up to 4 BufferGeometries (wrap-local baked positions),
  * assigning each triangle to the nearest world XZ cluster center.
  */
-function splitMeshByWorldCenters(mesh, worldCenters) {
+function splitMeshByWorldCenters(mesh, worldCenters, wrap) {
   const geometry = mesh.geometry;
   const srcPos = geometry.attributes.position;
   if (!srcPos) return [null, null, null, null];
 
-  // Walk up to the porsche-gltf wrap so we can bake into wrap-local space.
-  let wrap = mesh.parent;
-  while (wrap && wrap.name !== 'porsche-gltf') wrap = wrap.parent;
   const wrapInv = new THREE.Matrix4();
   if (wrap) wrapInv.copy(wrap.matrixWorld).invert();
   const bake = new THREE.Matrix4().multiplyMatrices(wrapInv, mesh.matrixWorld);

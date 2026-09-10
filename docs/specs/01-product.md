@@ -24,6 +24,15 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 - **MUST NOT** FPS HOLD / adaptive pauseDraw / personas de adaptação contínua.
 - **Menos é mais** — contrato curto e código sustentável &gt; features adaptivas.
 
+
+## Vehicle visuals (HUD)
+
+- Botão `#car-visual-btn`: ciclo **Porsche → Mercedes → Defender → quadrado**.
+- Labels PT: `Carro: Porsche` / `Carro: Mercedes` / `Carro: Defender` / `Carro: quadrado`.
+- glTFs em `public/models/porsche/` e `public/models/mercedes/`; loader em `src/vehicle/PorscheModel.js` (nome histórico — owns todos os modos).
+- Escala visual = `PORSCHE_TARGET_LENGTH` (`RoadDimensions`); física do chassis inalterada.
+- Rodas: discovery por nome legado ou cluster XZ em meshes mesclados (Porsche Sketchfab / Mercedes por material `TARMAC_*`); se <4 cantos, corpo ok e animação de roda degrada.
+
 ## Ownership
 
 Pitch/milestone: este arquivo. Knobs: `02`–`05`. Presets: `qualityPresets`. Sky/sun cycle: `DayNightController` (`src/world/DayNightController.js`).

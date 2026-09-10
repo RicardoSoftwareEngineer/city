@@ -17,6 +17,7 @@ import { VehicleController } from './vehicle/VehicleController.js';
 import { Intersection } from './world/Intersection.js';
 import { createCityStream, registerNearCampo, registerHeavyWorld, STREAM_STEP } from './world/registerCity.js';
 import { loadSession, bindSessionAutosave } from './engine/SessionState.js';
+import { loadDayNightHours, saveDayNightHours } from './engine/dayNightPersist.js';
 import { dumpLoadLog, getHitchRevision, getTopLoadHitches, getTopPlayHitches, getLoadPhase, setLoadPhase, setInteractive, getStreamLabel, getSessionStats } from './engine/loadLog.js';
 import { createQualityAdapter } from './engine/qualityAdapter.js';
 import { bindQualityPresetUi, getActivePreset } from './engine/qualityPresets.js';
@@ -726,6 +727,9 @@ function bindDayNightHud(dayNight) {
   const playBtn = document.getElementById('day-night-play');
   if (!slider || !label || !playBtn) return () => {};
 
+  /** Last hours written — avoid localStorage spam while Play advances the clock. */
+  let lastSavedHours = null;
+
   function paint() {
     const h = dayNight.getHours();
     const hh = Math.floor(h);
@@ -736,9 +740,24 @@ function bindDayNightHud(dayNight) {
     }
   }
 
+  function persist(force = false) {
+    const h = dayNight.getHours();
+    if (!force && lastSavedHours != null && Math.abs(h - lastSavedHours) < 0.01) return;
+    saveDayNightHours(h);
+    lastSavedHours = h;
+  }
+
+  // Boot: restore saved hour before / as HUD binds (show-flat visit() may scrub later).
+  const saved = loadDayNightHours();
+  if (saved != null) {
+    dayNight.setHours(saved);
+    lastSavedHours = saved;
+  }
+
   slider.addEventListener('input', () => {
     dayNight.setHours(Number(slider.value));
     paint();
+    persist(true);
   });
 
   playBtn.addEventListener('click', () => {
@@ -746,10 +765,20 @@ function bindDayNightHud(dayNight) {
     dayNight.setPlaying(next);
     playBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
     playBtn.textContent = next ? 'Pausar' : 'Play';
+    // Pause mid-play: keep last hour.
+    if (!next) persist(true);
   });
 
+  const onLeave = () => persist(true);
+  window.addEventListener('pagehide', onLeave);
+  window.addEventListener('beforeunload', onLeave);
+
   paint();
-  return paint;
+  // Game loop calls this while playing — persist as the clock moves.
+  return () => {
+    paint();
+    persist();
+  };
 }
 
 // ── Start ───────────────────────────────────────────────────────────────

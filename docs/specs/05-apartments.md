@@ -48,7 +48,7 @@ Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30
 
 ## Show flat (hero interior)
 
-Dedicated **Apartamento estudo** open loft on grass west of the opt-study showroom / SE of `Large_3@171,30` (`src/world/apartments/showFlatInterior.js`, origin ~`x=218,z=-14`). Composes optimized opt-study interiors as one coherent living space: **sala arco** (`loose_cef131` — living + kitchen + dining + bath + bed) + **quarto neon** suite (`loose_cece4d`) + **mobília / biblioteca** annex (`loose_fb2319`). MeshBasic + albedo maps (no PointLight). Soft evening via `__cityDayNight.setHours(18.35)` on spawn. Exposes `window.__cityShowFlat` `{ root, origin, pieces, howToFind, cameraHint, suggestedHours, visit(), applyEveningLight() }`. Staging/screenshot showcase only — does **not** replace InstancedMesh `roomTemplate` bake.
+Dedicated **Apartamento estudo** open loft on grass west of the opt-study showroom / SE of `Large_3@171,30` (`src/world/apartments/showFlatInterior.js`, origin ~`x=218,z=-14`). Composes optimized opt-study interiors as one coherent living space: **sala arco** (`loose_cef131` — living + kitchen + dining + bath + bed) + **quarto neon** suite (`loose_cece4d`) + **mobília / biblioteca** annex (`loose_fb2319`). MeshBasic + albedo maps (no PointLight). Soft evening via `__cityDayNight.setHours(18.35)` on **`visit()`** / `applyEveningLight()` only (not on spawn — boot keeps saved Hora). Exposes `window.__cityShowFlat` `{ root, origin, pieces, howToFind, cameraHint, suggestedHours, visit(), applyEveningLight() }`. Staging/screenshot showcase only — does **not** replace InstancedMesh `roomTemplate` bake.
 
 
 ## Official interior candidates (staging bake)

@@ -344,7 +344,9 @@ export async function spawnShowFlatInterior(cityGroup) {
     });
   }
 
-  const eveningHours = applyEveningLight();
+  // Do not force evening on spawn — boot restores localStorage hour preference.
+  // visit() / applyEveningLight() still set ~18:35 for screenshots.
+  const suggestedHours = 18.35;
 
   const cameraHint = {
     // Inside / near the west openings — cozy living+dining+kitchen hero.
@@ -386,7 +388,7 @@ export async function spawnShowFlatInterior(cityGroup) {
     `z=${SHOW_FLAT_ORIGIN.z}. Arco da sala abre para oeste (cidade). ` +
     `Peças: sala arco (cef131) + quarto neon (cece4d) + mobília (fb2319). ` +
     `Câmera hero ~(${cameraHint.x}, ${cameraHint.y}, ${cameraHint.z}) ` +
-    `olhando o living. Luz: fim de tarde ~${eveningHours ?? 18.35}h ` +
+    `olhando o living. Luz: fim de tarde ~${suggestedHours}h via visit() ` +
     `(window.__cityDayNight.setHours(18.35)).`;
 
   function applyCameraHint(hint = cameraHint) {
@@ -412,7 +414,7 @@ export async function spawnShowFlatInterior(cityGroup) {
     pieces: placed,
     howToFind,
     cameraHint,
-    suggestedHours: eveningHours ?? 18.35,
+    suggestedHours,
     applyEveningLight,
     applyCameraHint,
     setPieceLabels,

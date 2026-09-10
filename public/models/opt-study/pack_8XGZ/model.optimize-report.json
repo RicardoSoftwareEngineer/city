@@ -1,0 +1,123 @@
+{
+  "profile": "vehicle-npc",
+  "targetTris": 15000,
+  "before": {
+    "tris": 4250,
+    "meshes": 6,
+    "prims": 6,
+    "materials": 6,
+    "materialNames": [
+      "mat_0-chassis_gen1.jpg",
+      "mat_1-color_0.000000-0.000000-0.000000.jpg",
+      "mat_2-us_police_car_bo1.jpg",
+      "mat_3-plates_us1.jpg",
+      "mat_4-saloon_wheel1.jpg",
+      "mat_5-color_1.000000-1.000000-1.000000.jpg"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 51.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 0.7,
+        "size": [
+          16,
+          16
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4.8,
+        "size": [
+          128,
+          64
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 6.6,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 0.7,
+        "size": [
+          16,
+          16
+        ]
+      }
+    ],
+    "bytes": 487592,
+    "mb": 0.49,
+    "nodes": 7,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 4250,
+    "meshes": 6,
+    "prims": 6,
+    "materials": 6,
+    "materialNames": [
+      "mat_0-chassis_gen1.jpg",
+      "mat_1-color_0.000000-0.000000-0.000000.jpg",
+      "mat_2-us_police_car_bo1.jpg",
+      "mat_3-plates_us1.jpg",
+      "mat_4-saloon_wheel1.jpg",
+      "mat_5-color_1.000000-1.000000-1.000000.jpg"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 29.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 2.8,
+        "size": [
+          128,
+          64
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 3.8,
+        "size": [
+          128,
+          128
+        ]
+      }
+    ],
+    "bytes": 189300,
+    "mb": 0.19,
+    "nodes": 7,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

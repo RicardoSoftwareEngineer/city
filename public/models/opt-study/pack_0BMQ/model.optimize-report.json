@@ -1,0 +1,159 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 15183,
+    "meshes": 6,
+    "prims": 6,
+    "materials": 6,
+    "materialNames": [
+      "mat_0-texture_0011.jpg",
+      "mat_1-texture_0017.jpg",
+      "mat_2-texture_0007.jpg",
+      "mat_3-texture_0001.jpg",
+      "mat_4-texture_0014.jpg",
+      "mat_5-texture_0010.jpg"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 39.5,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 7.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 13.7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 50,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 38.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 22.8,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 1731732,
+    "mb": 1.73,
+    "nodes": 7,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 15183,
+    "meshes": 6,
+    "prims": 6,
+    "materials": 6,
+    "materialNames": [
+      "mat_0-texture_0011.jpg",
+      "mat_1-texture_0017.jpg",
+      "mat_2-texture_0007.jpg",
+      "mat_3-texture_0001.jpg",
+      "mat_4-texture_0014.jpg",
+      "mat_5-texture_0010.jpg"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 22.9,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4.7,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 7.6,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 28,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 21.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 13.1,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 613232,
+    "mb": 0.61,
+    "nodes": 7,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

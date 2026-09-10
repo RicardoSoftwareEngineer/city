@@ -53,6 +53,7 @@ import { clearAssetDiskCache, assetDiskCacheCount } from './engine/assetDiskCach
 import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
 import { spawnAptExampleSandbox } from './world/apartments/aptExampleSandbox.js';
+import { spawnOptStudyPlaza } from './world/optStudyPlaza.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -618,6 +619,15 @@ async function startGame() {
               .then(() => paintCarLoadHud())
               .catch((error) => {
                 console.warn('Mercedes (high-poly) preload failed:', error);
+              });
+            // Idle-friendly: A/B optimize study plaza (original vs optimized) on grass
+            // east of apt staging — fire-and-forget; does not block playCore.
+            void spawnOptStudyPlaza(cityGroup)
+              .then((api) => {
+                window.__cityOptStudy = api;
+              })
+              .catch((err) => {
+                console.warn('[opt-study] plaza spawn failed', err);
               });
             return warmHeroCars();
           })

@@ -650,6 +650,84 @@ kbd {
   bottom: auto;
 }
 
+/* Corner resize grips (classic L-shaped affordance) */
+[data-min-id] {
+  box-sizing: border-box;
+}
+[data-min-id].is-resized {
+  /* Inline width/height win; lift stylesheet floors/ceilings so custom size sticks. */
+  max-width: none !important;
+  min-width: 0 !important;
+}
+[data-min-id].is-resizing {
+  z-index: 50 !important;
+  user-select: none;
+}
+.hud-resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  z-index: 3;
+  pointer-events: auto;
+  touch-action: none;
+  opacity: 0.35;
+}
+[data-min-id]:hover .hud-resize-handle,
+[data-min-id].is-resizing .hud-resize-handle {
+  opacity: 0.85;
+}
+[data-min-id].is-min .hud-resize-handle {
+  display: none;
+}
+.hud-resize-handle::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: solid rgba(148, 163, 184, 0.95);
+  pointer-events: none;
+}
+.hud-resize-handle[data-corner="se"] {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+.hud-resize-handle[data-corner="se"]::after {
+  right: 3px;
+  bottom: 3px;
+  border-width: 0 2px 2px 0;
+}
+.hud-resize-handle[data-corner="sw"] {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.hud-resize-handle[data-corner="sw"]::after {
+  left: 3px;
+  bottom: 3px;
+  border-width: 0 0 2px 2px;
+}
+.hud-resize-handle[data-corner="ne"] {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+.hud-resize-handle[data-corner="ne"]::after {
+  right: 3px;
+  top: 3px;
+  border-width: 2px 2px 0 0;
+}
+.hud-resize-handle[data-corner="nw"] {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.hud-resize-handle[data-corner="nw"]::after {
+  left: 3px;
+  top: 3px;
+  border-width: 2px 0 0 2px;
+}
+
 #fps-sacred-stats {
   margin: 0.3rem 0 0.2rem;
   font-size: 0.58rem;

@@ -234,23 +234,50 @@ async function startGame() {
   function paintCarLoadHud() {
     if (!carLoadList) return;
     const rows = porscheModel.getLoadStats();
+    const active = porscheModel.getVisualMode();
     carLoadList.innerHTML = rows
       .map((r) => {
+        const activeCls = r.id === active ? ' is-active' : '';
+        const attrs =
+          `data-car-id="${r.id}" role="button" tabindex="0" class="car-load-row${activeCls}"`;
         if (r.note && r.totalMs == null) {
-          return `<li><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
+          return `<li ${attrs}><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
         }
         if (r.note && (r.id === 'defender' || r.id === 'box')) {
-          return `<li><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
+          return `<li ${attrs}><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
         }
         const tris = r.tris != null ? ` · ${r.tris.toLocaleString('pt-BR')} tris` : '';
         const bytes = r.bytes != null ? ` · ${formatBytes(r.bytes)}` : '';
         return (
-          `<li><span class="car-load-id">${r.label}</span> ` +
+          `<li ${attrs}><span class="car-load-id">${r.label}</span> ` +
           `<span class="car-load-ms">${r.totalMs} ms</span>` +
           `<span class="car-load-note"> (fetch ${r.fetchMs} · parse ${r.parseMs}${bytes}${tris})</span></li>`
         );
       })
       .join('');
+  }
+  function switchCarVisual(mode) {
+    if (carVisualBtn) {
+      carVisualBtn.title = 'Carregando…';
+      carVisualBtn.disabled = true;
+    }
+    return porscheModel
+      .ensureVisualMode(mode)
+      .then(() => {
+        if (carVisualBtn) carVisualBtn.title = '';
+        syncCarVisualBtn();
+        paintCarLoadHud();
+      })
+      .catch((err) => {
+        console.error('Car visual switch failed:', err);
+        if (carVisualBtn) carVisualBtn.title = 'Falha ao carregar carro';
+      })
+      .finally(() => {
+        if (carVisualBtn) {
+          carVisualBtn.disabled = false;
+          syncCarVisualBtn();
+        }
+      });
   }
   function syncCarVisualBtn() {
     if (!carVisualBtn) return;
@@ -281,23 +308,26 @@ async function startGame() {
       event.preventDefault();
       event.stopPropagation();
       const next = nextCarVisualMode(porscheModel.getVisualMode());
-      carVisualBtn.title = 'Carregando…';
-      carVisualBtn.disabled = true;
-      porscheModel
-        .ensureVisualMode(next)
-        .then(() => {
-          carVisualBtn.title = '';
-          syncCarVisualBtn();
-          paintCarLoadHud();
-        })
-        .catch((err) => {
-          console.error('Car visual switch failed:', err);
-          carVisualBtn.title = 'Falha ao carregar carro';
-        })
-        .finally(() => {
-          carVisualBtn.disabled = false;
-          syncCarVisualBtn();
-        });
+      switchCarVisual(next);
+    });
+  }
+  if (carLoadList) {
+    carLoadList.addEventListener('click', (event) => {
+      const li = event.target.closest('[data-car-id]');
+      if (!li || !carLoadList.contains(li)) return;
+      event.preventDefault();
+      const id = li.getAttribute('data-car-id');
+      if (!id || id === porscheModel.getVisualMode()) return;
+      switchCarVisual(id);
+    });
+    carLoadList.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const li = event.target.closest('[data-car-id]');
+      if (!li || !carLoadList.contains(li)) return;
+      event.preventDefault();
+      const id = li.getAttribute('data-car-id');
+      if (!id || id === porscheModel.getVisualMode()) return;
+      switchCarVisual(id);
     });
   }
   if (carCompareBtn) {

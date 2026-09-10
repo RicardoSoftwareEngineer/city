@@ -34,6 +34,7 @@ Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–
 - HUD PT compacto **Load carros** atualiza ao completar loads. Defender/box = N/A / instantâneo.
 - Porsche: load no boot (após first ring). Mercedes otimizada + high-poly (pré-pipeline): **preload** fire-and-forget após porsche; `paintCarLoadHud` ao completar cada uma. Lazy `ensureVisualMode` permanece se o preload ainda não acabou.
 - **Load carros** lista otimizada + original (high-poly pré-pipeline) para carros do pipeline — fetch/parse/total/bytes/tris assim que carregados.
+- Linhas do **Load carros** selecionam o visual (`ensureVisualMode`); chrome `#car-visual-hud` (`data-min-id="car-visual"`, drag sem collapse) é arrastável e persiste em `city-hud-panels-v1`.
 
 ## Ownership
 

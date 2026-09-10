@@ -256,11 +256,27 @@ kbd {
 #camera-mode-btn[data-mode="orbit"] { border-color: #7ab0ff; color: #7ab0ff; }
 #camera-mode-btn[data-mode="follow"] { border-color: rgba(120, 170, 255, 0.55); }
 
-#car-visual-btn {
+#car-visual-hud {
   position: fixed;
   top: 92px;
   right: 12px;
   z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 0;
+  pointer-events: auto;
+}
+#car-visual-hud [data-min-toggle] {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+#car-visual-hud.is-dragging [data-min-toggle] {
+  cursor: grabbing;
+}
+#car-visual-btn {
   padding: 8px 14px;
   font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0.04em;
@@ -268,7 +284,7 @@ kbd {
   background: rgba(28, 18, 12, 0.82);
   border: 1px solid rgba(255, 176, 58, 0.55);
   border-radius: 6px;
-  cursor: pointer;
+  cursor: grab;
 }
 #car-visual-btn:hover { background: rgba(44, 28, 20, 0.92); }
 #car-visual-btn[data-mode="porsche"] { border-color: #ffb03a; color: #ffb03a; }
@@ -278,10 +294,6 @@ kbd {
 #car-visual-btn[data-mode="box"] { border-color: rgba(255, 176, 58, 0.55); }
 
 #car-compare-btn {
-  position: fixed;
-  top: 128px;
-  right: 12px;
-  z-index: 30;
   padding: 6px 12px;
   font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0.04em;
@@ -337,6 +349,23 @@ kbd {
   margin: 0.15rem 0;
   color: #a8b4c4;
 }
+#car-load-list li.car-load-row {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.1rem 0.2rem;
+  margin-left: -0.2rem;
+  margin-right: -0.2rem;
+}
+#car-load-list li.car-load-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #d0d8e4;
+}
+#car-load-list li.car-load-row.is-active {
+  background: rgba(255, 176, 58, 0.12);
+  color: #ffe4c0;
+  outline: 1px solid rgba(255, 176, 58, 0.35);
+}
+#car-load-list li.car-load-row.is-active .car-load-id { color: #ffb03a; }
 #car-load-list .car-load-id { color: #e2e8f0; font-weight: 600; }
 #car-load-list .car-load-ms { color: #7dd3fc; }
 #car-load-list .car-load-note { color: #64748b; }
@@ -1362,8 +1391,7 @@ body.boot-idle #compass-hud,
 body.boot-idle #apts-house-hud,
 body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,
-body.boot-idle #car-visual-btn,
-body.boot-idle #car-compare-btn,
+body.boot-idle #car-visual-hud,
 body.boot-idle #car-load-hud,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;

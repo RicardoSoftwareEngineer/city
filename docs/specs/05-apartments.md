@@ -65,9 +65,23 @@ Official `roomTemplate` bake default wall albedo: **`painted_plaster_wall`** (sh
 
 Show flat stays untouched (hero / screenshot loft). These candidates are the staging path toward an official bake into `roomTemplate`. Exposes `window.__cityAptCandidates` `{ root, rowOrigin, roomSize, candidates[], themes, wallTextures, howToFind, visit(i) }`. Lazy after playCore like the show flat.
 
+
+
+## Wall paint showroom (staging)
+
+Browseable **wall paint / texture showroom** of Poly Haven **CC0** 1k diffuse panels for picking official apartment paints (`src/world/apartments/wallPaintShowroom.js`). Grid of ~2.5×2.5 m vertical MeshBasic panels on free grass **south of the official interior candidates** (origin ~`x=238,z=-42`), grouped by category with Portuguese header sprites:
+
+- **Tintas / Gesso** — plaster, paint, clay, light concrete
+- **Madeira / Painéis** — planks, OSB, wallpaper, wood panels
+- **Tijolo** — brick + plaster brick
+- **Concreto** — modern concrete / facade
+- **Outros** — bamboo, clay block, cladding, facade tiles
+
+Reuses the five candidate wall albedos plus many more under `/public/textures/walls/<id>/<id>_diff_1k.jpg` (+ `LICENSE.txt`). Does **not** remove the five candidate walls or the show flat. Exposes `window.__cityWallShowroom` `{ howToFind, visit(), visit(id), inventory, count, categories }`. Lazy after playCore like candidates / show flat.
+
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat) · `aptInteriorCandidates` (official-size bake candidates).
+`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat) · `aptInteriorCandidates` (official-size bake candidates) · `wallPaintShowroom` (CC0 wall paint browse grid).
 
 ## Same-PR rule
 

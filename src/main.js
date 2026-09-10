@@ -551,7 +551,8 @@ async function startGame() {
       camera: renderer.camera,
       domElement: canvas,
       lookControls: camera,
-      mouseInput: mouse
+      mouseInput: mouse,
+      glRenderer: renderer.renderer
     })
       .then((api) => {
         window.__cityAptExample = api;

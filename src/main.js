@@ -210,14 +210,14 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
-  // Debug HUD: cycle Porsche → Mercedes → Mercedes (orig) → Defender → box.
+  // Debug HUD: cycle Porsche → Mercedes (otimizada) → Mercedes (high-poly) → Defender → box.
   const carVisualBtn = document.getElementById('car-visual-btn');
   const carCompareBtn = document.getElementById('car-compare-btn');
   const carLoadList = document.getElementById('car-load-list');
   const CAR_VISUAL_LABELS = {
     porsche: 'Carro: Porsche',
-    mercedes: 'Carro: Mercedes',
-    mercedesOriginal: 'Carro: Mercedes (orig)',
+    mercedes: 'Carro: Mercedes (otimizada)',
+    mercedesOriginal: 'Carro: Mercedes (high-poly)',
     defender: 'Carro: Defender',
     box: 'Carro: quadrado'
   };
@@ -602,12 +602,25 @@ async function startGame() {
         porscheModel.load()
           .then(() => {
             paintCarLoadHud();
+            // Idle-friendly: preload both Mercedes pipeline variants after porsche
+            // finishes — fire-and-forget (do not await; lazy ensureVisualMode still OK).
+            porscheModel
+              .loadMercedes()
+              .then(() => paintCarLoadHud())
+              .catch((error) => {
+                console.warn('Mercedes (otimizada) preload failed:', error);
+              });
+            porscheModel
+              .loadMercedesOriginal()
+              .then(() => paintCarLoadHud())
+              .catch((error) => {
+                console.warn('Mercedes (high-poly) preload failed:', error);
+              });
             return warmHeroCars();
           })
           .catch((error) => {
             console.error('Porsche load failed:', error);
           });
-        // Mercedes / original: lazy on HUD switch (06-vehicles.md).
         // Keep terrain + nature + carpet phases alive — they end themselves when idle.
         finishAllLoadPhases(['terrain', 'nature', 'carpet']);
         armFocusRemain();

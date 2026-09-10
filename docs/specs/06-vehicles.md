@@ -23,7 +23,7 @@ Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–
 ## Originals + A/B (MUST)
 
 - Ao otimizar sob `public/models/<car>/`: **sempre** guardar original em `<car>.original.glb` (nunca sobrescrever se já existir). Default driven asset = otimizado (`<car>.glb`).
-- HUD ciclo visual (PT): **Porsche → Mercedes → Mercedes (orig) → Defender → quadrado**.
+- HUD ciclo visual (PT): **Porsche → Mercedes (otimizada) → Mercedes (high-poly) → Defender → quadrado**.
 - Modos glTF: `mercedes` → `/models/mercedes/mercedes.glb`; `mercedesOriginal` → `/models/mercedes/mercedes.original.glb`.
 - Botão **Comparar A/B**: com modo `mercedes` (ou orig) ativo, toggle `compareAb` mostra o outro chassis offset **+3 m** no X local (ghost lado a lado). Dirigir usa o modo selecionado; free-flight + toggle também serve para comparar.
 
@@ -32,7 +32,8 @@ Hero car dirigível leve o bastante para não hitchar, bonito o bastante a 10–
 - Por id glTF: medir **fetchMs**, **parseMs** (parse→setup), **totalMs**, **bytes** (arrayBuffer).
 - `PorscheModel.getLoadStats()` → `[{ id, label, fetchMs, parseMs, totalMs, bytes, tris? }]`.
 - HUD PT compacto **Load carros** atualiza ao completar loads. Defender/box = N/A / instantâneo.
-- Porsche: load no boot (após first ring). Mercedes / orig: **lazy** no primeiro switch do HUD.
+- Porsche: load no boot (após first ring). Mercedes otimizada + high-poly (pré-pipeline): **preload** fire-and-forget após porsche; `paintCarLoadHud` ao completar cada uma. Lazy `ensureVisualMode` permanece se o preload ainda não acabou.
+- **Load carros** lista otimizada + original (high-poly pré-pipeline) para carros do pipeline — fetch/parse/total/bytes/tris assim que carregados.
 
 ## Script
 

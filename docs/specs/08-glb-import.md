@@ -110,6 +110,8 @@ Paths: `public/models/opt-study/<id>/` · ids estáveis `pack_XXXX` / `loose_<ha
 
 `window.__cityOptStudy.howToVisit('pack_FG5K')` / `.visitAll()` para roteiro de screenshots (1 por pad).
 
+**Show flat (hero):** interiores do study (`loose_cef131` / `cece4d` / `fb2319`) também compõem o *Apartamento estudo* em `showFlatInterior.js` — ver `05-apartments.md` + `window.__cityShowFlat`.
+
 ## Ownership
 
 Core / profiles / keep-original / FPS study law / showroom A/B study: este arquivo. Hero HUD / A/B car: `06-vehicles.md`. Ship bar geral: `03-performance.md`. Showroom code: `src/world/optStudyPlaza.js`.

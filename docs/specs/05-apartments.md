@@ -44,9 +44,13 @@ Freestanding **apt example room** on the asphalt corner SE of `Large_3@171.00,30
 
 **Catalog arming:** near the staging AABB, wheel cycles **slot 0 = `(nenhum)` first**, then items `1…N` (HUD: `Catálogo [0/N]: (nenhum)` / `[1/N]…[N/N]`). Boot starts on nenhum (unarmed). Esc also jumps to nenhum. When nenhum is armed, LMB on ground does **not** place, the green select ring is cleared, and any catalog-attached gizmo is detached (room/world gizmo edits are left alone); mouse can look/pan freely. The bottom staging HUD (`#apt-staging-hud-wrap`) shows a **live thumbnail** of the armed sample (one-shot offscreen `WebGLRenderTarget` → canvas beside the bar; placeholder `—` when nenhum). Sofa/chair/cars/arch stay authored Y-up + DoubleSide MeshBasic. `clearRoom` resets. Exposes `window.__cityAptExample` `{ root, pieces, catalog, addFromCatalog, setPose, getPose, clearRoom }`. **Staging tool only** — mass InstancedMesh template (`roomTemplate` bake) remains the product path (loft furniture shortlist only). Hard-refresh or `?v=` cache-bust on GLBs if cache sticks.
 
+## Show flat (hero interior)
+
+Dedicated **Apartamento estudo** open loft on grass west of the opt-study showroom / SE of `Large_3@171,30` (`src/world/apartments/showFlatInterior.js`, origin ~`x=218,z=-14`). Composes optimized opt-study interiors as one coherent living space: **sala arco** (`loose_cef131` — living + kitchen + dining + bath + bed) + **quarto neon** suite (`loose_cece4d`) + **mobília / biblioteca** annex (`loose_fb2319`). MeshBasic + albedo maps (no PointLight). Soft evening via `__cityDayNight.setHours(18.35)` on spawn. Exposes `window.__cityShowFlat` `{ root, origin, pieces, howToFind, cameraHint, suggestedHours, visit(), applyEveningLight() }`. Staging/screenshot showcase only — does **not** replace InstancedMesh `roomTemplate` bake.
+
 ## Ownership
 
-`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3).
+`ApartmentDirector` (intent/stamp/pump/HUD) · `streamIntent` (defer prio ≥4) · apartment prep (glass/strip/slots/bake) · `roomTemplate` (shared loft furniture bake) · `aptExampleSandbox` (staging room near Large_3) · `showFlatInterior` (hero show flat).
 
 ## Same-PR rule
 

@@ -54,6 +54,7 @@ import { clearGltfMemoryDedupe } from './world/AssetLoader.js';
 import { ApartmentDirector } from './world/apartments/ApartmentDirector.js';
 import { spawnAptExampleSandbox } from './world/apartments/aptExampleSandbox.js';
 import { spawnOptStudyPlaza } from './world/optStudyPlaza.js';
+import { spawnShowFlatInterior } from './world/apartments/showFlatInterior.js';
 import { enableStreetWash } from './world/lightLayers.js';
 
 /** Predicted stream focus = car + planar velocity × this many seconds (spec 02). */
@@ -128,6 +129,7 @@ async function startGame() {
   const mouse = new MouseInput();
   const vehicleController = new VehicleController(physicsWorld, porscheModel, keyboard);
   const camera = new ThirdPersonCamera(renderer.camera, renderer.renderer, keyboard);
+  window.__cityCamRig = camera;
   camera.setMouseInput(mouse);
 
   if (saved) {
@@ -551,6 +553,14 @@ async function startGame() {
       })
       .catch((err) => {
         console.warn('[apt-example] spawn failed', err);
+      });
+    // Coherent furnished show flat (opt-study interiors) near Large_3 — fire-and-forget.
+    void spawnShowFlatInterior(cityGroup)
+      .then((api) => {
+        window.__cityShowFlat = api;
+      })
+      .catch((err) => {
+        console.warn('[show-flat] spawn failed', err);
       });
     await yieldToMain();
 

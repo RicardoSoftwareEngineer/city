@@ -1,0 +1,300 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 30708,
+    "meshes": 16,
+    "prims": 16,
+    "materials": 16,
+    "materialNames": [
+      "AERIALS",
+      "CAR_BODY_PAINT",
+      "MATT",
+      "BODY_NUMBER_PAINT",
+      "SHINY_METAL",
+      "LIGHTS_POD",
+      "LIGHTS_GLASS",
+      "DISCS",
+      "CABIN",
+      "SUSPENSION",
+      "CALIPER",
+      "LIGHTS_SATIN",
+      "TARMAC_TYRE_WALL",
+      "TARMAC_TYRE_TREAD",
+      "TARMAC_WHEEL",
+      "WINDOW_GLASS"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 12.1,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.6,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.6,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.6,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.6,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 61.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 61.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 137.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 63.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 15.2,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 61.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 34.5,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 29.7,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 34.5,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 157.1,
+        "size": [
+          4096,
+          2048
+        ]
+      }
+    ],
+    "bytes": 8314840,
+    "mb": 8.31,
+    "nodes": 17,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 30708,
+    "meshes": 16,
+    "prims": 16,
+    "materials": 11,
+    "materialNames": [
+      "AERIALS",
+      "CAR_BODY_PAINT",
+      "LIGHTS_POD",
+      "LIGHTS_GLASS",
+      "DISCS",
+      "CABIN",
+      "SUSPENSION",
+      "CALIPER",
+      "TARMAC_TYRE_WALL",
+      "TARMAC_TYRE_TREAD",
+      "WINDOW_GLASS"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 7.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 284.8,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 40.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 2.4,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 87.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 42.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 10.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 23.3,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 19.4,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 41.6,
+        "size": [
+          2048,
+          1024
+        ]
+      }
+    ],
+    "bytes": 1692872,
+    "mb": 1.69,
+    "nodes": 17,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

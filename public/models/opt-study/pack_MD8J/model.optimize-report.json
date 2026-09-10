@@ -1,0 +1,368 @@
+{
+  "profile": "building",
+  "targetTris": 40000,
+  "before": {
+    "tris": 140001,
+    "meshes": 27,
+    "prims": 27,
+    "materials": 27,
+    "materialNames": [
+      "ModelModel_0_Mesh_0_0_Material001",
+      "ModelModel_0_Mesh_0_1_Material002",
+      "ModelModel_0_Mesh_0_2_Material003",
+      "ModelModel_0_Mesh_0_3_Material004",
+      "ModelModel_0_Mesh_0_4_Material005",
+      "ModelModel_0_Mesh_0_5_Material006",
+      "ModelModel_0_Mesh_0_6_Material007",
+      "ModelModel_0_Mesh_0_7_Material008",
+      "ModelModel_0_Mesh_0_8_Material009",
+      "ModelModel_0_Mesh_0_9_Material010",
+      "ModelModel_0_Mesh_0_10_Material011",
+      "ModelModel_0_Mesh_0_11_Material012",
+      "ModelModel_0_Mesh_0_12_Material013",
+      "ModelModel_0_Mesh_0_13_Material014",
+      "ModelModel_0_Mesh_0_14_Material015",
+      "ModelModel_0_Mesh_0_15_Material016",
+      "ModelModel_0_Mesh_0_16_Material017",
+      "ModelModel_0_Mesh_0_17_Material018",
+      "ModelModel_0_Mesh_0_18_Material019",
+      "ModelModel_0_Mesh_0_19_Material020",
+      "ModelModel_0_Mesh_0_20_Material021",
+      "ModelModel_0_Mesh_0_21_Material022",
+      "ModelModel_0_Mesh_0_22_Material023",
+      "ModelModel_0_Mesh_0_23_Material024",
+      "ModelModel_0_Mesh_0_24_Material025",
+      "ModelModel_0_Mesh_0_25_Material026",
+      "ModelModel_0_Mesh_0_26_Material027"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2446,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1160.3,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 50.4,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2456.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 154.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 154.3,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2266.1,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1917.3,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1917.3,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1160.3,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2474.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2474.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 607.3,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 479.2,
+        "size": [
+          512,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1767.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1767.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 737.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 737.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1031.9,
+        "size": [
+          1024,
+          1024
+        ]
+      }
+    ],
+    "bytes": 37735128,
+    "mb": 37.74,
+    "nodes": 28,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 138205,
+    "meshes": 27,
+    "prims": 27,
+    "materials": 14,
+    "materialNames": [
+      "ModelModel_0_Mesh_0_0_Material001",
+      "ModelModel_0_Mesh_0_1_Material002",
+      "ModelModel_0_Mesh_0_2_Material003",
+      "ModelModel_0_Mesh_0_3_Material004",
+      "ModelModel_0_Mesh_0_4_Material005",
+      "ModelModel_0_Mesh_0_6_Material007",
+      "ModelModel_0_Mesh_0_7_Material008",
+      "ModelModel_0_Mesh_0_10_Material011",
+      "ModelModel_0_Mesh_0_12_Material013",
+      "ModelModel_0_Mesh_0_13_Material014",
+      "ModelModel_0_Mesh_0_14_Material015",
+      "ModelModel_0_Mesh_0_15_Material016",
+      "ModelModel_0_Mesh_0_19_Material020",
+      "ModelModel_0_Mesh_0_21_Material022"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2217.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1013.9,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 36.2,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1994.1,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 98.6,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2006.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1330.4,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 2247.3,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 319.2,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 240.5,
+        "size": [
+          512,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 1335.6,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 470.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/png",
+        "kb": 443.1,
+        "size": [
+          1024,
+          1024
+        ]
+      }
+    ],
+    "bytes": 17423004,
+    "mb": 17.42,
+    "nodes": 28,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": false
+}

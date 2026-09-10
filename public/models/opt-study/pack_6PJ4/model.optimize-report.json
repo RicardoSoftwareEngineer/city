@@ -1,0 +1,239 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 30536,
+    "meshes": 12,
+    "prims": 12,
+    "materials": 12,
+    "materialNames": [
+      "MATT",
+      "CAR_BODY_PAINT",
+      "LIGHTS_GLASS",
+      "CARBON_FIBER",
+      "DISCS",
+      "CALIPER",
+      "WINDOW_GLASS",
+      "CABIN",
+      "TARMAC_TYRE_WALL",
+      "TARMAC_TYRE_TREAD",
+      "TARMAC_WHEEL",
+      "SHINY_METAL"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1946.9,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1946.9,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 72.9,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1946.9,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4.6,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 15.6,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 677.3,
+        "size": [
+          4096,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 180.1,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 46.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 29.7,
+        "size": [
+          512,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 46.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1946.9,
+        "size": [
+          4096,
+          4096
+        ]
+      }
+    ],
+    "bytes": 11875132,
+    "mb": 11.88,
+    "nodes": 13,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 30536,
+    "meshes": 12,
+    "prims": 12,
+    "materials": 8,
+    "materialNames": [
+      "MATT",
+      "LIGHTS_GLASS",
+      "DISCS",
+      "CALIPER",
+      "WINDOW_GLASS",
+      "CABIN",
+      "TARMAC_TYRE_WALL",
+      "TARMAC_TYRE_TREAD"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 369.6,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 50.8,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 2.9,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 9.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 150.8,
+        "size": [
+          2048,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 122.8,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 31.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 19.4,
+        "size": [
+          512,
+          256
+        ]
+      }
+    ],
+    "bytes": 1781408,
+    "mb": 1.78,
+    "nodes": 13,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

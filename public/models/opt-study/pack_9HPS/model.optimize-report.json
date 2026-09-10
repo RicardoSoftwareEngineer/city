@@ -1,0 +1,257 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 70926,
+    "meshes": 19,
+    "prims": 19,
+    "materials": 19,
+    "materialNames": [
+      "Suspension",
+      "Carbon_Fiber",
+      "Discs",
+      "Lights_Pod",
+      "Window_Glass",
+      "Cabin",
+      "Matt",
+      "Shiny_Metal",
+      "Car_Body_Paint",
+      "Tarmac_Wheel",
+      "Gravel_Wheel",
+      "Aerials",
+      "Lights_Glass",
+      "Mud_Flaps",
+      "Caliper",
+      "Tarmac_Tyre_Wall",
+      "Tarmac_Tyre_Tread",
+      "Gravel_Tyre_Wall",
+      "Gravel_Tyre_Tread"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 47.6,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 46.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 122.5,
+        "size": [
+          2048,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 179.4,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 186.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 186.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 12.8,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 46.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 6,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 186.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 141,
+        "size": [
+          1024,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 186.5,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 141,
+        "size": [
+          1024,
+          512
+        ]
+      }
+    ],
+    "bytes": 8218464,
+    "mb": 8.22,
+    "nodes": 20,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 61406,
+    "meshes": 16,
+    "prims": 16,
+    "materials": 10,
+    "materialNames": [
+      "Suspension",
+      "Discs",
+      "Lights_Pod",
+      "Window_Glass",
+      "Cabin",
+      "Tarmac_Wheel",
+      "Aerials",
+      "Lights_Glass",
+      "Caliper",
+      "Tarmac_Tyre_Tread"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 31.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 30.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 88.1,
+        "size": [
+          2048,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 117.1,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 123.1,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 8.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 3.9,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 97.7,
+        "size": [
+          1024,
+          512
+        ]
+      }
+    ],
+    "bytes": 2624912,
+    "mb": 2.62,
+    "nodes": 20,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": true,
+  "underBand": false
+}

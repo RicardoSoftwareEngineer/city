@@ -1,0 +1,165 @@
+{
+  "profile": "building",
+  "targetTris": 40000,
+  "before": {
+    "tris": 174133,
+    "meshes": 11,
+    "prims": 20,
+    "materials": 9,
+    "materialNames": [
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 777.9,
+        "size": [
+          8192,
+          8192
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 316.4,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 236,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 383.8,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 30.6,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 61.4,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 14235572,
+    "mb": 14.24,
+    "nodes": 21,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 121522,
+    "meshes": 11,
+    "prims": 20,
+    "materials": 9,
+    "materialNames": [
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)",
+      "(unnamed)"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 118.7,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 127.1,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 95.3,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 166.5,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 31.7,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/webp",
+        "kb": 58.8,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 3294132,
+    "mb": 3.29,
+    "nodes": 21,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": false
+}

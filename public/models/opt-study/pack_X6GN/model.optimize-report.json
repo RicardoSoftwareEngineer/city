@@ -1,0 +1,100 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 13224,
+    "meshes": 4,
+    "prims": 4,
+    "materials": 4,
+    "materialNames": [
+      "scene",
+      "Superb3c_gla",
+      "blank_",
+      "Superb3c"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1061.9,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 0.8,
+        "size": [
+          32,
+          32
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 893.7,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 893.7,
+        "size": [
+          4096,
+          4096
+        ]
+      }
+    ],
+    "bytes": 4146644,
+    "mb": 4.15,
+    "nodes": 5,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 13224,
+    "meshes": 4,
+    "prims": 4,
+    "materials": 3,
+    "materialNames": [
+      "scene",
+      "Superb3c_gla",
+      "blank_"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 794.2,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 272.9,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 1482812,
+    "mb": 1.48,
+    "nodes": 5,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": false,
+  "inBand": false,
+  "underBand": true
+}

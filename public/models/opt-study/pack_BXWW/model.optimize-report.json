@@ -1,0 +1,59 @@
+{
+  "profile": "vehicle-npc",
+  "targetTris": 15000,
+  "before": {
+    "tris": 3284,
+    "meshes": 1,
+    "prims": 1,
+    "materials": 1,
+    "materialNames": [
+      "TexMap"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1080.1,
+        "size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "bytes": 1415496,
+    "mb": 1.42,
+    "nodes": 2,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 3284,
+    "meshes": 1,
+    "prims": 1,
+    "materials": 1,
+    "materialNames": [
+      "TexMap"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 179.6,
+        "size": [
+          1024,
+          1024
+        ]
+      }
+    ],
+    "bytes": 290964,
+    "mb": 0.29,
+    "nodes": 2,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": false,
+  "inBand": false,
+  "underBand": true
+}

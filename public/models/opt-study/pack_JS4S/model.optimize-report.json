@@ -1,0 +1,215 @@
+{
+  "profile": "vehicle-hero",
+  "targetTris": 90000,
+  "before": {
+    "tris": 30855,
+    "meshes": 15,
+    "prims": 15,
+    "materials": 15,
+    "materialNames": [
+      "CAR_BODY_PAINT",
+      "MATT",
+      "SHINY_METAL",
+      "DISCS",
+      "CABIN",
+      "SUSPENSION",
+      "CALIPER",
+      "LIGHTS_GLASS",
+      "LIGHTS_POD",
+      "LIGHTS_SATIN",
+      "BODY_NUMBER_PAINT",
+      "TARMAC_TYRE_WALL",
+      "TARMAC_TYRE_TREAD",
+      "TARMAC_WHEEL",
+      "WINDOW_GLASS"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.5,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.5,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.5,
+        "size": [
+          4096,
+          4096
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 4.8,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 126.4,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 63.4,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 14,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 65.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 65.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 65.2,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 1127.5,
+        "size": [
+          4096,
+          4096
+        ]
+      }
+    ],
+    "bytes": 8063372,
+    "mb": 8.06,
+    "nodes": 16,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "after": {
+    "tris": 30855,
+    "meshes": 15,
+    "prims": 15,
+    "materials": 8,
+    "materialNames": [
+      "CAR_BODY_PAINT",
+      "DISCS",
+      "CABIN",
+      "SUSPENSION",
+      "CALIPER",
+      "LIGHTS_GLASS",
+      "TARMAC_TYRE_WALL",
+      "WINDOW_GLASS"
+    ],
+    "textures": [
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 263.5,
+        "size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 3,
+        "size": [
+          128,
+          128
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 82.7,
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 42.1,
+        "size": [
+          512,
+          512
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 9.5,
+        "size": [
+          256,
+          256
+        ]
+      },
+      {
+        "name": "(unnamed)",
+        "mime": "image/jpeg",
+        "kb": 43.2,
+        "size": [
+          512,
+          512
+        ]
+      }
+    ],
+    "bytes": 1587560,
+    "mb": 1.59,
+    "nodes": 16,
+    "animations": 0,
+    "skins": 0,
+    "cameras": 0
+  },
+  "bakeTodo": true,
+  "inBand": false,
+  "underBand": true
+}

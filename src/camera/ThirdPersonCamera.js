@@ -1,7 +1,7 @@
 /**
  * ThirdPersonCamera — two modes:
  *   'follow' — centered on the car (drag orbit + scroll zoom)
- *   'orbit'  — free flight: WASD + mouse look, car input disabled
+ *   'orbit'  — free flight: WASD + LMB look + RMB pan (XZ), car input disabled
  *
  * Toggle with the on-screen button or the C key.
  */
@@ -49,8 +49,12 @@ export class ThirdPersonCamera {
     this._targetPitch = 0;
     this.flySpeed = BASE_SPEED;
     this._dragging = false;
+    this._panning = false;
     this._lookBlocked = false;
     this._pointerId = null;
+    this._panPointerId = null;
+    this._panRight = new THREE.Vector3();
+    this._panForward = new THREE.Vector3();
     this._dom = renderer.domElement;
     this._lastTarget = null;
     this._mouseInput = null;
@@ -111,6 +115,7 @@ export class ThirdPersonCamera {
     this._lookBlocked = !!blocked;
     if (this._lookBlocked) {
       this._dragging = false;
+      this._endPan();
       if (this._pointerId != null && this._dom) {
         try {
           this._dom.releasePointerCapture(this._pointerId);
@@ -128,6 +133,41 @@ export class ThirdPersonCamera {
     }
   }
 
+  /** End RMB pan and release capture if held. */
+  _endPan() {
+    this._panning = false;
+    if (this._panPointerId != null && this._dom) {
+      try {
+        this._dom.releasePointerCapture(this._panPointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      this._panPointerId = null;
+    }
+  }
+
+  /**
+   * Translate free-flight camera in XZ from screen deltas (no look rotation).
+   * Drag right → world slides with cursor (camera moves left).
+   */
+  _applyPanDelta(dx, dy) {
+    if (!dx && !dy) return;
+    this.camera.getWorldDirection(this._forward);
+    this._panForward.set(this._forward.x, 0, this._forward.z);
+    if (this._panForward.lengthSq() < 1e-8) {
+      this._panForward.set(0, 0, -1);
+    } else {
+      this._panForward.normalize();
+    }
+    this._panRight.crossVectors(this._panForward, this._up).normalize();
+    const sens = Math.max(0.012, Math.abs(this.camera.position.y) * 0.0014 + 0.008);
+    this.camera.position.addScaledVector(this._panRight, -dx * sens);
+    this.camera.position.addScaledVector(this._panForward, dy * sens);
+    this.orbitControls.target
+      .copy(this.camera.position)
+      .addScaledVector(this._forward, 12);
+  }
+
   _setCarMouseEnabled(on) {
     if (this._mouseInput) this._mouseInput.enabled = on;
   }
@@ -136,8 +176,21 @@ export class ThirdPersonCamera {
     this._onDown = (event) => {
       if (this._lookBlocked) return;
       if (this.mode !== 'orbit') return;
-      if (event.button !== 0) return;
       if (event.target.closest?.(UI_BLOCK)) return;
+      // RMB — pan camera in XZ (no look rotation).
+      if (event.button === 2) {
+        this._endPan();
+        this._dragging = false;
+        this._panning = true;
+        this._panPointerId = event.pointerId;
+        try {
+          dom.setPointerCapture(event.pointerId);
+        } catch (_) { /* older browsers */ }
+        event.preventDefault();
+        return;
+      }
+      if (event.button !== 0) return;
+      if (this._panning) return;
       this._dragging = true;
       this._pointerId = event.pointerId;
       try {
@@ -147,20 +200,29 @@ export class ThirdPersonCamera {
     };
     this._onMove = (event) => {
       if (this._lookBlocked) return;
-      if (this.mode !== 'orbit' || !this._dragging) return;
-      // movementX/Y are sub-pixel capable and match PointerLockControls’ input path.
+      if (this.mode !== 'orbit') return;
       let dx = event.movementX;
       let dy = event.movementY;
       if (dx == null || dy == null) {
         dx = 0;
         dy = 0;
       }
+      if (this._panning) {
+        this._applyPanDelta(dx, dy);
+        return;
+      }
+      if (!this._dragging) return;
+      // movementX/Y are sub-pixel capable and match PointerLockControls’ input path.
       this._targetYaw -= dx * LOOK_SENS;
       this._targetPitch -= dy * LOOK_SENS;
       this._targetPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, this._targetPitch));
     };
     this._onUp = (event) => {
+      if (this._panning && (event.button == null || event.button === 2 || event.type === 'pointercancel')) {
+        this._endPan();
+      }
       if (!this._dragging) return;
+      if (event.button != null && event.button !== 0 && event.type !== 'pointercancel') return;
       this._dragging = false;
       if (this._pointerId != null) {
         try {
@@ -168,6 +230,10 @@ export class ThirdPersonCamera {
         } catch (_) { /* ignore */ }
         this._pointerId = null;
       }
+    };
+    this._onContextMenu = (event) => {
+      // Keep RMB for pan — suppress browser menu on the canvas.
+      event.preventDefault();
     };
     this._onWheel = (event) => {
       // Furniture staging consumes wheel for height while look is blocked.
@@ -183,6 +249,7 @@ export class ThirdPersonCamera {
     window.addEventListener('pointermove', this._onMove);
     window.addEventListener('pointerup', this._onUp);
     window.addEventListener('pointercancel', this._onUp);
+    dom.addEventListener('contextmenu', this._onContextMenu);
     dom.addEventListener('wheel', this._onWheel, { passive: false });
   }
 

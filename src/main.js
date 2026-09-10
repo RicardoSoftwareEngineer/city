@@ -210,48 +210,118 @@ async function startGame() {
     getCarPosition: () => vehicleController.chassisBody.position
   });
 
-  // Debug HUD: cycle Porsche → Mercedes → Defender → box.
+  // Debug HUD: cycle Porsche → Mercedes → Mercedes (orig) → Defender → box.
   const carVisualBtn = document.getElementById('car-visual-btn');
+  const carCompareBtn = document.getElementById('car-compare-btn');
+  const carLoadList = document.getElementById('car-load-list');
   const CAR_VISUAL_LABELS = {
     porsche: 'Carro: Porsche',
     mercedes: 'Carro: Mercedes',
+    mercedesOriginal: 'Carro: Mercedes (orig)',
     defender: 'Carro: Defender',
     box: 'Carro: quadrado'
   };
+  function formatBytes(n) {
+    if (n == null) return '';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  function paintCarLoadHud() {
+    if (!carLoadList) return;
+    const rows = porscheModel.getLoadStats();
+    carLoadList.innerHTML = rows
+      .map((r) => {
+        if (r.note && r.totalMs == null) {
+          return `<li><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
+        }
+        if (r.note && (r.id === 'defender' || r.id === 'box')) {
+          return `<li><span class="car-load-id">${r.label}</span> <span class="car-load-note">${r.note}</span></li>`;
+        }
+        const tris = r.tris != null ? ` · ${r.tris.toLocaleString('pt-BR')} tris` : '';
+        const bytes = r.bytes != null ? ` · ${formatBytes(r.bytes)}` : '';
+        return (
+          `<li><span class="car-load-id">${r.label}</span> ` +
+          `<span class="car-load-ms">${r.totalMs} ms</span>` +
+          `<span class="car-load-note"> (fetch ${r.fetchMs} · parse ${r.parseMs}${bytes}${tris})</span></li>`
+        );
+      })
+      .join('');
+  }
   function syncCarVisualBtn() {
     if (!carVisualBtn) return;
     const mode = porscheModel.getVisualMode();
     carVisualBtn.dataset.mode = mode;
     carVisualBtn.textContent = CAR_VISUAL_LABELS[mode] || CAR_VISUAL_LABELS.box;
   }
+  function syncCarCompareBtn() {
+    if (!carCompareBtn) return;
+    const on = porscheModel.getCompareAb();
+    carCompareBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    carCompareBtn.textContent = on ? 'A/B ligado' : 'Comparar A/B';
+  }
+  /** Cycle order; mercedes modes are always offered (lazy-load on select). */
   function nextCarVisualMode(current) {
-    // Porsche → Mercedes → Defender → quadrado → …
-    if (current === 'porsche') {
-      return porscheModel.canShowMercedes() ? 'mercedes' : 'defender';
-    }
-    if (current === 'mercedes') return 'defender';
+    if (current === 'porsche') return 'mercedes';
+    if (current === 'mercedes') return 'mercedesOriginal';
+    if (current === 'mercedesOriginal') return 'defender';
     if (current === 'defender') return 'box';
     if (porscheModel.canShowPorsche()) return 'porsche';
-    if (porscheModel.canShowMercedes()) return 'mercedes';
-    return 'defender';
+    return 'mercedes';
   }
   syncCarVisualBtn();
+  syncCarCompareBtn();
+  paintCarLoadHud();
   if (carVisualBtn) {
     carVisualBtn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      let next = nextCarVisualMode(porscheModel.getVisualMode());
-      if (next === 'porsche' && !porscheModel.canShowPorsche()) {
-        next = porscheModel.canShowMercedes() ? 'mercedes' : 'defender';
-        carVisualBtn.title = 'Porsche ainda carregando';
-      } else if (next === 'mercedes' && !porscheModel.canShowMercedes()) {
-        next = 'defender';
-        carVisualBtn.title = 'Mercedes ainda carregando';
-      } else {
-        carVisualBtn.title = '';
-      }
-      porscheModel.setVisualMode(next);
-      syncCarVisualBtn();
+      const next = nextCarVisualMode(porscheModel.getVisualMode());
+      carVisualBtn.title = 'Carregando…';
+      carVisualBtn.disabled = true;
+      porscheModel
+        .ensureVisualMode(next)
+        .then(() => {
+          carVisualBtn.title = '';
+          syncCarVisualBtn();
+          paintCarLoadHud();
+        })
+        .catch((err) => {
+          console.error('Car visual switch failed:', err);
+          carVisualBtn.title = 'Falha ao carregar carro';
+        })
+        .finally(() => {
+          carVisualBtn.disabled = false;
+          syncCarVisualBtn();
+        });
+    });
+  }
+  if (carCompareBtn) {
+    carCompareBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const next = !porscheModel.getCompareAb();
+      carCompareBtn.disabled = true;
+      const mode = porscheModel.getVisualMode();
+      const ensureBoth =
+        next && (mode === 'mercedes' || mode === 'mercedesOriginal'
+          ? porscheModel.ensureVisualMode(mode)
+          : porscheModel.ensureVisualMode('mercedes'));
+      Promise.resolve(ensureBoth)
+        .then(async () => {
+          if (next && mode !== 'mercedes' && mode !== 'mercedesOriginal') {
+            // Snap to mercedes so A/B has a selected chassis.
+            await porscheModel.ensureVisualMode('mercedes');
+          }
+          porscheModel.setCompareAb(next);
+          syncCarCompareBtn();
+          syncCarVisualBtn();
+          paintCarLoadHud();
+        })
+        .catch((err) => console.error('A/B compare failed:', err))
+        .finally(() => {
+          carCompareBtn.disabled = false;
+        });
     });
   }
 
@@ -529,15 +599,14 @@ async function startGame() {
           );
         };
         porscheModel.load()
-          .then(warmHeroCars)
+          .then(() => {
+            paintCarLoadHud();
+            return warmHeroCars();
+          })
           .catch((error) => {
             console.error('Porsche load failed:', error);
           });
-        porscheModel.loadMercedes()
-          .then(warmHeroCars)
-          .catch((error) => {
-            console.error('Mercedes load failed:', error);
-          });
+        // Mercedes / original: lazy on HUD switch (06-vehicles.md).
         // Keep terrain + nature + carpet phases alive — they end themselves when idle.
         finishAllLoadPhases(['terrain', 'nature', 'carpet']);
         armFocusRemain();

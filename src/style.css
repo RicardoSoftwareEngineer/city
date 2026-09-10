@@ -266,12 +266,77 @@ kbd {
 #car-visual-btn:hover { background: rgba(44, 28, 20, 0.92); }
 #car-visual-btn[data-mode="porsche"] { border-color: #ffb03a; color: #ffb03a; }
 #car-visual-btn[data-mode="mercedes"] { border-color: #c0c8d4; color: #d7dde6; }
+#car-visual-btn[data-mode="mercedesOriginal"] { border-color: #9aa3b2; color: #b8c0cc; }
 #car-visual-btn[data-mode="defender"] { border-color: #6db38a; color: #9fd4b0; }
 #car-visual-btn[data-mode="box"] { border-color: rgba(255, 176, 58, 0.55); }
 
+#car-compare-btn {
+  position: fixed;
+  top: 128px;
+  right: 12px;
+  z-index: 30;
+  padding: 6px 12px;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #d7dde6;
+  background: rgba(20, 22, 28, 0.82);
+  border: 1px solid rgba(192, 200, 212, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+}
+#car-compare-btn:hover { background: rgba(36, 40, 52, 0.92); }
+#car-compare-btn[aria-pressed="true"] {
+  border-color: #c0c8d4;
+  color: #f0f4fa;
+  background: rgba(48, 52, 64, 0.92);
+}
+
+#car-load-hud {
+  position: fixed;
+  top: 168px;
+  right: 12px;
+  z-index: 30;
+  min-width: 11.5rem;
+  max-width: 16rem;
+  padding: 0.4rem 0.55rem;
+  font: 500 11px/1.35 "Segoe UI", system-ui, sans-serif;
+  color: #c8d0dc;
+  background: rgba(12, 14, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  pointer-events: auto;
+}
+#car-load-hud .hud-min-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  font: 600 10px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+#car-load-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+#car-load-list li {
+  margin: 0.15rem 0;
+  color: #a8b4c4;
+}
+#car-load-list .car-load-id { color: #e2e8f0; font-weight: 600; }
+#car-load-list .car-load-ms { color: #7dd3fc; }
+#car-load-list .car-load-note { color: #64748b; }
+
 #terrain-debug-readout {
   position: fixed;
-  top: 132px;
+  top: 280px;
   right: 12px;
   z-index: 30;
   display: none;
@@ -1171,6 +1236,8 @@ body.boot-idle #apts-house-hud,
 body.boot-idle #apts-budget,
 body.boot-idle #terrain-debug-btn,
 body.boot-idle #car-visual-btn,
+body.boot-idle #car-compare-btn,
+body.boot-idle #car-load-hud,
 body.boot-idle .hud-min-toggle {
   visibility: hidden !important;
   pointer-events: none !important;

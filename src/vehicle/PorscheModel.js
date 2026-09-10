@@ -6,16 +6,18 @@
  * chassis still fits. Wheel nodes are re-parented into steer → spin pivots
  * so VehicleController can rotate them independently.
  *
- * Visual modes (HUD): 'porsche' | 'mercedes' | 'defender' | 'box'
- * - porsche / mercedes: glTF (when ready)
+ * Visual modes (HUD): 'porsche' | 'mercedes' | 'mercedesOriginal' | 'defender' | 'box'
+ * - porsche / mercedes / mercedesOriginal: glTF (when ready)
  * - defender: procedural Land Rover Defender 90 (Box/Cylinder/Plane)
  * - box: crude placeholder
+ * - compareAb: show both mercedes roots offset on X for A/B
  *
  * File name kept for churn control; class owns all HUD car visuals.
  */
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { cachedFetch } from '../engine/assetDiskCache.js';
 import { beginLoad, loadMark } from '../engine/loadLog.js';
 import {
@@ -24,7 +26,7 @@ import {
 } from '../world/RoadDimensions.js';
 import { createProceduralDefender } from './ProceduralDefender.js';
 
-/** @typedef {'porsche'|'mercedes'|'defender'|'box'} CarVisualMode */
+/** @typedef {'porsche'|'mercedes'|'mercedesOriginal'|'defender'|'box'} CarVisualMode */
 
 const MERGED_SPIN_RE = /^(AO_tire_main|wheel_rim|discs_Discs|metal_parts_rim)/i;
 
@@ -38,6 +40,7 @@ const GLTF_CARS = {
     url: '/models/porsche/porsche_911_with_interior.glb',
     tag: 'porsche_911_with_interior.glb',
     wrapName: 'porsche-gltf',
+    label: 'Porsche',
     /** Fixed Y offset tuned to physics chassis (historical). */
     rootOffsetY: PORSCHE_ROOT_OFFSET_Y,
     floorWheels: false,
@@ -52,6 +55,7 @@ const GLTF_CARS = {
     url: '/models/mercedes/mercedes.glb',
     tag: 'mercedes.glb',
     wrapName: 'mercedes-gltf',
+    label: 'Mercedes',
     rootOffsetY: 0,
     floorWheels: true,
     isTireMesh(obj) {
@@ -59,6 +63,20 @@ const GLTF_CARS = {
     },
     isSpinMesh(obj) {
       // Merged four-corner tire/rim/disc meshes (unnamed nodes; materials only).
+      return matNameMatches(obj, /TARMAC_TYRE|TARMAC_WHEEL|^DISCS$/i);
+    }
+  },
+  mercedesOriginal: {
+    url: '/models/mercedes/mercedes.original.glb',
+    tag: 'mercedes.original.glb',
+    wrapName: 'mercedes-original-gltf',
+    label: 'Mercedes (orig)',
+    rootOffsetY: 0,
+    floorWheels: true,
+    isTireMesh(obj) {
+      return matNameMatches(obj, /TARMAC_TYRE/i);
+    },
+    isSpinMesh(obj) {
       return matNameMatches(obj, /TARMAC_TYRE|TARMAC_WHEEL|^DISCS$/i);
     }
   }
@@ -93,6 +111,13 @@ export class PorscheModel {
     this._visualMode = 'box';
     this.ready = false;                    // porsche glTF ready
     this.mercedesReady = false;
+    this.mercedesOriginalReady = false;
+    /** @type {boolean} side-by-side mercedes A/B ghost */
+    this._compareAb = false;
+    /** @type {Record<string, { id: string, label: string, fetchMs: number, parseMs: number, totalMs: number, bytes: number, tris: number|null }>} */
+    this._loadStats = {};
+    /** @type {Record<string, Promise<void>>} */
+    this._loadPromises = {};
   }
 
   /**
@@ -168,36 +193,75 @@ export class PorscheModel {
     return this.loadGltf('porsche');
   }
 
-  /** Load Mercedes GLB as optional HUD visual. */
+  /** Load optimized Mercedes GLB (lazy HUD). */
   async loadMercedes() {
     return this.loadGltf('mercedes');
   }
 
+  /** Load preserved Mercedes original for A/B. */
+  async loadMercedesOriginal() {
+    return this.loadGltf('mercedesOriginal');
+  }
+
   /**
-   * @param {'porsche'|'mercedes'} mode
+   * @param {'porsche'|'mercedes'|'mercedesOriginal'} mode
    */
   async loadGltf(mode) {
     const cfg = GLTF_CARS[mode];
     if (!cfg) throw new Error(`unknown glTF car mode: ${mode}`);
     if (this._gltfByMode[mode]) return;
+    if (this._loadPromises[mode]) return this._loadPromises[mode];
 
+    this._loadPromises[mode] = this._loadGltfInner(mode, cfg).finally(() => {
+      delete this._loadPromises[mode];
+    });
+    return this._loadPromises[mode];
+  }
+
+  /**
+   * @param {'porsche'|'mercedes'|'mercedesOriginal'} mode
+   * @param {typeof GLTF_CARS[keyof typeof GLTF_CARS]} cfg
+   */
+  async _loadGltfInner(mode, cfg) {
     const url = cfg.url;
     const loader = new GLTFLoader();
+    await MeshoptDecoder.ready;
+    loader.setMeshoptDecoder(MeshoptDecoder);
     const dir = url.slice(0, url.lastIndexOf('/') + 1);
+
+    const tFetch0 = performance.now();
     const res = await cachedFetch(url);
     if (!res.ok) throw new Error(`${mode} fetch ${res.status}`);
     const buf = await res.arrayBuffer();
+    const fetchMs = performance.now() - tFetch0;
+    const bytes = buf.byteLength;
+
     return new Promise((resolve, reject) => {
       beginLoad('gltf:parse', cfg.tag);
+      const tParse0 = performance.now();
       loader.parse(
         buf,
         dir,
         (gltf) => {
-          const t0 = performance.now();
-          const root = gltf.scene || gltf.scenes[0];
-          this.setupModel(root, mode);
-          loadMark('gltf:parse', cfg.tag, performance.now() - t0);
-          resolve();
+          try {
+            const root = gltf.scene || gltf.scenes[0];
+            this.setupModel(root, mode);
+            const parseMs = performance.now() - tParse0;
+            loadMark('gltf:parse', cfg.tag, parseMs);
+            const tris = countRootTris(this._gltfByMode[mode]?.root);
+            this._loadStats[mode] = {
+              id: mode,
+              label: cfg.label || mode,
+              fetchMs: Math.round(fetchMs),
+              parseMs: Math.round(parseMs),
+              totalMs: Math.round(fetchMs + parseMs),
+              bytes,
+              tris
+            };
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
         },
         reject
       );
@@ -205,8 +269,54 @@ export class PorscheModel {
   }
 
   /**
+   * Last measured load stats for glTF cars (plus static N/A rows for procedural).
+   * @returns {Array<{ id: string, label: string, fetchMs: number|null, parseMs: number|null, totalMs: number|null, bytes: number|null, tris: number|null, note?: string }>}
+   */
+  getLoadStats() {
+    const rows = [];
+    for (const id of ['porsche', 'mercedes', 'mercedesOriginal']) {
+      const s = this._loadStats[id];
+      const cfg = GLTF_CARS[id];
+      if (s) rows.push({ ...s });
+      else {
+        rows.push({
+          id,
+          label: cfg?.label || id,
+          fetchMs: null,
+          parseMs: null,
+          totalMs: null,
+          bytes: null,
+          tris: null,
+          note: 'ainda não carregado'
+        });
+      }
+    }
+    rows.push({
+      id: 'defender',
+      label: 'Defender',
+      fetchMs: 0,
+      parseMs: 0,
+      totalMs: 0,
+      bytes: null,
+      tris: null,
+      note: 'procedural'
+    });
+    rows.push({
+      id: 'box',
+      label: 'quadrado',
+      fetchMs: 0,
+      parseMs: 0,
+      totalMs: 0,
+      bytes: null,
+      tris: null,
+      note: 'instantâneo'
+    });
+    return rows;
+  }
+
+  /**
    * @param {THREE.Object3D} sceneRoot
-   * @param {'porsche'|'mercedes'} mode
+   * @param {'porsche'|'mercedes'|'mercedesOriginal'} mode
    */
   setupModel(sceneRoot, mode = 'porsche') {
     const cfg = GLTF_CARS[mode];
@@ -324,7 +434,12 @@ export class PorscheModel {
       }
     } else if (mode === 'mercedes') {
       this.mercedesReady = true;
+    } else if (mode === 'mercedesOriginal') {
+      this.mercedesOriginalReady = true;
     }
+
+    // Re-apply A/B offsets if compare was already on.
+    if (this._compareAb) this._syncCompareAbOffsets();
   }
 
   /**
@@ -451,8 +566,64 @@ export class PorscheModel {
     return this.mercedesReady;
   }
 
+  canShowMercedesOriginal() {
+    return this.mercedesOriginalReady;
+  }
+
   getVisualMode() {
     return this._visualMode;
+  }
+
+  getCompareAb() {
+    return this._compareAb;
+  }
+
+  /**
+   * Side-by-side A/B: selected mercedes at chassis, the other offset +3 m local X.
+   * @param {boolean} on
+   */
+  setCompareAb(on) {
+    this._compareAb = !!on;
+    this._syncCompareAbOffsets();
+    // Re-show current mode so visibility picks up the ghost.
+    this._applyVisibility(this._visualMode);
+  }
+
+  _syncCompareAbOffsets() {
+    const COMPARE_X = 3;
+    const opt = this._gltfByMode.mercedes;
+    const orig = this._gltfByMode.mercedesOriginal;
+    if (opt) opt.root.position.x = 0;
+    if (orig) orig.root.position.x = 0;
+    if (!this._compareAb) return;
+    const mode = this._visualMode;
+    if (mode === 'mercedes' && orig) {
+      orig.root.position.x = COMPARE_X;
+    } else if (mode === 'mercedesOriginal' && opt) {
+      opt.root.position.x = COMPARE_X;
+    }
+  }
+
+  /**
+   * Ensure a glTF mode is loaded (lazy), then show it.
+   * @param {CarVisualMode} mode
+   * @returns {Promise<void>}
+   */
+  async ensureVisualMode(mode) {
+    if (mode === 'mercedes' && !this._gltfByMode.mercedes) {
+      await this.loadMercedes();
+    } else if (mode === 'mercedesOriginal' && !this._gltfByMode.mercedesOriginal) {
+      await this.loadMercedesOriginal();
+    } else if (mode === 'porsche' && !this._gltfByMode.porsche) {
+      await this.load();
+    }
+    if (this._compareAb && (mode === 'mercedes' || mode === 'mercedesOriginal')) {
+      const other = mode === 'mercedes' ? 'mercedesOriginal' : 'mercedes';
+      if (!this._gltfByMode[other]) {
+        await this.loadGltf(other);
+      }
+    }
+    this.setVisualMode(mode);
   }
 
   /**
@@ -478,6 +649,17 @@ export class PorscheModel {
       return;
     }
 
+    if (mode === 'mercedesOriginal') {
+      if (!this.mercedesOriginalReady || !this._gltfByMode.mercedesOriginal) {
+        this._applyVisibility(
+          this.mercedesReady ? 'mercedes' : this.ready ? 'porsche' : 'box'
+        );
+        return;
+      }
+      this._applyVisibility('mercedesOriginal');
+      return;
+    }
+
     if (mode === 'defender') {
       this.attachDefender();
       this._applyVisibility('defender');
@@ -491,8 +673,26 @@ export class PorscheModel {
   /** @param {CarVisualMode} mode */
   _applyVisibility(mode) {
     this._visualMode = mode;
+    this._syncCompareAbOffsets();
+
+    const showGhost =
+      this._compareAb &&
+      (mode === 'mercedes' || mode === 'mercedesOriginal');
+    const ghostId =
+      mode === 'mercedes'
+        ? 'mercedesOriginal'
+        : mode === 'mercedesOriginal'
+          ? 'mercedes'
+          : null;
+
     for (const [id, entry] of Object.entries(this._gltfByMode)) {
-      entry.root.visible = mode === id;
+      if (id === mode) {
+        entry.root.visible = true;
+      } else if (showGhost && id === ghostId) {
+        entry.root.visible = true;
+      } else {
+        entry.root.visible = false;
+      }
     }
     if (this._defender) this._defender.visible = mode === 'defender';
     if (this._placeholder) this._placeholder.visible = mode === 'box';
@@ -524,6 +724,23 @@ export class PorscheModel {
       }
     }
   }
+}
+
+
+function countRootTris(root) {
+  if (!root) return null;
+  let tris = 0;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const geo = obj.geometry;
+    const idx = geo.index;
+    if (idx) tris += idx.count / 3;
+    else {
+      const pos = geo.attributes?.position;
+      if (pos) tris += pos.count / 3;
+    }
+  });
+  return Math.round(tris);
 }
 
 /** K-means (k=4) on mesh vertex world XZ — returns 4 world-space centroids. */

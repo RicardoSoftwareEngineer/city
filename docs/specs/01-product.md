@@ -27,9 +27,11 @@ Dirigir no **downtown MegaKit** (Quaternius) e sair para um **campo aberto** est
 
 ## Vehicle visuals (HUD)
 
-- Botão `#car-visual-btn`: ciclo **Porsche → Mercedes → Defender → quadrado**.
-- Labels PT: `Carro: Porsche` / `Carro: Mercedes` / `Carro: Defender` / `Carro: quadrado`.
-- glTFs em `public/models/porsche/` e `public/models/mercedes/`; loader em `src/vehicle/PorscheModel.js` (nome histórico — owns todos os modos).
+- Botão `#car-visual-btn`: ciclo **Porsche → Mercedes → Mercedes (orig) → Defender → quadrado**.
+- Labels PT: `Carro: Porsche` / `Carro: Mercedes` / `Carro: Mercedes (orig)` / `Carro: Defender` / `Carro: quadrado`.
+- A/B: botão **Comparar A/B** offset +3 m no X local quando Mercedes/orig carregados — contrato em `06-vehicles.md`.
+- Load times: painel **Load carros** (`getLoadStats()`).
+- glTFs em `public/models/porsche/` e `public/models/mercedes/` (`.original.glb` preservado); loader em `src/vehicle/PorscheModel.js`.
 - Escala visual = `PORSCHE_TARGET_LENGTH` (`RoadDimensions`); física do chassis inalterada.
 - Rodas: discovery por nome legado ou cluster XZ em meshes mesclados (Porsche Sketchfab / Mercedes por material `TARMAC_*`); se <4 cantos, corpo ok e animação de roda degrada.
 

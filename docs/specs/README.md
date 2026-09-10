@@ -10,8 +10,9 @@ Specs = **contrato vivo**. Código segue specs; discordância → corrige códig
 2. Mudar budgets / hitch / ship bar / leftover → lê `03-performance.md` (drive-defer detalhado está em **02**).
 3. Mudar fence / biome / paved / vista → lê `04-world.md`.
 4. Mudar vidro / interiores / cortinas / Todos → lê `05-apartments.md`.
-5. **Same-PR:** mudança intencional de contrato atualiza a spec matching.
-6. `OPTIMIZATION_*.md` = diários históricos — **não** contrato.
+5. Mudar hero car / optimize GLB / A/B / load times → lê `06-vehicles.md`.
+6. **Same-PR:** mudança intencional de contrato atualiza a spec matching.
+7. `OPTIMIZATION_*.md` = diários históricos — **não** contrato.
 
 ## Index
 
@@ -22,6 +23,7 @@ Specs = **contrato vivo**. Código segue specs; discordância → corrige códig
 | [03-performance.md](./03-performance.md) | Budgets, hitch tiers, ship bar |
 | [04-world.md](./04-world.md) | Fence, orchard, biomes, vista, paved |
 | [05-apartments.md](./05-apartments.md) | Glass, InstancedMesh, liveTarget, cortinas |
+| [06-vehicles.md](./06-vehicles.md) | Hero GLB pipeline, originals A/B, load times HUD |
 
 ## Workflow
 
